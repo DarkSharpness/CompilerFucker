@@ -1,0 +1,3 @@
+/home/CompilerFucker/build/CMakeFiles/code.dir
+/home/CompilerFucker/build/CMakeFiles/edit_cache.dir
+/home/CompilerFucker/build/CMakeFiles/rebuild_cache.dir

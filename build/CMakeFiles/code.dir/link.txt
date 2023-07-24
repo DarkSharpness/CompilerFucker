@@ -1,0 +1,1 @@
+/usr/bin/g++ -g CMakeFiles/code.dir/src/ast/ASTvisitor.cpp.o CMakeFiles/code.dir/src/ast/main.cpp.o CMakeFiles/code.dir/src/generated/MxLexer.cpp.o CMakeFiles/code.dir/src/generated/MxParser.cpp.o CMakeFiles/code.dir/src/generated/MxParserBaseVisitor.cpp.o CMakeFiles/code.dir/src/generated/MxParserVisitor.cpp.o -o code  -lantlr4-runtime 

@@ -1,0 +1,32 @@
+[
+{
+  "directory": "/home/CompilerFucker/build",
+  "command": "/usr/bin/g++  -I/usr/include/antlr4-runtime -I/home/CompilerFucker/src/generated -g -o CMakeFiles/code.dir/src/ast/ASTvisitor.cpp.o -c /home/CompilerFucker/src/ast/ASTvisitor.cpp",
+  "file": "/home/CompilerFucker/src/ast/ASTvisitor.cpp"
+},
+{
+  "directory": "/home/CompilerFucker/build",
+  "command": "/usr/bin/g++  -I/usr/include/antlr4-runtime -I/home/CompilerFucker/src/generated -g -o CMakeFiles/code.dir/src/ast/main.cpp.o -c /home/CompilerFucker/src/ast/main.cpp",
+  "file": "/home/CompilerFucker/src/ast/main.cpp"
+},
+{
+  "directory": "/home/CompilerFucker/build",
+  "command": "/usr/bin/g++  -I/usr/include/antlr4-runtime -I/home/CompilerFucker/src/generated -g -o CMakeFiles/code.dir/src/generated/MxLexer.cpp.o -c /home/CompilerFucker/src/generated/MxLexer.cpp",
+  "file": "/home/CompilerFucker/src/generated/MxLexer.cpp"
+},
+{
+  "directory": "/home/CompilerFucker/build",
+  "command": "/usr/bin/g++  -I/usr/include/antlr4-runtime -I/home/CompilerFucker/src/generated -g -o CMakeFiles/code.dir/src/generated/MxParser.cpp.o -c /home/CompilerFucker/src/generated/MxParser.cpp",
+  "file": "/home/CompilerFucker/src/generated/MxParser.cpp"
+},
+{
+  "directory": "/home/CompilerFucker/build",
+  "command": "/usr/bin/g++  -I/usr/include/antlr4-runtime -I/home/CompilerFucker/src/generated -g -o CMakeFiles/code.dir/src/generated/MxParserBaseVisitor.cpp.o -c /home/CompilerFucker/src/generated/MxParserBaseVisitor.cpp",
+  "file": "/home/CompilerFucker/src/generated/MxParserBaseVisitor.cpp"
+},
+{
+  "directory": "/home/CompilerFucker/build",
+  "command": "/usr/bin/g++  -I/usr/include/antlr4-runtime -I/home/CompilerFucker/src/generated -g -o CMakeFiles/code.dir/src/generated/MxParserVisitor.cpp.o -c /home/CompilerFucker/src/generated/MxParserVisitor.cpp",
+  "file": "/home/CompilerFucker/src/generated/MxParserVisitor.cpp"
+}
+]
