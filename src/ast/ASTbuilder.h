@@ -1,15 +1,15 @@
 #pragma once
 
-#include "../generated/MxParserVisitor.h"
+#include "MxParserVisitor.h"
 #include "ASTnode.h"
 #include "utility.h"
 
 namespace dark {
 
-struct ASTvisitor : public MxParserVisitor {
+struct ASTbuilder : public MxParserVisitor {
   public:
-    /* Global nodes. */
-    std::vector <AST::definition *>   global;
+    /* Global definitions. */
+    std::vector <AST::definition *> global;
 
     /* Type mapping. */
     std::map <std::string,AST::typeinfo *> mapping;

@@ -1,10 +1,10 @@
-#include "ASTvisitor.h"
+#include "ASTbuilder.h"
 #include "ASTnode.h"
 
 namespace dark {
 
 /// TODO: Replace this part with visit 3 specific part.
-std::any ASTvisitor::visitFile_Input(MxParser::File_InputContext *ctx) {
+std::any ASTbuilder::visitFile_Input(MxParser::File_InputContext *ctx) {
     for(auto __p : ctx->children) {
         auto __v = visit(__p);
         auto __func = std::any_cast <AST::function *> (&__v);
@@ -28,10 +28,11 @@ std::any ASTvisitor::visitFile_Input(MxParser::File_InputContext *ctx) {
 
         throw error("File input error!");
     }
+    return nullptr; /* Nothing to return. */
 }
 
 // Return a function pointer.
-std::any ASTvisitor::visitFunction_Definition(MxParser::Function_DefinitionContext *ctx) {
+std::any ASTbuilder::visitFunction_Definition(MxParser::Function_DefinitionContext *ctx) {
     auto *__func = new AST::function; /* New function qwq. */
 
     static_cast <AST::argument &> (*__func) 
@@ -51,7 +52,7 @@ std::any ASTvisitor::visitFunction_Definition(MxParser::Function_DefinitionConte
 }
 
 // Return a vector of arguments.
-std::any ASTvisitor::visitFunction_Param_List(MxParser::Function_Param_ListContext *ctx) {
+std::any ASTbuilder::visitFunction_Param_List(MxParser::Function_Param_ListContext *ctx) {
     AST::argument_list __list; // Return list.
     auto __vec = ctx->function_Argument();
     for(auto __p : __vec)
@@ -60,7 +61,7 @@ std::any ASTvisitor::visitFunction_Param_List(MxParser::Function_Param_ListConte
 }
 
 // Return an argument.
-std::any ASTvisitor::visitFunction_Argument(MxParser::Function_ArgumentContext *ctx) {
+std::any ASTbuilder::visitFunction_Argument(MxParser::Function_ArgumentContext *ctx) {
     return AST::argument {
         .name = ctx->Identifier()->getText(),
         .type = std::any_cast <AST::wrapper> (visit(ctx->typename_()))
@@ -68,7 +69,7 @@ std::any ASTvisitor::visitFunction_Argument(MxParser::Function_ArgumentContext *
 }
 
 // Return a class pointer.
-std::any ASTvisitor::visitClass_Definition(MxParser::Class_DefinitionContext *ctx) {
+std::any ASTbuilder::visitClass_Definition(MxParser::Class_DefinitionContext *ctx) {
     auto *__class = new AST::object; // Class to return.
     __class->name = ctx->Identifier()->getText();
     auto __vec = ctx->class_Content();
@@ -86,7 +87,7 @@ std::any ASTvisitor::visitClass_Definition(MxParser::Class_DefinitionContext *ct
 }
 
 // Return a function pointer.
-std::any ASTvisitor::visitClass_Ctor_Function(MxParser::Class_Ctor_FunctionContext *ctx) {
+std::any ASTbuilder::visitClass_Ctor_Function(MxParser::Class_Ctor_FunctionContext *ctx) {
     auto *__ctor = new AST::function;
     /* __ctor has no name, currently no arg_list. */
     __ctor->type = AST::wrapper {
@@ -104,7 +105,7 @@ std::any ASTvisitor::visitClass_Ctor_Function(MxParser::Class_Ctor_FunctionConte
 
 
 // Return a function pointer or vector of variable pointers.
-std::any ASTvisitor::visitClass_Content(MxParser::Class_ContentContext *ctx) {
+std::any ASTbuilder::visitClass_Content(MxParser::Class_ContentContext *ctx) {
     if(ctx->variable_Definition()) {
         return visit(ctx->variable_Definition());
     } else if(ctx->function_Definition()) {
@@ -116,13 +117,13 @@ std::any ASTvisitor::visitClass_Content(MxParser::Class_ContentContext *ctx) {
 
 
 // Return a statement poiner.
-std::any ASTvisitor::visitStmt(MxParser::StmtContext *ctx) {
-
+std::any ASTbuilder::visitStmt(MxParser::StmtContext *ctx) {
+    return visitChildren(ctx);
 }
 
 
 // Return a statement pointer.
-std::any ASTvisitor::visitBlock_Stmt(MxParser::Block_StmtContext *ctx) {
+std::any ASTbuilder::visitBlock_Stmt(MxParser::Block_StmtContext *ctx) {
     auto *__block = new AST::block_stmt;
     auto __vec = ctx->stmt();
     for(auto __p : __vec)
@@ -132,7 +133,7 @@ std::any ASTvisitor::visitBlock_Stmt(MxParser::Block_StmtContext *ctx) {
 
 
 // Return a statement pointer.
-std::any ASTvisitor::visitSimple_Stmt(MxParser::Simple_StmtContext *ctx) {
+std::any ASTbuilder::visitSimple_Stmt(MxParser::Simple_StmtContext *ctx) {
     auto *__simple = new AST::simple_stmt;
     if(ctx->expr_List())
         __simple->expr = std::any_cast <AST::expression_list> (visit(ctx->expr_List()));
@@ -141,7 +142,7 @@ std::any ASTvisitor::visitSimple_Stmt(MxParser::Simple_StmtContext *ctx) {
 
 
 // Return a statement pointer.
-std::any ASTvisitor::visitBranch_Stmt(MxParser::Branch_StmtContext *ctx) {
+std::any ASTbuilder::visitBranch_Stmt(MxParser::Branch_StmtContext *ctx) {
     auto *__branch = new AST::branch_stmt;
 
     __branch->data.push_back(
@@ -164,7 +165,7 @@ std::any ASTvisitor::visitBranch_Stmt(MxParser::Branch_StmtContext *ctx) {
 
 
 // Return a pair of condition and body.
-std::any ASTvisitor::visitIf_Stmt(MxParser::If_StmtContext *ctx) {
+std::any ASTbuilder::visitIf_Stmt(MxParser::If_StmtContext *ctx) {
     return AST::branch_stmt::pair_t {
         .cond = std::any_cast <AST::expression *> (visit(ctx->expression())),
         .stmt = std::any_cast <AST::statement  *> (visit(ctx->stmt()))
@@ -173,7 +174,7 @@ std::any ASTvisitor::visitIf_Stmt(MxParser::If_StmtContext *ctx) {
 
 
 // Return a pair of condition and body.
-std::any ASTvisitor::visitElse_if_Stmt(MxParser::Else_if_StmtContext *ctx) {
+std::any ASTbuilder::visitElse_if_Stmt(MxParser::Else_if_StmtContext *ctx) {
     return AST::branch_stmt::pair_t {
         .cond = std::any_cast <AST::expression *> (visit(ctx->expression())),
         .stmt = std::any_cast <AST::statement  *> (visit(ctx->stmt()))
@@ -182,7 +183,7 @@ std::any ASTvisitor::visitElse_if_Stmt(MxParser::Else_if_StmtContext *ctx) {
 
 
 // Return a pair of condition and body.
-std::any ASTvisitor::visitElse_Stmt(MxParser::Else_StmtContext *ctx) {
+std::any ASTbuilder::visitElse_Stmt(MxParser::Else_StmtContext *ctx) {
      return AST::branch_stmt::pair_t {
         .cond = nullptr,
         .stmt = std::any_cast <AST::statement  *> (visit(ctx->stmt()))
@@ -190,14 +191,14 @@ std::any ASTvisitor::visitElse_Stmt(MxParser::Else_StmtContext *ctx) {
 }
 
 // Return a statement pointer.
-std::any ASTvisitor::visitLoop_Stmt(MxParser::Loop_StmtContext *ctx) {
-    if(ctx->for_Stmt()) visit(ctx->for_Stmt());
-    else                visit(ctx->while_Stmt());
+std::any ASTbuilder::visitLoop_Stmt(MxParser::Loop_StmtContext *ctx) {
+    if(ctx->for_Stmt()) return visit(ctx->for_Stmt());
+    else                return visit(ctx->while_Stmt());
 }
 
 
 // Return a statement pointer.
-std::any ASTvisitor::visitFor_Stmt(MxParser::For_StmtContext *ctx) {
+std::any ASTbuilder::visitFor_Stmt(MxParser::For_StmtContext *ctx) {
     auto *__for = new AST::for_stmt;
     if(ctx->start)
         __for->init = std::any_cast <AST::expression *> (visit(ctx->start));
@@ -211,7 +212,7 @@ std::any ASTvisitor::visitFor_Stmt(MxParser::For_StmtContext *ctx) {
 
 
 // Return a statement pointer.
-std::any ASTvisitor::visitWhile_Stmt(MxParser::While_StmtContext *ctx) {
+std::any ASTbuilder::visitWhile_Stmt(MxParser::While_StmtContext *ctx) {
     auto *__while = new AST::while_stmt;
     __while->cond = std::any_cast <AST::expression *> (visit(ctx->expression()));
     __while->stmt = std::any_cast <AST::statement *> (visit(ctx->stmt()));
@@ -220,7 +221,7 @@ std::any ASTvisitor::visitWhile_Stmt(MxParser::While_StmtContext *ctx) {
 
 
 // Return a statement pointer.
-std::any ASTvisitor::visitFlow_Stmt(MxParser::Flow_StmtContext *ctx) {
+std::any ASTbuilder::visitFlow_Stmt(MxParser::Flow_StmtContext *ctx) {
     auto *__flow = new AST::flow_stmt;
     if(ctx->Continue())     __flow->flow = "continue";
     else if(ctx->Break())   __flow->flow = "break";
@@ -233,7 +234,7 @@ std::any ASTvisitor::visitFlow_Stmt(MxParser::Flow_StmtContext *ctx) {
 
 
 // Return a vector of variable pointers.
-std::any ASTvisitor::visitVariable_Definition(MxParser::Variable_DefinitionContext *ctx) {
+std::any ASTbuilder::visitVariable_Definition(MxParser::Variable_DefinitionContext *ctx) {
     AST::variable_list __list;
     auto __vec = ctx->init_Stmt();
     for(auto __p : __vec)
@@ -243,7 +244,7 @@ std::any ASTvisitor::visitVariable_Definition(MxParser::Variable_DefinitionConte
 
 
 // Return a variable pointer (typename uninitialized).
-std::any ASTvisitor::visitInit_Stmt(MxParser::Init_StmtContext *ctx) {
+std::any ASTbuilder::visitInit_Stmt(MxParser::Init_StmtContext *ctx) {
     auto *__var = new AST::variable;
     __var->name = ctx->Identifier()->getText();
     if(ctx->expression())
@@ -253,7 +254,7 @@ std::any ASTvisitor::visitInit_Stmt(MxParser::Init_StmtContext *ctx) {
 
 
 // Return a vector of expression pointers
-std::any ASTvisitor::visitExpr_List(MxParser::Expr_ListContext *ctx) {
+std::any ASTbuilder::visitExpr_List(MxParser::Expr_ListContext *ctx) {
     AST::expression_list __list;
     auto __vec = ctx->expression();
     for(auto __p : __vec)
@@ -263,7 +264,7 @@ std::any ASTvisitor::visitExpr_List(MxParser::Expr_ListContext *ctx) {
 
 
 // Return a expression pointer.
-std::any ASTvisitor::visitCondition(MxParser::ConditionContext *ctx) {
+std::any ASTbuilder::visitCondition(MxParser::ConditionContext *ctx) {
     auto *__cond = new AST::condition_expr;
     __cond->cond = std::any_cast <AST::expression *> (visit(ctx->v));
     __cond->lval = std::any_cast <AST::expression *> (visit(ctx->l));
@@ -273,7 +274,7 @@ std::any ASTvisitor::visitCondition(MxParser::ConditionContext *ctx) {
 
 
 // Return a expression pointer.
-std::any ASTvisitor::visitSubscript(MxParser::SubscriptContext *ctx) {
+std::any ASTbuilder::visitSubscript(MxParser::SubscriptContext *ctx) {
     auto *__subs = new AST::subscript_expr;
     auto __vec = ctx->expression();
     for(auto __p : __vec)
@@ -283,7 +284,7 @@ std::any ASTvisitor::visitSubscript(MxParser::SubscriptContext *ctx) {
 
 
 // Return a expression pointer.
-std::any ASTvisitor::visitBinary(MxParser::BinaryContext *ctx) {
+std::any ASTbuilder::visitBinary(MxParser::BinaryContext *ctx) {
     auto *__bin = new AST::binary_expr;
     __bin->lval = std::any_cast <AST::expression *> (visit(ctx->l));
     __bin->rval = std::any_cast <AST::expression *> (visit(ctx->r));
@@ -293,7 +294,7 @@ std::any ASTvisitor::visitBinary(MxParser::BinaryContext *ctx) {
 
 
 // Return a expression pointer.
-std::any ASTvisitor::visitFunction(MxParser::FunctionContext *ctx) {
+std::any ASTbuilder::visitFunction(MxParser::FunctionContext *ctx) {
     auto *__func = new AST::function_expr;
     __func->body = std::any_cast <AST::expression *> (visit(ctx->l));
     if(ctx->expr_List()) {
@@ -304,7 +305,7 @@ std::any ASTvisitor::visitFunction(MxParser::FunctionContext *ctx) {
 
 
 // Return a expression pointer.
-std::any ASTvisitor::visitBracket(MxParser::BracketContext *ctx) {
+std::any ASTbuilder::visitBracket(MxParser::BracketContext *ctx) {
     auto *__bra = new AST::bracket_expr;
     __bra->expr = std::any_cast <AST::expression *> (visit(ctx->l));
     return static_cast <AST::expression *> (__bra);
@@ -312,7 +313,7 @@ std::any ASTvisitor::visitBracket(MxParser::BracketContext *ctx) {
 
 
 // Return a expression pointer.
-std::any ASTvisitor::visitMember(MxParser::MemberContext *ctx) {
+std::any ASTbuilder::visitMember(MxParser::MemberContext *ctx) {
     auto *__mem = new AST::member_expr;
     __mem->lval = std::any_cast <AST::expression *> (visit(ctx->l));
     __mem->rval = ctx->Identifier()->getText();
@@ -321,13 +322,13 @@ std::any ASTvisitor::visitMember(MxParser::MemberContext *ctx) {
 
 
 // Return a expression pointer.
-std::any ASTvisitor::visitConstruct(MxParser::ConstructContext *ctx) {
+std::any ASTbuilder::visitConstruct(MxParser::ConstructContext *ctx) {
     return visit(ctx->new_Type());
 }
 
 
 // Return a expression pointer.
-std::any ASTvisitor::visitUnary(MxParser::UnaryContext *ctx) {
+std::any ASTbuilder::visitUnary(MxParser::UnaryContext *ctx) {
     auto *__una = new AST::unary_expr;
     if(ctx->l) {
         __una->expr = std::any_cast <AST::expression *> (visit(ctx->l));
@@ -342,7 +343,7 @@ std::any ASTvisitor::visitUnary(MxParser::UnaryContext *ctx) {
 
 
 // Return a expression pointer.
-std::any ASTvisitor::visitAtom(MxParser::AtomContext *ctx) {
+std::any ASTbuilder::visitAtom(MxParser::AtomContext *ctx) {
     auto *__atom = new AST::identifier;
     __atom->name = ctx->Identifier()->getText();
     return static_cast <AST::expression *> (__atom);
@@ -350,7 +351,7 @@ std::any ASTvisitor::visitAtom(MxParser::AtomContext *ctx) {
 
 
 // Return a expression pointer.
-std::any ASTvisitor::visitLiteral(MxParser::LiteralContext *ctx) {
+std::any ASTbuilder::visitLiteral(MxParser::LiteralContext *ctx) {
     auto *__lite = new AST::identifier;
     __lite->name = ctx->literal_Constant()->getText();
     return static_cast <AST::expression *> (__lite);
@@ -358,13 +359,26 @@ std::any ASTvisitor::visitLiteral(MxParser::LiteralContext *ctx) {
 
 
 // Return specific typeinfo wrapper.
-std::any ASTvisitor::visitTypename(MxParser::TypenameContext *ctx) {
-
+std::any ASTbuilder::visitTypename(MxParser::TypenameContext *ctx) {
+    int __dim = ctx->Brack_Left_().size();
+    if(ctx->Identifier()) {
+        return AST::wrapper {
+            .type = get_typeinfo(ctx->Identifier()->getText()),
+            .info = __dim, /* Dimension.  */
+            .flag = 0, /* Not assignable. */
+        };
+    } else {
+        return AST::wrapper {
+            .type = get_typeinfo(ctx->BasicTypes()->getText()),
+            .info = __dim, /* Dimension.  */
+            .flag = 0, /* Not assignable. */
+        };
+    }
 }
 
 
 // Return a expression pointer.
-std::any ASTvisitor::visitNew_Type(MxParser::New_TypeContext *ctx) {
+std::any ASTbuilder::visitNew_Type(MxParser::New_TypeContext *ctx) {
     auto *__new = new AST::construct_expr;
     int   __dim = 0; /* Default as 0 dimensions. */
 
@@ -394,7 +408,7 @@ std::any ASTvisitor::visitNew_Type(MxParser::New_TypeContext *ctx) {
 
 
 // Return a vector of expression pointers and total dimensions.
-std::any ASTvisitor::visitNew_Index(MxParser::New_IndexContext *ctx) {
+std::any ASTbuilder::visitNew_Index(MxParser::New_IndexContext *ctx) {
     AST::expression_list __list;
     auto __vec = ctx->expression();
     for(auto __p : __vec)
@@ -404,7 +418,7 @@ std::any ASTvisitor::visitNew_Index(MxParser::New_IndexContext *ctx) {
 
 
 // It won't be reached!
-std::any ASTvisitor::visitLiteral_Constant(MxParser::Literal_ConstantContext *ctx) {
+std::any ASTbuilder::visitLiteral_Constant(MxParser::Literal_ConstantContext *ctx) {
     throw error("Literal constant should never be reached!");
 }
 

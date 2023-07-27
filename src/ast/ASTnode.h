@@ -21,7 +21,6 @@ struct typeinfo;
 using   variable_list = std::vector <variable *>;
 using expression_list = std::vector <expression *>;
 
-
 struct op_type {
   private:
     char str[8] = {0};
@@ -65,9 +64,10 @@ struct op_type {
 };
 
 
-std::ostream operator <<(std::ostream &__os,const op_type &__op) {
+inline std::ostream &operator <<(std::ostream &__os,const op_type &__op) {
     for(int i = 0 ; i < 8 && __op[i] ; ++i)
         std::cout << __op[i];
+    return __os;
 }
 
 
@@ -126,7 +126,7 @@ using argument_list = std::vector <argument>;
 
 struct expression : node {
     void print() override = 0;
-    ~expression() override = 0;
+    ~expression() override = default;
 };
 
 
@@ -452,6 +452,7 @@ struct function : definition , argument {
 
 /* Class definition. */
 struct object : definition , typeinfo {
+    /* This member might include ctors. */
     std::vector <definition *> member;
 
     void print() override {
@@ -466,7 +467,6 @@ struct object : definition , typeinfo {
         for(auto __p : member)
             if(dynamic_cast <function *> (__p))
                 __p->print();
-
     }
 
     ~object() override {  for(auto __p : member) delete __p; }

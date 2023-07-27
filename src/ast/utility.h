@@ -5,10 +5,7 @@
 namespace dark {
 
 struct error {
-    error(std::string __s) {
-        std::cout << __s << '\n';
-        exit(1);
-    }
+    error(std::string __s) { std::cerr << __s << '\n'; }
 };
 
 }

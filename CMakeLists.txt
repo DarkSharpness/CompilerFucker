@@ -8,6 +8,7 @@ SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}   -g")
 
 include_directories(/usr/include/antlr4-runtime/)
 include_directories(src/generated/)
+include_directories(src/ast/)
 
 file(GLOB_RECURSE sources src/*.cpp)
 add_executable(code ${sources})
