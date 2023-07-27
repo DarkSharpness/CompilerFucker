@@ -65,17 +65,16 @@ init_Stmt: Identifier ('=' expression)?;
 
 
 /* Expression part */
-expr_List   : expression /*(',' expression)* */  ;
+expr_List   : expression (',' expression)*   ;
 expression  :
   '(' l = expression    op = ')'                                        # bracket
-    | l = expression   (op = '['    expr_List   ']')+                   # subscript
+    | l = expression   (op = '['    expression  ']')+                   # subscript
     | l = expression    op = '('    expr_List?  ')'                     # function
     | l = expression    op = '.'    Identifier                          # member
     | l = expression    op = ('++' |'--')                               # unary
-    |                   op = 'new'  new_Type                            # unary
+    |                   op = 'new'  new_Type                            # construct
     | <assoc = right>   op = ('++' | '--' )             r = expression  # unary
-    | <assoc = right>   op = ('+'  | '-'  )             r = expression  # unary
-    | <assoc = right>   op = ('~'  | '!'  )             r = expression  # unary
+    | <assoc = right>   op = ('+'  | '-'  | '~' | '!' ) r = expression  # unary
     | l = expression    op = ('*'  | '/'  | '%')        r = expression  # binary
     | l = expression    op = ('+'  | '-'  )             r = expression  # binary
     | l = expression    op = ('<<' | '>>' )             r = expression  # binary

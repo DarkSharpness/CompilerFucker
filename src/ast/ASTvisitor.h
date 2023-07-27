@@ -1,12 +1,15 @@
 #pragma once
 
 #include "../generated/MxParserVisitor.h"
+#include "ASTnode.h"
 #include "utility.h"
 
 namespace dark {
 
-class ASTvisitor : MxParserVisitor {
+struct ASTvisitor : public MxParserVisitor {
   public:
+    std::vector <AST::node *> global;
+
     std::any visitFile_Input(MxParser::File_InputContext *context) override;
 
     std::any visitFunction_Definition(MxParser::Function_DefinitionContext *context) override;
@@ -61,6 +64,8 @@ class ASTvisitor : MxParserVisitor {
 
     std::any visitMember(MxParser::MemberContext *context) override;
 
+    std::any visitConstruct(MxParser::ConstructContext *context) override;
+
     std::any visitUnary(MxParser::UnaryContext *context) override;
 
     std::any visitAtom(MxParser::AtomContext *context) override;
@@ -74,6 +79,7 @@ class ASTvisitor : MxParserVisitor {
     std::any visitNew_Index(MxParser::New_IndexContext *context) override;
 
     std::any visitLiteral_Constant(MxParser::Literal_ConstantContext *context) override;
+
 };
 
 
