@@ -23,7 +23,9 @@ using scope   = std::map <std::string,typeinfo *>;
 
 
 struct op_type {
+  private:
     char str[8] = {0};
+  public:
     char operator[](size_t __n) const { return str[__n]; }
     op_type() = default;
     op_type(const op_type &) = default;
@@ -39,6 +41,25 @@ struct op_type {
     }
 
     op_type(const std::string &__s) noexcept : op_type(__s.data()) {}
+
+    op_type &operator =(char *__s) noexcept {
+        for(int i = 0 ; i < 8 && __s[i] ; ++i)
+            str[i] = __s[i];
+        return *this;
+    }
+
+    op_type &operator =(const char *__s) noexcept {
+        for(int i = 0 ; i < 8 && __s[i] ; ++i)
+            str[i] = __s[i];
+        return *this;
+    }
+
+    op_type &operator =(const std::string &__s) noexcept {
+        for(int i = 0 ; i < 8 && __s[i] ; ++i)
+            str[i] = __s[i];
+        return *this;
+    }
+
 };
 
 
@@ -52,14 +73,18 @@ std::ostream operator <<(std::ostream &__os,const op_type &__op) {
 struct node {
     // size_t pos;
     virtual void print() = 0;
-    virtual ~node() = 0;
+    virtual ~node() = default;
 };
 
 
-struct typeinfo : node {
+struct typeinfo {
     std::string name;
-    void print() override = 0;
-    virtual ~typeinfo() = 0;
+
+    virtual void print() {
+        std::cout << "Type info base class!" << std::endl;
+    }
+
+    virtual ~typeinfo() = default;
 };
 
 
@@ -91,27 +116,8 @@ struct wrapper {
 
 /* Argument with name only. */
 struct argument {
-    wrapper     type; /* Type of the variable. */
     std::string name; /* Name of the argument. */
-};
-
-
-/* Variable definition. */
-struct variable : node , argument {
-    expression *init_list = nullptr;
-
-    void print() override {
-        std::cout
-            << "Variable signature:\n"
-            << type.data() << ' ' << name;
-        if(init_list) {
-            std::cout << "Initialization list: ";
-            init_list->print();
-        }
-        std::cout << std::endl;
-    }
-
-    ~variable() override { delete init_list; }
+    wrapper     type; /* Type of the variable. */
 };
 
 
@@ -134,22 +140,26 @@ struct bracket_expr : expression {
 
 
 struct subscript_expr : expression {
-    std::vector <expression *> subs;
-    expression *     expr = nullptr;
+    /* Use first expression as left expression.*/
+    std::vector <expression *> expr;
 
     void print() override {
-        expr->print();
-        for(auto __p : subs) {
+        bool flag = false;
+        for(auto __p : expr) {
+            if(!flag) {
+                flag = true;
+                __p->print();
+                continue;
+            }
+
             std::cout << '[';
             __p->print();
             std::cout << ']';
         }
     }
 
-    ~subscript_expr() override {
-        for(auto __p : subs) delete __p;
-        delete expr;
-    }
+    ~subscript_expr() override { for(auto __p : expr) delete __p; }
+
 };
 
 
@@ -220,17 +230,17 @@ struct construct_expr : expression {
 
 
 struct binary_expr : expression {
-    expression *lhs = nullptr; /* Left  hand side. */
-    expression *rhs = nullptr; /* Right hand side. */
-    op_type      op;           /* Operator. */
+    expression *lval = nullptr; /* Left  hand side. */
+    expression *rval = nullptr; /* Right hand side. */
+    op_type      op;            /* Operator. */
 
     void print() override {
-        lhs->print();
+        lval->print();
         std::cout << ' ' << op << ' ';
-        rhs->print();
+        rval->print();
     }
 
-    ~binary_expr() override { delete lhs; delete rhs; }
+    ~binary_expr() override { delete lval; delete rval; }
 };
 
 
@@ -270,7 +280,7 @@ struct identifier : expression {
 /* Abstract class wrapping. */
 struct statement : node {
     void print() override = 0;
-    ~statement() override = 0;
+    ~statement() override = default;
 };
 
 
@@ -297,15 +307,15 @@ struct for_stmt : statement {
 
 struct flow_stmt : statement {
     op_type flow; /* BREAK | RETURN | CONTINUE */
-    expression *value = nullptr; /* Return value if return. */
+    expression *expr = nullptr; /* Return value if return. */
 
     void print() override {
         std::cout << flow << ' ';
-        if(value) value->print();
+        if(expr) expr->print();
         std::cout << ';' << std::endl;
     }
 
-    ~flow_stmt() override { delete value; }
+    ~flow_stmt() override { delete expr; }
 };
 
 
@@ -339,30 +349,27 @@ struct block_stmt : statement {
 
 
 struct branch_stmt : statement {
-    std::vector <expression *> cond;
-    std::vector <statement  *> stmt;
+    using pair_t = struct {
+        expression *cond = nullptr;
+        statement  *stmt = nullptr;
+    };
+
+    std::vector <pair_t> data;
 
     void print() override {
-        std::cout << "if ( ";
-        cond[0]->print();
-        std::cout << " )\n";
-        stmt[0]->print();
-        for(size_t i = 1 ; i < cond.size() ; ++i) {
-            std::cout << "else if ( ";
-            cond[i]->print();
-            std::cout << " )\n";
-            stmt[i]->print();
-        }
-        if(stmt.size() != cond.size()) {
-            std::cout << "else\n";
-            stmt.back()->print();
+        for(size_t i = 0 ; i < data.size(); ++i) {
+            if(i != 0) std::cout << "else";
+            if(data[i].cond) {
+                std::cout << " if ( ";
+                data[i].cond->print();
+                std::cout << " )";
+            } std::cout << '\n';
+
+            data[i].cond->print();
         }
     }
 
-    ~branch_stmt() override {
-        for(auto __p : cond) delete __p;
-        for(auto __p : stmt) delete __p;
-    }
+    ~branch_stmt() override { for(auto [__c,__s] : data) delete __c, delete __s; }
 };
 
 
@@ -380,21 +387,44 @@ struct simple_stmt : statement {
     ~simple_stmt() override { for(auto __p : expr) delete __p; }
 };
 
+struct definition : node {
+    void print()  override = 0;
+    ~definition() override = default;
+};
+
+
+/* Variable definition. */
+struct variable : definition , argument {
+    expression *init = nullptr; /* Initialization list. */
+
+    void print() override {
+        std::cout
+            << "Variable signature:\n"
+            << type.data() << ' ' << name;
+        if(init) {
+            std::cout << "Initialization list: ";
+            init->print();
+        }
+        std::cout << std::endl;
+    }
+
+    ~variable() override { delete init; }
+};
+
 
 /* Function definition. */
-struct function : typeinfo {
-    argument info; /* Function name and return type. */
+struct function : definition , argument {
     block_stmt * body = nullptr; /* Function body in a block. */
     std::vector <argument> arg_list; /* Argument list. */
 
     void print() override {
         std::cout
             << "Function signature:\n" 
-            << info.type.data() << ' ' << info.name
+            << type.data() << ' ' << name
             << '(';
         for(size_t i = 0 ; i < arg_list.size() ; ++i) {
             if(i != 0) std::cout << ',';
-            std::cout 
+            std::cout
                 << arg_list[i].type.data() << ' '
                 << arg_list[i].name;
         }
@@ -407,48 +437,33 @@ struct function : typeinfo {
 
 
 /* Class definition. */
-struct object : typeinfo {
-    function    ctor; /* Contructor function. */
-    scope    mapping; /* Mapping from name to variables and functions  */
-
-    typeinfo *get_member(const std::string &__f) const {
-        auto iter = mapping.find(__f);
-        if(iter == mapping.end()) return nullptr;
-        return iter->second; 
-    }
+struct object : definition , typeinfo {
+    std::vector <definition *> member;
 
     void print() override {
         std::cout << "Class: " << name << '\n';
 
         std::cout << "Member Variables:\n";
-        for(auto &&[__name,__p] : mapping)
+        for(auto __p : member)
             if(dynamic_cast <variable *> (__p))
                 __p->print();
 
         std::cout << "Member Functions:\n";
-        for(auto &&[__name,__p] : mapping)
+        for(auto __p : member)
             if(dynamic_cast <function *> (__p))
                 __p->print();
 
-        std::cout << "Construction "; ctor.print();
     }
 
-    ~object() override {
-        for(auto &&[name,__p] : mapping)
-            delete __p;
-    }
+    ~object() override {  for(auto __p : member) delete __p; }
 };
 
 
 /* Class definition. */
 struct basic_type : typeinfo {
-    function    ctor; /* Contructor function. */
-
     void print() override {
         std::cout << "Basic_type: " << name << '\n';
-        std::cout << "Construction "; ctor.print();
     }
-
     ~basic_type() override = default;
 };
 

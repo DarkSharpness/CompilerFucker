@@ -6,8 +6,8 @@ channels {
 
 
 /* Comments */
-Comment_Multi   : '/*'.*?'*/'     -> channel(COMMENTS)  ;
-Comment_Single  : '//'.*? NewLine -> channel(COMMENTS)  ;
+Comment_Multi   : '/*'.*?'*/'             -> channel(COMMENTS)  ;
+Comment_Single  : '//'.*? (NewLine | EOF) -> channel(COMMENTS)  ;
 
 
 /* Basics...... */

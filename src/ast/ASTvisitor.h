@@ -8,7 +8,22 @@ namespace dark {
 
 struct ASTvisitor : public MxParserVisitor {
   public:
-    std::vector <AST::node *> global;
+    /* Global nodes. */
+    std::vector <AST::definition *>   global;
+
+    /* Type mapping. */
+    std::map <std::string,AST::typeinfo *> mapping;
+
+    /* Return the typeinfo from given string. */
+    AST::typeinfo *get_typeinfo(std::string str) {
+        auto [__iter,__result] = mapping.insert({std::move(str),nullptr});
+        if(__result) {
+            auto *__info = new AST::typeinfo;
+            __info->name = __iter->first;
+            __iter->second = __info;
+        }
+        return __iter->second;
+    }
 
     std::any visitFile_Input(MxParser::File_InputContext *context) override;
 
