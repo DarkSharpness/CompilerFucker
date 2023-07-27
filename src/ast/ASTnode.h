@@ -18,15 +18,17 @@ struct variable;
 struct expression;
 struct typeinfo;
 
-
-using scope   = std::map <std::string,typeinfo *>;
+using   variable_list = std::vector <variable *>;
+using expression_list = std::vector <expression *>;
 
 
 struct op_type {
   private:
     char str[8] = {0};
   public:
-    char operator[](size_t __n) const { return str[__n]; }
+    char &operator[](size_t __n)       { return str[__n]; }
+    char  operator[](size_t __n) const { return str[__n]; }
+
     op_type() = default;
     op_type(const op_type &) = default;
 
@@ -119,6 +121,7 @@ struct argument {
     std::string name; /* Name of the argument. */
     wrapper     type; /* Type of the variable. */
 };
+using argument_list = std::vector <argument>;
 
 
 struct expression : node {
@@ -141,7 +144,7 @@ struct bracket_expr : expression {
 
 struct subscript_expr : expression {
     /* Use first expression as left expression.*/
-    std::vector <expression *> expr;
+    expression_list expr;
 
     void print() override {
         bool flag = false;
@@ -164,7 +167,7 @@ struct subscript_expr : expression {
 
 
 struct function_expr : expression {
-    std::vector <expression *> args;
+    expression_list args;
     expression *     body = nullptr;
 
     void print() override {
@@ -204,9 +207,20 @@ struct unary_expr : expression {
 };
 
 
+struct member_expr : expression {
+    expression *lval = nullptr; /* Left hand side.     */
+    std::string rval;           /* Name of the member. */
+
+    void print() override {
+        lval->print();
+        std::cout << '.' << rval;
+    }
+};
+
+
 struct construct_expr : expression {
     wrapper type; /* Wrapper of new type. */
-    std::vector <expression *> expr;
+    expression_list expr;
 
     void print() override {
         std::cout << "new " << type.data();
@@ -374,7 +388,7 @@ struct branch_stmt : statement {
 
 
 struct simple_stmt : statement {
-    std::vector <expression *> expr;
+    expression_list expr;
 
     void print() override {
         expr[0]->print();

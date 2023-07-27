@@ -19,7 +19,7 @@ std::any ASTvisitor::visitFile_Input(MxParser::File_InputContext *ctx) {
             continue;
         }
 
-        auto __var_list = std::any_cast <std::vector <AST::variable *>> (&__v);
+        auto __var_list = std::any_cast <AST::variable_list> (&__v);
         if(__var_list) {
             for(auto __var : *__var_list)
                 global.push_back(__var);
@@ -39,7 +39,7 @@ std::any ASTvisitor::visitFunction_Definition(MxParser::Function_DefinitionConte
 
     if(ctx->function_Param_List()) {
         __func->arg_list
-            = std::any_cast <std::vector <AST::argument>> (visit(ctx->function_Param_List()));
+            = std::any_cast <AST::argument_list> (visit(ctx->function_Param_List()));
     }
 
     __func->body = // Cast back down to block_stmt pointer.
@@ -52,7 +52,7 @@ std::any ASTvisitor::visitFunction_Definition(MxParser::Function_DefinitionConte
 
 // Return a vector of arguments.
 std::any ASTvisitor::visitFunction_Param_List(MxParser::Function_Param_ListContext *ctx) {
-    std::vector <AST::argument> __list; // Return list.
+    AST::argument_list __list; // Return list.
     auto __vec = ctx->function_Argument();
     for(auto __p : __vec)
         __list.push_back(std::any_cast <AST::argument> (visit(__p)));
@@ -77,7 +77,7 @@ std::any ASTvisitor::visitClass_Definition(MxParser::Class_DefinitionContext *ct
         auto __tmp = std::any_cast <AST::function *> (&__v);
         if(__tmp) __class->member.push_back(*__tmp);
         else { /* Variable definition case. */
-            auto __var_list = std::any_cast <std::vector <AST::variable *>> (__v);
+            auto __var_list = std::any_cast <AST::variable_list> (__v);
             for(auto __var : __var_list)
                 __class->member.push_back(__var);
         }
@@ -135,9 +135,7 @@ std::any ASTvisitor::visitBlock_Stmt(MxParser::Block_StmtContext *ctx) {
 std::any ASTvisitor::visitSimple_Stmt(MxParser::Simple_StmtContext *ctx) {
     auto *__simple = new AST::simple_stmt;
     if(ctx->expr_List())
-        __simple->expr =
-            std::any_cast <std::vector <AST::expression *>> 
-                (visit(ctx->expr_List()));
+        __simple->expr = std::any_cast <AST::expression_list> (visit(ctx->expr_List()));
     return static_cast <AST::statement *> (__simple);
 }
 
@@ -236,7 +234,7 @@ std::any ASTvisitor::visitFlow_Stmt(MxParser::Flow_StmtContext *ctx) {
 
 // Return a vector of variable pointers.
 std::any ASTvisitor::visitVariable_Definition(MxParser::Variable_DefinitionContext *ctx) {
-    std::vector <AST::variable *> __list;
+    AST::variable_list __list;
     auto __vec = ctx->init_Stmt();
     for(auto __p : __vec)
         __list.push_back(std::any_cast <AST::variable *> (visit(__p)));
@@ -256,7 +254,7 @@ std::any ASTvisitor::visitInit_Stmt(MxParser::Init_StmtContext *ctx) {
 
 // Return a vector of expression pointers
 std::any ASTvisitor::visitExpr_List(MxParser::Expr_ListContext *ctx) {
-    std::vector <AST::expression *> __list;
+    AST::expression_list __list;
     auto __vec = ctx->expression();
     for(auto __p : __vec)
         __list.push_back(std::any_cast <AST::expression *> (visit(__p)));
@@ -299,65 +297,109 @@ std::any ASTvisitor::visitFunction(MxParser::FunctionContext *ctx) {
     auto *__func = new AST::function_expr;
     __func->body = std::any_cast <AST::expression *> (visit(ctx->l));
     if(ctx->expr_List()) {
-        __func->args = 
-            std::any_cast <std::vector <AST::expression *>> 
-                (visit(ctx->expr_List()));
+        __func->args = std::any_cast <AST::expression_list> (visit(ctx->expr_List()));
     }
-    
+    return static_cast <AST::expression *> (__func);
 }
 
 
 // Return a expression pointer.
 std::any ASTvisitor::visitBracket(MxParser::BracketContext *ctx) {
-
+    auto *__bra = new AST::bracket_expr;
+    __bra->expr = std::any_cast <AST::expression *> (visit(ctx->l));
+    return static_cast <AST::expression *> (__bra);
 }
 
 
 // Return a expression pointer.
 std::any ASTvisitor::visitMember(MxParser::MemberContext *ctx) {
-    
+    auto *__mem = new AST::member_expr;
+    __mem->lval = std::any_cast <AST::expression *> (visit(ctx->l));
+    __mem->rval = ctx->Identifier()->getText();
+    return static_cast <AST::expression *> (__mem);
 }
 
 
 // Return a expression pointer.
 std::any ASTvisitor::visitConstruct(MxParser::ConstructContext *ctx) {
-
+    return visit(ctx->new_Type());
 }
 
 
 // Return a expression pointer.
 std::any ASTvisitor::visitUnary(MxParser::UnaryContext *ctx) {
-
+    auto *__una = new AST::unary_expr;
+    if(ctx->l) {
+        __una->expr = std::any_cast <AST::expression *> (visit(ctx->l));
+        __una->op   = ctx->op->getText();
+        __una->op[2]= __una->op[0];
+    } else {
+        __una->expr = std::any_cast <AST::expression *> (visit(ctx->r));
+        __una->op   = ctx->op->getText();
+    }
+    return static_cast <AST::expression *> (__una);
 }
 
 
 // Return a expression pointer.
 std::any ASTvisitor::visitAtom(MxParser::AtomContext *ctx) {
-
+    auto *__atom = new AST::identifier;
+    __atom->name = ctx->Identifier()->getText();
+    return static_cast <AST::expression *> (__atom);
 }
 
 
 // Return a expression pointer.
 std::any ASTvisitor::visitLiteral(MxParser::LiteralContext *ctx) {
-
+    auto *__lite = new AST::identifier;
+    __lite->name = ctx->literal_Constant()->getText();
+    return static_cast <AST::expression *> (__lite);
 }
 
 
-// Return specific typeinfo.
+// Return specific typeinfo wrapper.
 std::any ASTvisitor::visitTypename(MxParser::TypenameContext *ctx) {
 
 }
 
 
-// Return specific typeinfo.
+// Return a expression pointer.
 std::any ASTvisitor::visitNew_Type(MxParser::New_TypeContext *ctx) {
+    auto *__new = new AST::construct_expr;
+    int   __dim = 0; /* Default as 0 dimensions. */
 
+    if(ctx->new_Index()) {
+        auto &&__tmp = std::any_cast <
+            std::pair <AST::expression_list,size_t>
+        > (visit(ctx->new_Index()));
+        __new->expr = std::move(__tmp.first);
+        __dim       = __tmp.second;
+    }
+
+    if(ctx->Identifier()) {
+        __new->type = AST::wrapper {
+            .type = get_typeinfo(ctx->Identifier()->getText()),
+            .info = __dim, /* Dimension.  */
+            .flag = 0, /* Not assignable. */
+        };
+    } else {
+        __new->type = AST::wrapper {
+            .type = get_typeinfo(ctx->BasicTypes()->getText()),
+            .info = __dim, /* Dimension.  */
+            .flag = 0, /* Not assignable. */
+        };
+    }
+    return static_cast <AST::expression *> (__new);
 }
 
 
-// Return the expression in the index.
+// Return a vector of expression pointers and total dimensions.
 std::any ASTvisitor::visitNew_Index(MxParser::New_IndexContext *ctx) {
-    
+    AST::expression_list __list;
+    auto __vec = ctx->expression();
+    for(auto __p : __vec)
+        __list.push_back(std::any_cast <AST::expression *> (visit(__p)));
+    return std::make_pair(std::move(__list),ctx->Brack_Left_().size());
 }
 
 
