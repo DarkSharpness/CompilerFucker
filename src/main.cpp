@@ -13,6 +13,7 @@
 //       if you really need to regenerate,please ask TA for help.
 int main(int argc, const char* argv[]) {
     try {
+        // freopen("test.in","r",stdin);
         MxErrorListener listener;
 
         antlr4::ANTLRInputStream input(std::cin);
@@ -29,8 +30,15 @@ int main(int argc, const char* argv[]) {
         auto *tree = parser.file_Input();
         dark::ASTbuilder Wankupi;
         Wankupi.visit(tree);
-        for(auto __p : Wankupi.global)
+        for(auto __p : Wankupi.global) {
             __p->print();
+            std::cout << "\n\n";
+        }
+
+        std::cout << "// ";
+        for(auto &&[__name,__v] : Wankupi.mapping)
+            std::cout << __name << ' ';
+
 
     } catch(dark::error &err) {
         return 1;

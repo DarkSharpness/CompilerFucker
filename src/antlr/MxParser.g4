@@ -47,7 +47,7 @@ else_Stmt   : 'else'                       stmt ;
 loop_Stmt   : for_Stmt | while_Stmt ;
 for_Stmt    :
     'for' '(' 
-        start       = expression? ';' 
+        (simple_Stmt | variable_Definition)
         condition   = expression? ';'
         step        = expression? 
     ')' stmt;
@@ -88,12 +88,13 @@ expression  :
     | <assoc = right>   v = expression  op = '?'    l = expression ':'  r = expression # condition
     | <assoc = right>   l = expression  op = '='    r = expression      # binary
     | literal_Constant                                                  # literal
-    | Identifier                                                        # atom;
+    | Identifier                                                        # atom
+    | This                                                              # this;
 
 
 /* Basic part.  */
 typename            : (BasicTypes | Identifier) ('[' ']')* ;
 new_Type            : (BasicTypes new_Index) | (Identifier new_Index?); 
-new_Index           : ('[' expression ']')+ ('[' ']')*;
+new_Index           : ('[' good+=expression ']')+ ('[' ']')* ('[' bad+=expression ']')*;
 literal_Constant    : Number | Cstring | Null | True | False;
 

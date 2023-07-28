@@ -3,9 +3,12 @@
 
 namespace dark {
 
+
 /// TODO: Replace this part with visit 3 specific part.
 std::any ASTbuilder::visitFile_Input(MxParser::File_InputContext *ctx) {
     for(auto __p : ctx->children) {
+        if(__p->getText() == "<EOF>") break;
+
         auto __v = visit(__p);
         auto __func = std::any_cast <AST::function *> (&__v);
         if(__func) {
@@ -19,10 +22,9 @@ std::any ASTbuilder::visitFile_Input(MxParser::File_InputContext *ctx) {
             continue;
         }
 
-        auto __var_list = std::any_cast <AST::variable_list> (&__v);
-        if(__var_list) {
-            for(auto __var : *__var_list)
-                global.push_back(__var);
+        auto __var = std::any_cast <AST::variable *> (&__v);
+        if(__var) {
+            global.push_back(*__var);
             continue;
         }
 
@@ -30,6 +32,7 @@ std::any ASTbuilder::visitFile_Input(MxParser::File_InputContext *ctx) {
     }
     return nullptr; /* Nothing to return. */
 }
+
 
 // Return a function pointer.
 std::any ASTbuilder::visitFunction_Definition(MxParser::Function_DefinitionContext *ctx) {
@@ -51,6 +54,7 @@ std::any ASTbuilder::visitFunction_Definition(MxParser::Function_DefinitionConte
     return __func;
 }
 
+
 // Return a vector of arguments.
 std::any ASTbuilder::visitFunction_Param_List(MxParser::Function_Param_ListContext *ctx) {
     AST::argument_list __list; // Return list.
@@ -60,6 +64,7 @@ std::any ASTbuilder::visitFunction_Param_List(MxParser::Function_Param_ListConte
     return __list;
 }
 
+
 // Return an argument.
 std::any ASTbuilder::visitFunction_Argument(MxParser::Function_ArgumentContext *ctx) {
     return AST::argument {
@@ -67,6 +72,7 @@ std::any ASTbuilder::visitFunction_Argument(MxParser::Function_ArgumentContext *
         .type = std::any_cast <AST::wrapper> (visit(ctx->typename_()))
     };
 }
+
 
 // Return a class pointer.
 std::any ASTbuilder::visitClass_Definition(MxParser::Class_DefinitionContext *ctx) {
@@ -78,13 +84,12 @@ std::any ASTbuilder::visitClass_Definition(MxParser::Class_DefinitionContext *ct
         auto __tmp = std::any_cast <AST::function *> (&__v);
         if(__tmp) __class->member.push_back(*__tmp);
         else { /* Variable definition case. */
-            auto __var_list = std::any_cast <AST::variable_list> (__v);
-            for(auto __var : __var_list)
-                __class->member.push_back(__var);
+            __class->member.push_back(std::any_cast <AST::variable *> (__v));
         }
     }
     return __class;
 }
+
 
 // Return a function pointer.
 std::any ASTbuilder::visitClass_Ctor_Function(MxParser::Class_Ctor_FunctionContext *ctx) {
@@ -118,7 +123,12 @@ std::any ASTbuilder::visitClass_Content(MxParser::Class_ContentContext *ctx) {
 
 // Return a statement poiner.
 std::any ASTbuilder::visitStmt(MxParser::StmtContext *ctx) {
-    return visitChildren(ctx);
+    auto __v = visitChildren(ctx);
+    if(!std::any_cast <AST::statement *> (&__v)) {
+        return static_cast <AST::statement *> (
+            std::any_cast <AST::variable *> (__v)
+        );
+    } else return __v;
 }
 
 
@@ -144,20 +154,19 @@ std::any ASTbuilder::visitSimple_Stmt(MxParser::Simple_StmtContext *ctx) {
 // Return a statement pointer.
 std::any ASTbuilder::visitBranch_Stmt(MxParser::Branch_StmtContext *ctx) {
     auto *__branch = new AST::branch_stmt;
-
     __branch->data.push_back(
-        std::any_cast <AST::branch_stmt::pair_t> (ctx->if_Stmt())
+        std::any_cast <AST::branch_stmt::pair_t> (visit(ctx->if_Stmt()))
     );
 
     auto __vec = ctx->else_if_Stmt();
     for(auto __p : __vec)
         __branch->data.push_back(
-            std::any_cast <AST::branch_stmt::pair_t> (__p)
+            std::any_cast <AST::branch_stmt::pair_t> (visit(__p))
         );
 
     if(ctx->else_Stmt())
         __branch->data.push_back(
-            std::any_cast <AST::branch_stmt::pair_t> (ctx->else_Stmt())
+            std::any_cast <AST::branch_stmt::pair_t> (visit(ctx->else_Stmt()))
         );
     
     return static_cast <AST::statement *> (__branch);
@@ -200,8 +209,11 @@ std::any ASTbuilder::visitLoop_Stmt(MxParser::Loop_StmtContext *ctx) {
 // Return a statement pointer.
 std::any ASTbuilder::visitFor_Stmt(MxParser::For_StmtContext *ctx) {
     auto *__for = new AST::for_stmt;
-    if(ctx->start)
-        __for->init = std::any_cast <AST::expression *> (visit(ctx->start));
+    if(ctx->simple_Stmt())
+        __for->init = std::any_cast <AST::statement *> (visit(ctx->simple_Stmt()));
+    if(ctx->variable_Definition())
+        __for->init = std::any_cast <AST::variable *> (visit(ctx->variable_Definition()));
+    
     if(ctx->condition)
         __for->cond = std::any_cast <AST::expression *> (visit(ctx->condition));
     if(ctx->step)
@@ -227,7 +239,8 @@ std::any ASTbuilder::visitFlow_Stmt(MxParser::Flow_StmtContext *ctx) {
     else if(ctx->Break())   __flow->flow = "break";
     else {
         __flow->flow = "return";
-        __flow->expr = std::any_cast <AST::expression *> (visit(ctx->expression()));
+        if(ctx->expression())
+            __flow->expr = std::any_cast <AST::expression *> (visit(ctx->expression()));
     }
     return static_cast <AST::statement *> (__flow);
 }
@@ -235,21 +248,25 @@ std::any ASTbuilder::visitFlow_Stmt(MxParser::Flow_StmtContext *ctx) {
 
 // Return a vector of variable pointers.
 std::any ASTbuilder::visitVariable_Definition(MxParser::Variable_DefinitionContext *ctx) {
-    AST::variable_list __list;
+    auto *__var = new AST::variable;
+    __var->type = std::any_cast <AST::wrapper> (visit(ctx->typename_()));
+
     auto __vec = ctx->init_Stmt();
     for(auto __p : __vec)
-        __list.push_back(std::any_cast <AST::variable *> (visit(__p)));
-    return __list;
+        __var->init.push_back(std::any_cast <AST::variable::pair_t> (visit(__p)));
+
+    return __var;
 }
 
 
-// Return a variable pointer (typename uninitialized).
+// Return a pair of std::string and variable pointer (typename uninitialized).
 std::any ASTbuilder::visitInit_Stmt(MxParser::Init_StmtContext *ctx) {
-    auto *__var = new AST::variable;
-    __var->name = ctx->Identifier()->getText();
-    if(ctx->expression())
-        __var->init = std::any_cast <AST::expression *> (visit(ctx->expression()));
-    return __var;
+    return AST::variable::pair_t {
+        ctx->Identifier()->getText(),
+        ctx->expression() ?
+            std::any_cast <AST::expression *> (visit(ctx->expression())) :
+            nullptr
+    };
 }
 
 
@@ -344,7 +361,7 @@ std::any ASTbuilder::visitUnary(MxParser::UnaryContext *ctx) {
 
 // Return a expression pointer.
 std::any ASTbuilder::visitAtom(MxParser::AtomContext *ctx) {
-    auto *__atom = new AST::identifier;
+    auto *__atom = new AST::atom_expr;
     __atom->name = ctx->Identifier()->getText();
     return static_cast <AST::expression *> (__atom);
 }
@@ -352,7 +369,7 @@ std::any ASTbuilder::visitAtom(MxParser::AtomContext *ctx) {
 
 // Return a expression pointer.
 std::any ASTbuilder::visitLiteral(MxParser::LiteralContext *ctx) {
-    auto *__lite = new AST::identifier;
+    auto *__lite = new AST::literal_constant;
     __lite->name = ctx->literal_Constant()->getText();
     return static_cast <AST::expression *> (__lite);
 }
@@ -410,7 +427,8 @@ std::any ASTbuilder::visitNew_Type(MxParser::New_TypeContext *ctx) {
 // Return a vector of expression pointers and total dimensions.
 std::any ASTbuilder::visitNew_Index(MxParser::New_IndexContext *ctx) {
     AST::expression_list __list;
-    auto __vec = ctx->expression();
+    if(!ctx->bad.empty()) throw error("Bad new expression!");
+    auto __vec = ctx->good;
     for(auto __p : __vec)
         __list.push_back(std::any_cast <AST::expression *> (visit(__p)));
     return std::make_pair(std::move(__list),ctx->Brack_Left_().size());
@@ -422,6 +440,11 @@ std::any ASTbuilder::visitLiteral_Constant(MxParser::Literal_ConstantContext *ct
     throw error("Literal constant should never be reached!");
 }
 
+std::any ASTbuilder::visitThis(MxParser::ThisContext *context) {
+    auto *__atom = new AST::atom_expr;
+    __atom->name = "this";
+    return static_cast <AST::expression *> (__atom);
+}
 
 
 }

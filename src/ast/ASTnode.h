@@ -18,7 +18,6 @@ struct variable;
 struct expression;
 struct typeinfo;
 
-using   variable_list = std::vector <variable *>;
 using expression_list = std::vector <expression *>;
 
 struct op_type {
@@ -147,17 +146,10 @@ struct subscript_expr : expression {
     expression_list expr;
 
     void print() override {
-        bool flag = false;
-        for(auto __p : expr) {
-            if(!flag) {
-                flag = true;
-                __p->print();
-                continue;
-            }
-
-            std::cout << '[';
-            __p->print();
-            std::cout << ']';
+        for(size_t i = 0 ; i != expr.size() ; ++i) {
+            if(i) std::cout << '[';
+            expr[i]->print();
+            if(i) std::cout << ']';
         }
     }
 
@@ -223,20 +215,19 @@ struct construct_expr : expression {
     expression_list expr;
 
     void print() override {
-        std::cout << "new " << type.data();
+        std::cout << "new " << type.type->name;
 
         size_t i = 0;
         size_t __len = expr.size();
-        while(i < __len) {
+        for(; i < __len ; ++i) {
             std::cout << '[';
             expr[i]->print();
             std::cout << ']';
         }
 
         __len = type.dimension();
-        while(i < __len)
+        for(; i < __len ; ++i)
             std::cout << '[' << ']';
-        std::cout << std::endl;
     }
 
     ~construct_expr() override { for(auto __p : expr) delete __p; }
@@ -275,19 +266,19 @@ struct condition_expr : expression {
 };
 
 
+struct atom_expr : expression {
+    std::string name;
+
+    void print() override { std::cout << name; }
+    ~atom_expr() override = default;
+};
+
+
 struct literal_constant : expression {
     std::string name;
 
     void print() override { std::cout << name; }
     ~literal_constant() override = default;
-};
-
-
-struct identifier : expression {
-    std::string name;
-
-    void print() override { std::cout << name; }
-    ~identifier() override = default;
 };
 
 
@@ -299,20 +290,21 @@ struct statement : node {
 
 
 struct for_stmt : statement {
-    expression *init = nullptr;
+    statement  *init = nullptr;
     expression *cond = nullptr;
     expression *step = nullptr;
     statement  *stmt = nullptr;
 
     void print() override {
-        std::cout << "for ( ";
-        init->print();
-        std::cout << " ; ";
-        cond->print();
-        std::cout << " ; ";
-        step->print();
-        std::cout << " )\n";
-        stmt->print();
+        std::cout << "for (";
+        if(init) init->print();
+        std::cout << ' ';
+        // std::cout << " ; "; Statment already contains ';'
+        if(cond) cond->print();
+        std::cout << "; ";
+        if(step) step->print();
+        std::cout << ") ";
+        if(stmt) stmt->print();
     }
 
     ~for_stmt() override { delete init; delete cond; delete step; delete stmt; }
@@ -326,7 +318,7 @@ struct flow_stmt : statement {
     void print() override {
         std::cout << flow << ' ';
         if(expr) expr->print();
-        std::cout << ';' << std::endl;
+        std::cout << ';';
     }
 
     ~flow_stmt() override { delete expr; }
@@ -338,9 +330,9 @@ struct while_stmt : statement {
     statement  *stmt = nullptr;
 
     void print() override {
-        std::cout << "while ( ";
+        std::cout << "while (";
         cond->print();
-        std::cout << " )\n";
+        std::cout << ") ";
         stmt->print();
     }
 
@@ -353,9 +345,11 @@ struct block_stmt : statement {
 
     void print() override {
         std::cout << "{\n";
-        for(auto __p : stmt)
+        for(auto __p : stmt) {
             __p->print();
-        std::cout << "}\n";
+            std::cout << '\n';
+        }
+        std::cout << "}";
     }
 
     ~block_stmt() override { for(auto __p : stmt) delete __p; }
@@ -372,14 +366,16 @@ struct branch_stmt : statement {
 
     void print() override {
         for(size_t i = 0 ; i < data.size(); ++i) {
-            if(i != 0) std::cout << "else";
+            if(i != 0) std::cout << "else ";
             if(data[i].cond) {
-                std::cout << " if ( ";
+                std::cout << "if (";
                 data[i].cond->print();
-                std::cout << " )";
-            } std::cout << '\n';
-
-            data[i].cond->print();
+                std::cout << ") ";
+            }
+            if(data[i].stmt) {
+                data[i].stmt->print();
+                std::cout << '\n';
+            }
         }
     }
 
@@ -391,11 +387,10 @@ struct simple_stmt : statement {
     expression_list expr;
 
     void print() override {
-        expr[0]->print();
-        for(size_t i = 1 ; i < expr.size() ; ++i) {
-            std::cout << ',';
+        for(size_t i = 0 ; i < expr.size() ; ++i) {
+            if(i != 0) std::cout << " , ";
             expr[i]->print();
-        } std::cout << ';' << std::endl;
+        } std::cout << ';';
     }
 
     ~simple_stmt() override { for(auto __p : expr) delete __p; }
@@ -406,23 +401,29 @@ struct definition : node {
     ~definition() override = default;
 };
 
+using variable_list = std::vector <std::pair<std::string,expression *>>;
 
 /* Variable definition. */
-struct variable : definition , argument {
-    expression *init = nullptr; /* Initialization list. */
+struct variable : definition , statement {
+    using pair_t = std::pair<std::string,expression *>;
+
+    wrapper       type; /* Type info within. */
+    variable_list init; /* Initialize list.  */
 
     void print() override {
-        std::cout
-            << "Variable signature:\n"
-            << type.data() << ' ' << name;
-        if(init) {
-            std::cout << "Initialization list: ";
-            init->print();
-        }
-        std::cout << std::endl;
+        std::cout << type.data() << ' ';
+        bool flag = false;
+        for(auto &&[__name,__p] : init) {
+            if(!flag) flag = true;
+            else      std::cout << ',';
+            std::cout << __name;
+            if(!__p) continue;
+            std::cout << " = ";
+            __p->print();
+        } std::cout << ';';
     }
 
-    ~variable() override { delete init; }
+    ~variable() override { for(auto __p : init) delete __p.second;}
 };
 
 
@@ -433,7 +434,7 @@ struct function : definition , argument {
 
     void print() override {
         std::cout
-            << "Function signature:\n" 
+            // << "Function signature:\n" 
             << type.data() << ' ' << name
             << '(';
         for(size_t i = 0 ; i < arg_list.size() ; ++i) {
@@ -442,7 +443,9 @@ struct function : definition , argument {
                 << arg_list[i].type.data() << ' '
                 << arg_list[i].name;
         }
-        std::cout << ")\nFunction body:\n";
+        std::cout << ") "
+                    //   "Function body:\n"
+                      ;
         body->print();
     }
 
@@ -456,17 +459,23 @@ struct object : definition , typeinfo {
     std::vector <definition *> member;
 
     void print() override {
-        std::cout << "Class: " << name << '\n';
+        std::cout << "class " << name << " {\n";
 
-        std::cout << "Member Variables:\n";
+        // std::cout << "Member Variables:\n";
         for(auto __p : member)
-            if(dynamic_cast <variable *> (__p))
+            if(dynamic_cast <variable *> (__p)) {
                 __p->print();
+                std::cout << '\n';
+            }
 
-        std::cout << "Member Functions:\n";
+        // std::cout << "Member Functions:\n";
         for(auto __p : member)
-            if(dynamic_cast <function *> (__p))
+            if(dynamic_cast <function *> (__p)) {
                 __p->print();
+                std::cout << '\n';
+            }
+
+        std::cout << "};";
     }
 
     ~object() override {  for(auto __p : member) delete __p; }

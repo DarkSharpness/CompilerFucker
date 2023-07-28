@@ -95,6 +95,9 @@ struct ASTbuilder : public MxParserVisitor {
 
     std::any visitLiteral_Constant(MxParser::Literal_ConstantContext *context) override;
 
+    std::any visitThis(MxParser::ThisContext *context) override;
+
+
 };
 
 
