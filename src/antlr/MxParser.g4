@@ -5,7 +5,7 @@ options {
 }
 
 
-file_Input: (function_Definition | class_Definition | variable_Definition)* EOF  ;
+file_Input: (function_Definition | class_Definition | variable_Definition | ';')* EOF  ;
 
 
 /* Function part. */

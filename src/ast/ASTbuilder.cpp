@@ -10,25 +10,23 @@ std::any ASTbuilder::visitFile_Input(MxParser::File_InputContext *ctx) {
         if(__p->getText() == "<EOF>") break;
 
         auto __v = visit(__p);
-        auto __func = std::any_cast <AST::function *> (&__v);
+        auto __func = std::any_cast <AST::function_def *> (&__v);
         if(__func) {
             global.push_back(*__func);
             continue;
         }
 
-        auto __class = std::any_cast <AST::object *> (&__v);
+        auto __class = std::any_cast <AST::class_def *> (&__v);
         if(__class) {
             global.push_back(*__class);
             continue;
         }
 
-        auto __var = std::any_cast <AST::variable *> (&__v);
+        auto __var = std::any_cast <AST::variable_def *> (&__v);
         if(__var) {
             global.push_back(*__var);
             continue;
         }
-
-        throw error("File input error!");
     }
     return nullptr; /* Nothing to return. */
 }
@@ -36,7 +34,7 @@ std::any ASTbuilder::visitFile_Input(MxParser::File_InputContext *ctx) {
 
 // Return a function pointer.
 std::any ASTbuilder::visitFunction_Definition(MxParser::Function_DefinitionContext *ctx) {
-    auto *__func = new AST::function; /* New function qwq. */
+    auto *__func = new AST::function_def; /* New function qwq. */
 
     static_cast <AST::argument &> (*__func) 
         = std::any_cast <AST::argument> (visit(ctx->function_Argument()));
@@ -76,15 +74,15 @@ std::any ASTbuilder::visitFunction_Argument(MxParser::Function_ArgumentContext *
 
 // Return a class pointer.
 std::any ASTbuilder::visitClass_Definition(MxParser::Class_DefinitionContext *ctx) {
-    auto *__class = new AST::object; // Class to return.
+    auto *__class = new AST::class_def; // Class to return.
     __class->name = ctx->Identifier()->getText();
     auto __vec = ctx->class_Content();
     for(auto __p : __vec) {
         auto __v   = visit(__p);
-        auto __tmp = std::any_cast <AST::function *> (&__v);
+        auto __tmp = std::any_cast <AST::function_def *> (&__v);
         if(__tmp) __class->member.push_back(*__tmp);
         else { /* Variable definition case. */
-            __class->member.push_back(std::any_cast <AST::variable *> (__v));
+            __class->member.push_back(std::any_cast <AST::variable_def *> (__v));
         }
     }
     return __class;
@@ -93,7 +91,7 @@ std::any ASTbuilder::visitClass_Definition(MxParser::Class_DefinitionContext *ct
 
 // Return a function pointer.
 std::any ASTbuilder::visitClass_Ctor_Function(MxParser::Class_Ctor_FunctionContext *ctx) {
-    auto *__ctor = new AST::function;
+    auto *__ctor = new AST::function_def;
     /* __ctor has no name, currently no arg_list. */
     __ctor->type = AST::wrapper {
         .type = get_typeinfo(ctx->Identifier()->getText()),
@@ -126,7 +124,7 @@ std::any ASTbuilder::visitStmt(MxParser::StmtContext *ctx) {
     auto __v = visitChildren(ctx);
     if(!std::any_cast <AST::statement *> (&__v)) {
         return static_cast <AST::statement *> (
-            std::any_cast <AST::variable *> (__v)
+            std::any_cast <AST::variable_def *> (__v)
         );
     } else return __v;
 }
@@ -212,7 +210,7 @@ std::any ASTbuilder::visitFor_Stmt(MxParser::For_StmtContext *ctx) {
     if(ctx->simple_Stmt())
         __for->init = std::any_cast <AST::statement *> (visit(ctx->simple_Stmt()));
     if(ctx->variable_Definition())
-        __for->init = std::any_cast <AST::variable *> (visit(ctx->variable_Definition()));
+        __for->init = std::any_cast <AST::variable_def *> (visit(ctx->variable_Definition()));
     
     if(ctx->condition)
         __for->cond = std::any_cast <AST::expression *> (visit(ctx->condition));
@@ -248,12 +246,12 @@ std::any ASTbuilder::visitFlow_Stmt(MxParser::Flow_StmtContext *ctx) {
 
 // Return a vector of variable pointers.
 std::any ASTbuilder::visitVariable_Definition(MxParser::Variable_DefinitionContext *ctx) {
-    auto *__var = new AST::variable;
+    auto *__var = new AST::variable_def;
     __var->type = std::any_cast <AST::wrapper> (visit(ctx->typename_()));
 
     auto __vec = ctx->init_Stmt();
     for(auto __p : __vec)
-        __var->init.push_back(std::any_cast <AST::variable::pair_t> (visit(__p)));
+        __var->init.push_back(std::any_cast <AST::variable_def::pair_t> (visit(__p)));
 
     return __var;
 }
@@ -261,7 +259,7 @@ std::any ASTbuilder::visitVariable_Definition(MxParser::Variable_DefinitionConte
 
 // Return a pair of std::string and variable pointer (typename uninitialized).
 std::any ASTbuilder::visitInit_Stmt(MxParser::Init_StmtContext *ctx) {
-    return AST::variable::pair_t {
+    return AST::variable_def::pair_t {
         ctx->Identifier()->getText(),
         ctx->expression() ?
             std::any_cast <AST::expression *> (visit(ctx->expression())) :

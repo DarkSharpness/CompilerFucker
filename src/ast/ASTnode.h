@@ -1,5 +1,7 @@
 #pragma once
 
+#include "utility.h"
+
 #include <map>
 #include <vector>
 #include <cstring>
@@ -9,126 +11,6 @@
 
 namespace dark::AST {
 
-
-struct node;
-struct argument;
-struct object;
-struct statement;
-struct variable;
-struct expression;
-struct typeinfo;
-
-using expression_list = std::vector <expression *>;
-
-struct op_type {
-  private:
-    char str[8] = {0};
-  public:
-    char &operator[](size_t __n)       { return str[__n]; }
-    char  operator[](size_t __n) const { return str[__n]; }
-
-    op_type() = default;
-    op_type(const op_type &) = default;
-
-    op_type(char *__s) noexcept {
-        for(int i = 0 ; i < 8 && __s[i] ; ++i)
-            str[i] = __s[i];
-    }
-
-    op_type(const char *__s) noexcept {
-        for(int i = 0 ; i < 8 && __s[i] ; ++i)
-            str[i] = __s[i];
-    }
-
-    op_type(const std::string &__s) noexcept : op_type(__s.data()) {}
-
-    op_type &operator =(char *__s) noexcept {
-        for(int i = 0 ; i < 8 && __s[i] ; ++i)
-            str[i] = __s[i];
-        return *this;
-    }
-
-    op_type &operator =(const char *__s) noexcept {
-        for(int i = 0 ; i < 8 && __s[i] ; ++i)
-            str[i] = __s[i];
-        return *this;
-    }
-
-    op_type &operator =(const std::string &__s) noexcept {
-        for(int i = 0 ; i < 8 && __s[i] ; ++i)
-            str[i] = __s[i];
-        return *this;
-    }
-
-};
-
-
-inline std::ostream &operator <<(std::ostream &__os,const op_type &__op) {
-    for(int i = 0 ; i < 8 && __op[i] ; ++i)
-        std::cout << __op[i];
-    return __os;
-}
-
-
-/* Node with  */
-struct node {
-    // size_t pos;
-    virtual void print() = 0;
-    virtual ~node() = default;
-};
-
-
-struct typeinfo {
-    std::string name;
-
-    virtual void print() {
-        std::cout << "Type info base class!" << std::endl;
-    }
-
-    virtual ~typeinfo() = default;
-};
-
-
-/* Wrapper of a specific type. */
-struct wrapper {
-    typeinfo *type; /* Pointer to real type. */
-    int       info; /* Dimension.            */
-    int       flag; /* Whether assignable.   */
-
-    /* Dimension of the object. */
-    size_t dimension() const { return info; }
-
-    /* Whether the expression is assignable. */
-    bool assignable()  const { return flag; }
-
-    /* Return the info of the wrapper. */
-    std::string data() const noexcept {
-        std::string __ans;
-        size_t __len = type->name.size();
-        __ans.resize(__len + info * 2);
-        strcpy(__ans.data(),type->name.data());
-        for(int i = 0 ; i < info ; ++i) {
-            __ans[__len + (i << 1)    ] = '[';
-            __ans[__len + (i << 1 | 1)] = ']';
-        } return __ans;
-    }
-};
-
-
-/* Argument with name only. */
-struct argument {
-    std::string name; /* Name of the argument. */
-    wrapper     type; /* Type of the variable. */
-};
-using argument_list = std::vector <argument>;
-
-
-struct expression : node {
-    void print() override = 0;
-    ~expression() override = default;
-};
-
-
 struct bracket_expr : expression {
     expression *expr = nullptr;
 
@@ -137,6 +19,9 @@ struct bracket_expr : expression {
         expr->print();
         std::cout << ')';
     }
+
+    void accept(ASTvisitorbase *__p) override { return __p->visitBracketExpr(this); }
+
     ~bracket_expr() override { delete expr; }
 };
 
@@ -152,6 +37,8 @@ struct subscript_expr : expression {
             if(i) std::cout << ']';
         }
     }
+
+    void accept(ASTvisitorbase *__p) override { return __p->visitSubscriptExpr(this); }
 
     ~subscript_expr() override { for(auto __p : expr) delete __p; }
 
@@ -172,6 +59,8 @@ struct function_expr : expression {
             __p->print();
         } std::cout << ')';
     }
+
+    void accept(ASTvisitorbase *__p) override { return __p->visitFunctionExpr(this); }
 
     ~function_expr() override {
         for(auto __p : args) delete __p;
@@ -195,6 +84,9 @@ struct unary_expr : expression {
         }
     }
 
+    void accept(ASTvisitorbase *__p) override { return __p->visitUnaryExpr(this); }
+
+
     ~unary_expr() override { delete expr; }
 };
 
@@ -202,6 +94,8 @@ struct unary_expr : expression {
 struct member_expr : expression {
     expression *lval = nullptr; /* Left hand side.     */
     std::string rval;           /* Name of the member. */
+
+    void accept(ASTvisitorbase *__p) override { return __p->visitMemberExpr(this); }
 
     void print() override {
         lval->print();
@@ -230,6 +124,9 @@ struct construct_expr : expression {
             std::cout << '[' << ']';
     }
 
+    void accept(ASTvisitorbase *__p) override { return __p->visitConstructExpr(this); }
+
+
     ~construct_expr() override { for(auto __p : expr) delete __p; }
 };
 
@@ -244,6 +141,8 @@ struct binary_expr : expression {
         std::cout << ' ' << op << ' ';
         rval->print();
     }
+
+    void accept(ASTvisitorbase *__p) override { return __p->visitBinaryExpr(this); }
 
     ~binary_expr() override { delete lval; delete rval; }
 };
@@ -262,6 +161,8 @@ struct condition_expr : expression {
         rval->print();
     }
 
+    void accept(ASTvisitorbase *__p) override { return __p->visitConditionExpr(this); }
+
     ~condition_expr() override { delete cond; delete lval; delete rval; }
 };
 
@@ -270,6 +171,7 @@ struct atom_expr : expression {
     std::string name;
 
     void print() override { std::cout << name; }
+    void accept(ASTvisitorbase *__p) override { return __p->visitAtomExpr(this); }
     ~atom_expr() override = default;
 };
 
@@ -278,14 +180,8 @@ struct literal_constant : expression {
     std::string name;
 
     void print() override { std::cout << name; }
+    void accept(ASTvisitorbase *__p) override { return __p->visitLiteralConstant(this); }
     ~literal_constant() override = default;
-};
-
-
-/* Abstract class wrapping. */
-struct statement : node {
-    void print() override = 0;
-    ~statement() override = default;
 };
 
 
@@ -307,6 +203,9 @@ struct for_stmt : statement {
         if(stmt) stmt->print();
     }
 
+    void accept(ASTvisitorbase *__p) override { return __p->visitForStmt(this); }
+
+
     ~for_stmt() override { delete init; delete cond; delete step; delete stmt; }
 };
 
@@ -320,6 +219,8 @@ struct flow_stmt : statement {
         if(expr) expr->print();
         std::cout << ';';
     }
+
+    void accept(ASTvisitorbase *__p) override { return __p->visitFlowStmt(this); }
 
     ~flow_stmt() override { delete expr; }
 };
@@ -336,6 +237,8 @@ struct while_stmt : statement {
         stmt->print();
     }
 
+    void accept(ASTvisitorbase *__p) override { return __p->visitWhileStmt(this); }
+
     ~while_stmt() override { delete cond; delete stmt; }
 };
 
@@ -351,6 +254,8 @@ struct block_stmt : statement {
         }
         std::cout << "}";
     }
+
+    void accept(ASTvisitorbase *__p) override { return __p->visitBlockStmt(this); }
 
     ~block_stmt() override { for(auto __p : stmt) delete __p; }
 };
@@ -379,6 +284,8 @@ struct branch_stmt : statement {
         }
     }
 
+    void accept(ASTvisitorbase *__p) override { return __p->visitBranchStmt(this); }
+
     ~branch_stmt() override { for(auto [__c,__s] : data) delete __c, delete __s; }
 };
 
@@ -393,19 +300,15 @@ struct simple_stmt : statement {
         } std::cout << ';';
     }
 
+    void accept(ASTvisitorbase *__p) override { return __p->visitSimpleStmt(this); }
+
     ~simple_stmt() override { for(auto __p : expr) delete __p; }
 };
 
-struct definition : node {
-    void print()  override = 0;
-    ~definition() override = default;
-};
 
-using variable_list = std::vector <std::pair<std::string,expression *>>;
-
-/* Variable definition. */
-struct variable : definition , statement {
-    using pair_t = std::pair<std::string,expression *>;
+/* Multiple variable definition. */
+struct variable_def : definition , statement {
+    using pair_t = std::pair <std::string,expression *>;
 
     wrapper       type; /* Type info within. */
     variable_list init; /* Initialize list.  */
@@ -423,12 +326,14 @@ struct variable : definition , statement {
         } std::cout << ';';
     }
 
-    ~variable() override { for(auto __p : init) delete __p.second;}
+    void accept(ASTvisitorbase *__p) override { return __p->visitVariable(this); }
+
+    ~variable_def() override { for(auto __p : init) delete __p.second;}
 };
 
 
-/* Function definition. */
-struct function : definition , argument {
+/* Both function definition and function identifier. */
+struct function_def : definition , argument , identifier {
     block_stmt * body = nullptr; /* Function body in a block. */
     std::vector <argument> arg_list; /* Argument list. */
 
@@ -449,12 +354,16 @@ struct function : definition , argument {
         body->print();
     }
 
-    ~function() override { delete body; }
+    void accept(ASTvisitorbase *__p) override { return __p->visitFunction(this); }
+
+
+    ~function_def() override { delete body; }
 };
 
 
 /* Class definition. */
-struct object : definition , typeinfo {
+struct class_def : definition {
+    std::string name;
     /* This member might include ctors. */
     std::vector <definition *> member;
 
@@ -463,14 +372,14 @@ struct object : definition , typeinfo {
 
         // std::cout << "Member Variables:\n";
         for(auto __p : member)
-            if(dynamic_cast <variable *> (__p)) {
+            if(dynamic_cast <variable_def *> (__p)) {
                 __p->print();
                 std::cout << '\n';
             }
 
         // std::cout << "Member Functions:\n";
         for(auto __p : member)
-            if(dynamic_cast <function *> (__p)) {
+            if(dynamic_cast <function_def *> (__p)) {
                 __p->print();
                 std::cout << '\n';
             }
@@ -478,18 +387,13 @@ struct object : definition , typeinfo {
         std::cout << "};";
     }
 
-    ~object() override {  for(auto __p : member) delete __p; }
-};
+    void accept(ASTvisitorbase *__p) override { return __p->visitClass(this); }
 
 
-/* Class definition. */
-struct basic_type : typeinfo {
-    void print() override {
-        std::cout << "Basic_type: " << name << '\n';
-    }
-    ~basic_type() override = default;
+    ~class_def() override {  for(auto __p : member) delete __p; }
 };
 
 
 
 }
+

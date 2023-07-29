@@ -4,9 +4,10 @@
 #include "Mxerror.h"
 #include "MxLexer.h"
 #include "MxParser.h"
-
 #include "MxParserVisitor.h"
+
 #include "ASTbuilder.h"
+#include "ASTvisitor.h"
 
 // using namespace antlr4;
 //todo: regenerating files in directory named "generated" is dangerous.
@@ -38,7 +39,9 @@ int main(int argc, const char* argv[]) {
         std::cout << "// ";
         for(auto &&[__name,__v] : Wankupi.mapping)
             std::cout << __name << ' ';
+        std::cout << std::endl;
 
+        dark::AST::ASTvisitor Conless(Wankupi.global,Wankupi.mapping);
 
     } catch(dark::error &err) {
         return 1;
