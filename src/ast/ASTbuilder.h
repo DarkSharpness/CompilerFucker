@@ -34,8 +34,10 @@ struct ASTbuilder : public MxParserVisitor {
     AST::typeinfo *get_typeinfo(std::string str) {
         auto [__iter,__result] = mapping.insert({std::move(str),nullptr});
         if(__result) {
-            auto *__info = new AST::typeinfo;
-            __info->name = __iter->first;
+            auto *__info = new AST::typeinfo {
+                .space = nullptr,
+                .name  = __iter->first
+            };
             __iter->second = __info;
         }
         return __iter->second;

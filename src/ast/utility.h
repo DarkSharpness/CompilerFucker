@@ -6,6 +6,26 @@
 
 namespace dark {
 
+
+/* Pre declaration part. */
+namespace AST {
+
+struct ASTvisitorbase;
+struct scope;
+
+/* AST node holder. */
+struct node {
+    /* Pointer to the scope that the node belongs. */
+    scope *space = nullptr;
+    virtual void print() = 0;
+    virtual void accept(ASTvisitorbase *) = 0;
+    virtual ~node() = default;
+};
+
+
+};
+
+
 /* This is only intended to beautify. */
 inline size_t global_indent = 0;
 
@@ -17,13 +37,19 @@ inline void print_indent() {
 
 struct error {
     error(std::string __s) { std::cerr << "Fatal error: " << __s << '\n'; }
+
+    error(std::string __s,AST::node *ptr) {
+        std::cerr << "Error here:\n\"";
+        ptr->print();
+        std::cerr << "\"\n";
+        std::cerr << "Fatal error: " << __s << '\n';
+    }
+
 };
 
 
 struct op_type {
-  private:
     char str[8] = {0};
-  public:
     char &operator[](size_t __n)       { return str[__n]; }
     char  operator[](size_t __n) const { return str[__n]; }
 
@@ -72,10 +98,6 @@ inline std::ostream &operator <<(std::ostream &__os,const op_type &__op) {
 
 namespace AST {
 
-struct ASTvisitorbase;
-
-
-struct scope;
 struct typeinfo;
 struct identifier;
 struct wrapper;
@@ -102,25 +124,33 @@ struct definition;
 struct variable_def;
 struct function_def;
 struct class_def;
+/* Real function. */
+using function = function_def;
 
-/* AST node holder. */
-struct node {
-    /* Pointer to the scope that the node belongs. */
-    scope *space = nullptr;
-    virtual void print() = 0;
-    virtual void accept(ASTvisitorbase *) = 0;
-    virtual ~node() = default;
-};
+
 
 
 /* The actual definition and details of a type. */
 struct typeinfo {
-    scope *space = nullptr;
+    union {
+        function *func ;
+        scope    *space;
+    };
+
+    /* If the typeinfo has no name, it means that the type is a function. */
     std::string name;
 
-    void print() {}
+    /* Return whether the type is a function type. */
+    bool is_function() const noexcept { return name.empty(); }
 
-    ~typeinfo() = default;
+    /* Return whether the type is a normal class type. */
+    bool is_class() const noexcept { return !name.empty(); }
+
+    /* Return whether the type is trivial (non-class). */
+    bool is_trivial() const noexcept {
+        return name == "int" || name == "void" || name == "bool";
+    }
+
 };
 
 
@@ -128,18 +158,19 @@ struct typeinfo {
 struct wrapper {
     typeinfo *type; /* Pointer to real type. */
     int       info; /* Dimension.            */
-    int       flag; /* Whether assignable.   */
+    bool      flag; /* Whether assignable.   */
 
     /* Dimension of the object. */
-    size_t dimension() const { return info; }
+    size_t dimension()  const { return info; }
 
     /* Whether the expression is assignable. */
-    bool assignable()  const { return flag; }
+    bool assignable()   const { return flag; }
+
+    /* Whether the expreession is reference type. */
+    bool is_reference() const { return dimension() || !type->is_trivial(); }
 
     /* This will return the inner type name. */
-    const std::string &name() const noexcept {
-        return type->name;
-    }
+    const std::string &name() const noexcept { return type->name; }
 
     /* Return the full name of the wrapper. */
     std::string data() const noexcept {
@@ -152,12 +183,22 @@ struct wrapper {
             __ans[__len + (i << 1 | 1)] = ']';
         } return __ans;
     }
-};
 
+    /* Just check the name and dimension. */
+    bool check(std::string_view __name,int __dim) const {
+        return type->name == __name && info == __dim;
+    }
 
-/* An identifier is a function or variable. */
-struct identifier {
-    virtual ~identifier() = default;
+    /* Just compare the name and dimension. */
+    friend bool operator == (const wrapper &lhs,const wrapper &rhs) {
+        return lhs.type == rhs.type && lhs.info == rhs.info;
+    }
+
+    /* Just compare the name and dimension. */
+    friend bool operator != (const wrapper &lhs,const wrapper &rhs) {
+        return !(lhs == rhs);
+    }
+
 };
 
 
@@ -168,33 +209,42 @@ struct argument {
 };
 
 
-/* Abstract expression wrapping. */
+/* An identifier is a function or variable. */
+struct identifier : argument {
+    virtual ~identifier() = default;
+};
+
+
+/* Abstract expression tagging. */
 struct expression : node {
-    void print() override = 0;
+    void print()  override = 0;
     ~expression() override = default;
 };
 
 
-/* Abstract statement wrapping. */
+/* Abstract statement tagging. */
 struct statement : node {
     void print() override = 0;
     ~statement() override = default;
 };
 
 
-/* Abstract definition wrapping. */
+/* Abstract definition tagging. */
 struct definition : node {
     void print()  override = 0;
     ~definition() override = default;
 };
 
 
+/* Abstract loop tagging. */
+struct loop_type { virtual ~loop_type() = default; };
+
+
 /* Real variable. */
-struct variable : argument , identifier {
+struct variable : identifier {
     ~variable() override = default;
 };
-/* Real function. */
-using function = function_def;
+
 
 
 struct ASTvisitorbase {

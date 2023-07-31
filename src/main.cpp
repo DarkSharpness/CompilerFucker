@@ -35,10 +35,10 @@ int main(int argc, const char* argv[]) {
         return 1;
     } catch(std::exception &err) {
         std::cerr << err.what() << std::endl;
-        return 1;
+        return 2;
     } catch(...) {
         std::cerr << "Unknown error!" << std::endl;
-        return 1;
+        return 3;
     }
     // ANTLRInputStream input(std::cin);
     // Python3Lexer lexer(&input);

@@ -177,6 +177,14 @@ struct atom_expr : expression {
 
 
 struct literal_constant : expression {
+    enum {
+        NUMBER,
+        CSTRING,
+        NULL_,
+        TRUE,
+        FALSE
+    } type;
+    
     std::string name;
 
     void print() override { std::cout << name; }
@@ -185,7 +193,7 @@ struct literal_constant : expression {
 };
 
 
-struct for_stmt : statement {
+struct for_stmt : statement , loop_type {
     statement  *init = nullptr;
     expression *cond = nullptr;
     expression *step = nullptr;
@@ -228,7 +236,7 @@ struct flow_stmt : statement {
 };
 
 
-struct while_stmt : statement {
+struct while_stmt : statement , loop_type {
     expression *cond = nullptr;
     statement  *stmt = nullptr;
 
@@ -275,7 +283,7 @@ struct branch_stmt : statement {
         statement  *stmt = nullptr;
     };
 
-    std::vector <pair_t> data;
+    std::vector <pair_t> data; /* Branch info. */
 
     void print() override {
         for(size_t i = 0 ; i < data.size(); ++i) {
@@ -286,10 +294,8 @@ struct branch_stmt : statement {
                 data[i].cond->print();
                 std::cout << ") ";
             }
-            if(data[i].stmt) {
-                data[i].stmt->print();
-                std::cout << '\n';
-            }
+            data[i].stmt->print();
+            std::cout << '\n';
         }
     }
 
@@ -344,7 +350,7 @@ struct variable_def : definition , statement {
 
 
 /* Both function definition and function identifier. */
-struct function_def : definition , argument , identifier {
+struct function_def : definition , identifier {
     block_stmt * body = nullptr; /* Function body in a block. */
     std::vector <argument> arg_list; /* Argument list. */
 

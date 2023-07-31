@@ -368,7 +368,15 @@ std::any ASTbuilder::visitAtom(MxParser::AtomContext *ctx) {
 // Return a expression pointer.
 std::any ASTbuilder::visitLiteral(MxParser::LiteralContext *ctx) {
     auto *__lite = new AST::literal_constant;
-    __lite->name = ctx->literal_Constant()->getText();
+    auto *__temp = ctx->literal_Constant();
+
+    __lite->name = __temp->getText();
+    if(__temp->Number())        __lite->type = AST::literal_constant::NUMBER;
+    else if(__temp->Cstring())  __lite->type = AST::literal_constant::CSTRING;
+    else if(__temp->Null())     __lite->type = AST::literal_constant::NULL_;
+    else if(__temp->True())     __lite->type = AST::literal_constant::TRUE;
+    else                        __lite->type = AST::literal_constant::FALSE;
+
     return static_cast <AST::expression *> (__lite);
 }
 
