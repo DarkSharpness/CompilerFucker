@@ -192,6 +192,7 @@ struct for_stmt : statement {
     statement  *stmt = nullptr;
 
     void print() override {
+        print_indent();
         std::cout << "for (";
         if(init) init->print();
         std::cout << ' ';
@@ -215,6 +216,7 @@ struct flow_stmt : statement {
     expression *expr = nullptr; /* Return value if return. */
 
     void print() override {
+        print_indent();
         std::cout << flow << ' ';
         if(expr) expr->print();
         std::cout << ';';
@@ -231,6 +233,7 @@ struct while_stmt : statement {
     statement  *stmt = nullptr;
 
     void print() override {
+        print_indent();
         std::cout << "while (";
         cond->print();
         std::cout << ") ";
@@ -247,11 +250,16 @@ struct block_stmt : statement {
     std::vector <statement *> stmt;
 
     void print() override {
+        if(stmt.empty()) { std::cout << "{}\n"; return; }
         std::cout << "{\n";
+        ++global_indent;
+
         for(auto __p : stmt) {
             __p->print();
             std::cout << '\n';
         }
+        --global_indent;
+        print_indent();
         std::cout << "}";
     }
 
@@ -271,6 +279,7 @@ struct branch_stmt : statement {
 
     void print() override {
         for(size_t i = 0 ; i < data.size(); ++i) {
+            print_indent();
             if(i != 0) std::cout << "else ";
             if(data[i].cond) {
                 std::cout << "if (";
@@ -294,6 +303,7 @@ struct simple_stmt : statement {
     expression_list expr;
 
     void print() override {
+        print_indent();
         for(size_t i = 0 ; i < expr.size() ; ++i) {
             if(i != 0) std::cout << " , ";
             expr[i]->print();
@@ -314,6 +324,7 @@ struct variable_def : definition , statement {
     variable_list init; /* Initialize list.  */
 
     void print() override {
+        print_indent();
         std::cout << type.data() << ' ';
         bool flag = false;
         for(auto &&[__name,__p] : init) {
@@ -338,6 +349,7 @@ struct function_def : definition , argument , identifier {
     std::vector <argument> arg_list; /* Argument list. */
 
     void print() override {
+        print_indent();
         std::cout
             // << "Function signature:\n" 
             << type.data() << ' ' << name
@@ -368,8 +380,9 @@ struct class_def : definition {
     std::vector <definition *> member;
 
     void print() override {
+        print_indent();
         std::cout << "class " << name << " {\n";
-
+        ++global_indent;
         // std::cout << "Member Variables:\n";
         for(auto __p : member)
             if(dynamic_cast <variable_def *> (__p)) {
@@ -384,6 +397,7 @@ struct class_def : definition {
                 std::cout << '\n';
             }
 
+        --global_indent;
         std::cout << "};";
     }
 

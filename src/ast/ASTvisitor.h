@@ -13,21 +13,25 @@ struct ASTClassScanner {
     /* Add support for basic types. */
     static std::map <std::string,typeinfo *> make_basic() {
         std::map <std::string,typeinfo *> __map;
-        basic_type *__tmp;
+        typeinfo *__tmp;
+
         /* int */
-        __tmp = new basic_type;
+        __tmp = new typeinfo;
         __tmp->name  = "int";
         __map["int"] = __tmp;
+
         /* bool */
-        __tmp = new basic_type;
+        __tmp = new typeinfo;
         __tmp->name   = "bool";
         __map["bool"] = __tmp;
+
         /* void */
-        __tmp = new basic_type;
+        __tmp = new typeinfo;
         __tmp->name   = "void";
         __map["void"] = __tmp;
+
         /* string */
-        __tmp = new basic_type;
+        __tmp = new typeinfo;
         __tmp->name     = "string";
         __map["string"] = __tmp;
         /* Only contains 4 basic types. */
@@ -42,17 +46,35 @@ struct ASTClassScanner {
      * @return A map of all class info.
     */
     static std::map <std::string,typeinfo *> scan
-        (const std::vector <definition *> &__def) {
-        auto __map = make_basic();
+        (const std::vector <definition *>  &__def,
+         std::map <std::string,typeinfo *> &__map) {
+        auto __ans = make_basic();
         for(auto __p : __def) {
             auto *__tmp = dynamic_cast <class_def *> (__p);
             if (! __tmp) continue;
-            auto *__class = new class_type;
-            __class->name = __tmp->name;
-            if(!__map.insert({__class->name,__class}).second)
-                throw error("Duplicate class name!");
+            auto __iter = __map.find(__tmp->name);
+            if(__iter == __map.end()) {
+                /// This is an class that is never refered!
+                /// TODO: optimize it out.
+
+                std::cout << "Warning: Unused type \"" << __tmp->name  << "\"\n";
+                typeinfo *__class = new typeinfo {nullptr,__tmp->name};
+                if(!__ans.insert({__class->name,__class}).second)
+                    throw error("Duplicate class name!");
+            } else {
+                if(!__ans.insert(std::move(*__iter)).second)
+                    throw error("Duplicate class name!");
+            }
         }
-        return __map;
+
+        /* Check all types used in the program. */
+        for(auto &&[__name,__p] : __map)
+            if(!__ans.count(__name))
+                throw error("Undefined type" + __name);
+
+        /* Now the memory in the map has become useless. */
+        __map.clear();
+        return __ans;
     }
 };
 
@@ -71,20 +93,36 @@ struct ASTFunctionScanner {
      * 
      * @return Whether this function pass the test.
     */
+
+
+    /**
+     * @brief Due to some reason, this function only
+     * checks whether the param of the function is void.
+     * The type check has been done in class scanner.
+     * 
+     * @return Whether this function pass the test.
+    */
     static bool check(function *__func,
                       const std::map <std::string,typeinfo *> &__map) {
-        /* Check the return type of the function. */
-        auto iter = __map.find(__func->type.name());
-        if(iter == __map.end()) return false;
-        __func->type.type = iter->second;
+        // /* Check the return type of the function. */
+        // auto iter = __map.find(__func->type.name());
+        // if(iter == __map.end()) return false;
+        // __func->type.type = iter->second;
 
-        /* Check the argument type of the function. */
-        for(auto &&__p : __func->arg_list) {
-            auto &&__name = __p.type.name();
-            iter = __map.find(__name);
-            if(__name == "void" || iter == __map.end()) return false;
-            __p.type.type = iter->second;
-        }
+        // /* Check the argument type of the function. */
+        // for(auto &&__p : __func->arg_list) {
+        //     auto &&__name = __p.type.name();
+        //     iter = __map.find(__name);
+        //     if(__name == "void" || iter == __map.end()) return false;
+        //     __p.type.type = iter->second;
+        // }
+
+        /* Update the return type of the function. */
+        __func->type.type = __map.find(__func->type.name())->second;
+
+        /* Only check whether the param is void now. */
+        for(auto &__p : __func->arg_list) {}
+
 
         /* Sucess! */
         return true;
@@ -153,8 +191,7 @@ struct ASTFunctionScanner {
                 }
 
                 /* Set the scope for the class type. */
-                static_cast <class_type *> (__map.find(__class->name)->second)
-                    ->space = __class->space;
+                __map.find(__class->name)->second->space = __class->space;
             }
 
             /* Function case. */
@@ -185,9 +222,10 @@ struct ASTvisitor : ASTvisitorbase {
     ASTvisitor(std::vector <definition *>        &__def,
                std::map <std::string,typeinfo *> &__map) {
         std::cout << "\n\n|---------------Start scanning---------------|\n" << std::endl;
-        class_map =    ASTClassScanner::scan(__def);
+        class_map =    ASTClassScanner::scan(__def,__map);
         global    = ASTFunctionScanner::scan(__def,class_map);
 
+        std::cout << "\n\n|----------------End scanning----------------|\n" << std::endl;
     }
 
     void visit(node *ctx) { return ctx->accept(this); }

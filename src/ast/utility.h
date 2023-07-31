@@ -1,11 +1,22 @@
 #pragma once
 
 #include <iostream>
+#include <cstring>
+#include <vector>
 
 namespace dark {
 
+/* This is only intended to beautify. */
+inline size_t global_indent = 0;
+
+/* 4 space as indent */
+inline void print_indent() {
+    for(size_t i = 0 ; i != global_indent ; ++i)
+        std::cout << "    ";
+}
+
 struct error {
-    error(std::string __s) { std::cerr << __s << '\n'; }
+    error(std::string __s) { std::cerr << "Fatal error: " << __s << '\n'; }
 };
 
 
@@ -104,13 +115,12 @@ struct node {
 
 /* The actual definition and details of a type. */
 struct typeinfo {
+    scope *space = nullptr;
     std::string name;
 
-    virtual void print() {
-        std::cout << "Type info base class!" << std::endl;
-    }
+    void print() {}
 
-    virtual ~typeinfo() = default;
+    ~typeinfo() = default;
 };
 
 
@@ -185,28 +195,6 @@ struct variable : argument , identifier {
 };
 /* Real function. */
 using function = function_def;
-
-/* Class definition */
-struct class_type : typeinfo {
-    scope *space = nullptr; /* Pointer to inner scope. */
-
-    void print() override {
-        std::cout << "Class_type" << name << '\n';
-    }
-
-    ~class_type() override = default;
-};
-
-
-/* Basic definition. */
-struct basic_type : typeinfo {
-    void print() override {
-        std::cout << "Basic_type: " << name << '\n';
-    }
-
-    ~basic_type() override = default;
-};
-
 
 
 struct ASTvisitorbase {

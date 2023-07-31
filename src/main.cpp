@@ -29,27 +29,15 @@ int main(int argc, const char* argv[]) {
         parser.addErrorListener(&listener);
 
         auto *tree = parser.file_Input();
-        dark::ASTbuilder Wankupi;
-        Wankupi.visit(tree);
-        for(auto __p : Wankupi.global) {
-            __p->print();
-            std::cout << "\n\n";
-        }
-
-        std::cout << "// ";
-        for(auto &&[__name,__v] : Wankupi.mapping)
-            std::cout << __name << ' ';
-        std::cout << std::endl;
-
+        dark::ASTbuilder Wankupi(tree);
         dark::AST::ASTvisitor Conless(Wankupi.global,Wankupi.mapping);
-
     } catch(dark::error &err) {
         return 1;
     } catch(std::exception &err) {
         std::cerr << err.what() << std::endl;
         return 1;
     } catch(...) {
-        std::cerr << "Unknown error" << std::endl;
+        std::cerr << "Unknown error!" << std::endl;
         return 1;
     }
     // ANTLRInputStream input(std::cin);
