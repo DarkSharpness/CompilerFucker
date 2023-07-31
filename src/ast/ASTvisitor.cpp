@@ -19,6 +19,7 @@ void ASTvisitor::visitSubscriptExpr(subscript_expr *ctx) {
     }
     visit(ctx->expr.front());
     current_type.info -= ctx->expr.size() - 1;
+    current_type.flag = true; /* Array access are re-assignable. */
     if(current_type.info < 0)
         throw error("Too many subscripts!",ctx);
 }
@@ -30,19 +31,19 @@ void ASTvisitor::visitFunctionExpr(function_expr *ctx) {
     if(!current_type.type->is_function())
         throw error("Unknown function: \"" + current_type.name() + '\"',ctx->body);
     auto *__func = current_type.type->func;
-    if(__func->arg_list.size() != ctx->args.size())
+    if(__func->args.size() != ctx->args.size())
         throw error("Function params length dismatch!",ctx);
 
     for(size_t i = 0 ; i < ctx->args.size() ; ++i) {
         auto __p = ctx->args[i];
         visit(__p);
-        if(!is_convertible(current_type,__func->arg_list[i].type))
+        if(!is_convertible(current_type,__func->args[i].type))
             throw error(
                 "Function params dismatch: "
                 "Cannot convert type \"" 
                 + current_type.data()
                 + "\" to \""
-                + __func->arg_list[i].type.data()
+                + __func->args[i].type.data()
                 + "\".",ctx
             );
     }
@@ -52,8 +53,8 @@ void ASTvisitor::visitFunctionExpr(function_expr *ctx) {
 
 void ASTvisitor::visitUnaryExpr(unary_expr *ctx) {
     ctx->space = top;
+    visit(ctx->expr);
     if(ctx->op[1]) {
-        visit(ctx->expr);
         if(!current_type.check("int",0)) {
             throw error(
                 std::string("No such operator ")
@@ -89,20 +90,25 @@ void ASTvisitor::visitMemberExpr(member_expr *ctx) {
     ctx->space = top;
     visit(ctx->lval);
 
-    /// TODO: Add length function for array types.
     if(current_type.type->is_function())
-        throw error("Functions don't possess scope!",ctx);
-    if(current_type.dimension())
-        throw error("Arrays don't possess scope!",ctx);
+        throw error("Function doesn't possess scope!",ctx);
+    if(current_type.dimension()) {
+        auto __p = class_map["__array__"]->space->find(ctx->rval);
+        if (!__p) /* Not found in array space. */
+            throw error( "Member \"" + ctx->rval + "\" not found in array type",ctx);
+        current_type = get_wrapper(__p);
+        return;
+    }
 
     auto __p = current_type.type->space->find(ctx->rval);
-    if(!__p)
+    if (!__p) /* Not found in array space. */
         throw error(
             "Member \""
             + ctx->rval
             + "\" not found in type \""
-            +  current_type.name(),ctx
+            +  current_type.name() + '\"',ctx
          );
+
     current_type = get_wrapper(__p);
     current_type.flag = true;  // Variables are assignable.
 }
@@ -110,6 +116,8 @@ void ASTvisitor::visitMemberExpr(member_expr *ctx) {
 
 void ASTvisitor::visitConstructExpr(construct_expr *ctx) {
     ctx->space = top;
+    if(ctx->type.name() == "void")
+        throw error("Arrays cannot be void type!");
     for(auto __p : ctx->expr) {
         visit(__p);
         if(!current_type.check("int",0))
@@ -145,10 +153,7 @@ void ASTvisitor::visitBinaryExpr(binary_expr *ctx) {
     if(ctx->op[0] == '=' && !ctx->op[1]) {
         if(!temp_type.assignable()) {
             throw error("LHS expression not assignable",ctx);
-        } else if(!is_convertible(temp_type,current_type)) {
-            std::cerr << "Error here:\n\"";
-            ctx->print();
-            std::cerr << "\"\n";
+        } else if(!is_convertible(current_type,temp_type)) {
             throw error(
                 "Cannot convert type \"" 
                 + current_type.data()
@@ -304,7 +309,6 @@ void ASTvisitor::visitAtomExpr(atom_expr *ctx) {
     auto *__p = top->find(ctx->name);
     if (! __p) throw error("Such identifier doesn't exist: " + ctx->name);
     current_type = get_wrapper(__p);
-    current_type.flag = true; // Variables are assignable.
 }
 
 
@@ -360,7 +364,12 @@ void ASTvisitor::visitFlowStmt(flow_stmt *ctx) {
             visit(ctx->expr);
             /* Check the return type. */
             if(!is_convertible(current_type,func.back()->type))
-                throw error("Invalid flow return type: \"" + current_type.name() + "\".",ctx);
+                throw error("Invalid flow return type: "
+                "Cannot convert type \"" +
+                    current_type.data() +
+                    "\" to \"" +
+                    func.back()->type.data() +
+                    "\".",ctx);
         } else {
             if(!func.back()->type.check("void",0))
                 throw error("Invalid flow return type: return void in non-void function");
@@ -393,7 +402,15 @@ void ASTvisitor::visitWhileStmt(while_stmt *ctx) {
 /* Block case : visit all the statements. */
 void ASTvisitor::visitBlockStmt(block_stmt *ctx) {
     ctx->space = top; /* Caution : might enter new scope! */
-    for(auto __p : ctx->stmt) { top = ctx->space; visit(__p); }
+    for(auto __p : ctx->stmt) {
+        if(dynamic_cast <block_stmt *> (__p)) {
+            top = new scope {.prev = ctx->space};
+        } else {
+            top = ctx->space;
+        }
+        
+        visit(__p);
+    }
 }
 
 
@@ -423,6 +440,10 @@ void ASTvisitor::visitSimpleStmt(simple_stmt *ctx) {
 
 /* Variable definition won't go into any new scope. */
 void ASTvisitor::visitVariable(variable_def *ctx) {
+    if(ctx->type.name() == "void")
+        throw error("Variables cannot be void type!",
+                    static_cast <definition *> (ctx));
+
     for(auto &&[__name,__init] : ctx->init) {
         if(__init) {
             visit(__init);
@@ -438,6 +459,7 @@ void ASTvisitor::visitVariable(variable_def *ctx) {
         auto *__var = new variable;
         __var->name = __name;
         __var->type = ctx->type;
+        __var->type.flag = true;
         if(!top->insert(__name,__var))
             throw error("Duplicated variable name: \"" + __name + '\"',
                         static_cast <definition *> (ctx));
@@ -447,9 +469,10 @@ void ASTvisitor::visitVariable(variable_def *ctx) {
 
 /* Special case : function's scope has been pre-declared. */
 void ASTvisitor::visitFunction(function_def *ctx) {
-    for(auto && __p : ctx->arg_list) {
+    for(auto && __p : ctx->args) {
         auto *__ptr = new variable;
         static_cast <argument &> (*__ptr) = __p;
+        __ptr->type.flag = true;
         if(!ctx->space->insert(__p.name,__ptr))
             throw error("Duplicated function argument name: \"" + __p.name + '\"',ctx);
     }

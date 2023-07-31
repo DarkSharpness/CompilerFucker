@@ -94,7 +94,7 @@ expression  :
 
 /* Basic part.  */
 typename            : (BasicTypes | Identifier) ('[' ']')* ;
-new_Type            : (BasicTypes new_Index) | (Identifier new_Index?); 
+new_Type            : ((BasicTypes new_Index) | (Identifier new_Index?)) ('(' ')')?; 
 new_Index           : ('[' good+=expression ']')+ ('[' ']')* ('[' bad+=expression ']')*;
 literal_Constant    : Number | Cstring | Null | True | False;
 

@@ -95,5 +95,5 @@ Semi_Colon  : ';'   ;
 /* Others...... */
 Number          : [1-9] Digit* | '0';
 fragment Digit  : [0-9] ;
-Identifier      : [A-Za-z_][A-Za-z_0-9]*;
+Identifier      : [A-Za-z][A-Za-z_0-9]*;
 

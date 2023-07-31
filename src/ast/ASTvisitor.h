@@ -49,7 +49,53 @@ struct ASTClassScanner {
         }
 
         __ans.insert({"null",new typeinfo {nullptr,"null"}});
+        __ans.insert({"__array__",new typeinfo {nullptr,"__array__"}});
+
+        make_member(__ans);
         return __ans;
+    }
+
+    /* Add member functions for arrays and string. */
+    static void make_member(std::map <std::string,typeinfo *> &__map) {
+        auto &&__int_type = wrapper {__map["int"],0,0};
+        { /* Array type ::size() */
+            auto *__temp = new scope;
+            auto *__func = new function;
+            __func->name = "size";
+            __func->type = __int_type;
+            __temp->insert("size",__func);
+            __map["__array__"]->space = __temp;
+        }
+        { /* String type  */
+            auto *__temp = new scope;
+            { /* ::length() */
+                auto *__func = new function;
+                __func->name = "length";
+                __func->type = __int_type;
+                __temp->insert("length",__func);
+            }
+            { /* ::substring(int l,int r) */
+                auto *__func = new function;
+                __func->name = "substring";
+                __func->type = {__map["string"],0,0};
+                __func->args = {{"l",__int_type},{"r",__int_type}};
+                __temp->insert("substring",__func);
+            }
+            { /* ::parseInt() */
+                auto *__func = new function;
+                __func->name = "parseInt";
+                __func->type = __int_type;
+                __temp->insert("parseInt",__func);
+            }
+            { /* ::ord(int n) */
+                auto *__func = new function;
+                __func->name = "ord";
+                __func->type = __int_type;
+                __func->args = {{"n",__int_type}};
+                __temp->insert("ord",__func);
+            }
+            __map["string"]->space = __temp;
+        }
     }
 
 
@@ -72,10 +118,10 @@ struct ASTClassScanner {
                 /// This is an class that is never refered!
                 /// TODO: optimize it out.
 
-                std::cout << "Warning: Unused type \"" << __tmp->name  << "\"\n";
                 typeinfo *__class = new typeinfo {nullptr,__tmp->name};
                 if(!__ans.insert({__class->name,__class}).second)
                     throw error("Duplicate class name!");
+                std::cout << "Warning: Unused type \"" << __tmp->name  << "\"\n";
             } else {
                 // Simply move the data within.
                 if(!__ans.insert(std::move(*__iter)).second)
@@ -98,9 +144,59 @@ struct ASTClassScanner {
 
 struct ASTFunctionScanner {
     /* Add basic support for functions. */
-    static scope *make_basic() {
-        auto *__tmp = new scope;
-        return __tmp;
+    static scope *make_basic(const std::map <std::string,typeinfo *> &__map) {
+        auto &&__int_type    = wrapper {__map.find("int")->second,0,0};
+        auto &&__void_type   = wrapper {__map.find("void")->second,0,0};
+        auto &&__string_type = wrapper {__map.find("string")->second,0,0};
+        auto *__temp = new scope;
+        { /* ::print(string str) */
+            auto *__func = new function;
+            __func->name = "print";
+            __func->type = __void_type;
+            __func->args = {{"str",__string_type}};
+            __temp->insert("print",__func);
+        }
+        { /* ::println(string str) */
+            auto *__func = new function;
+            __func->name = "println";
+            __func->type = __void_type;
+            __func->args = {{"str",__string_type}};
+            __temp->insert("println",__func);
+        }
+        { /* ::printInt(int n) */
+            auto *__func = new function;
+            __func->name = "printInt";
+            __func->type = __void_type;
+            __func->args = {{"n",__int_type}};
+            __temp->insert("printInt",__func);
+        }
+        { /* ::printlnInt(int n) */
+            auto *__func = new function;
+            __func->name = "printlnInt";
+            __func->type = __void_type;
+            __func->args = {{"n",__int_type}};
+            __temp->insert("printlnInt",__func);
+        }
+        { /* ::getString() */
+            auto *__func = new function;
+            __func->name = "getString";
+            __func->type = __string_type;
+            __temp->insert("getString",__func);
+        }
+        { /* ::getInt() */
+            auto *__func = new function;
+            __func->name = "getInt";
+            __func->type = __int_type;
+            __temp->insert("getInt",__func);
+        }
+        { /* ::toString(int n) */
+            auto *__func = new function;
+            __func->name = "toString";
+            __func->type = __string_type;
+            __func->args = {{"n",__int_type}};
+            __temp->insert("toString",__func);
+        }
+        return __temp;
     }
 
 
@@ -121,14 +217,14 @@ struct ASTFunctionScanner {
      * @return Whether this function pass the test.
     */
     static bool check_void(function *__func,
-                      const std::map <std::string,typeinfo *> &__map) {
+                           const std::map <std::string,typeinfo *> &__map) {
         // /* Check the return type of the function. */
         // auto iter = __map.find(__func->type.name());
         // if(iter == __map.end()) return false;
         // __func->type.type = iter->second;
 
         // /* Check the argument type of the function. */
-        // for(auto &&__p : __func->arg_list) {
+        // for(auto &&__p : __func->args) {
         //     auto &&__name = __p.type.name();
         //     iter = __map.find(__name);
         //     if(__name == "void" || iter == __map.end()) return false;
@@ -143,7 +239,7 @@ struct ASTFunctionScanner {
             return false;
 
         /* Check whether the param is void now. */
-        for(auto &__p : __func->arg_list)
+        for(auto &__p : __func->args)
             if(__p.type.type == __void)
                 return false;
 
@@ -183,7 +279,7 @@ struct ASTFunctionScanner {
     static void assert_global(function *__func, scope *__cur,
                              const std::map <std::string,typeinfo *> &__map) {
         if(!check_void(__func,__map))
-            throw error("Function arguments can't be void type!");
+            throw error("Function arguments cannot be void type!");
         if(__map.count(__func->name))
             throw error("Duplicated function & class name: \"" + __func->name + '\"');
         if(!__cur->insert(__func->name,__func))
@@ -201,7 +297,7 @@ struct ASTFunctionScanner {
     static scope *scan
         (const std::vector <definition *>        &__def,
          const std::map <std::string,typeinfo *> &__map) {
-        scope *__ans = make_basic();
+        scope *__ans = make_basic(__map);
         for(auto __p : __def) {
             /* Class case. */
             if (auto *__class = dynamic_cast <class_def *> (__p); __class) {
@@ -209,7 +305,7 @@ struct ASTFunctionScanner {
                 __type->space =__class->space = new scope {.prev = __ans};
                 auto *__ptr   = new variable;
                 __ptr->name   = "this";
-                __ptr->type   = {.type = __type,.info = 0,.flag = 1};
+                __ptr->type   = {.type = __type,.info = 0,.flag = false};
                 __class->space->insert("this",__ptr);
                 for(auto __t : __class->member) {
                     if(auto *__func = dynamic_cast <function *> (__t); __func) {
@@ -227,6 +323,7 @@ struct ASTFunctionScanner {
                             auto *__ptr = new variable;
                             __ptr->name = __name;
                             __ptr->type = __list->type;
+                            __ptr->type.flag = true;
                             if(!__class->space->insert(__name, __ptr))
                                 throw error("Duplicated variable name: \"" + __name + '\"');
                         }
@@ -243,6 +340,7 @@ struct ASTFunctionScanner {
                 __func->space = new scope {.prev = __ans};
             }
         }
+
         return __ans;
     }
 
@@ -257,9 +355,14 @@ struct ASTvisitor : ASTvisitorbase {
 
     /* This is used to help deallocate memory */
     wrapper create_function(function *__func) {
-        static size_t i = 0;
+        static std::map <function *,std::pair<size_t,typeinfo *>> __map;
+        auto &&[__n,__p] = __map[__func];
+        if(!__n) {
+            __n = __map.size();
+            __p = new typeinfo {__func,""};
+        }
         return wrapper {
-            .type = class_map[std::to_string(i++)] = new typeinfo {__func,""},
+            .type = __p,
             .info = 0,  // No dimension
             .flag = 0   // Not assignable
         };
@@ -299,7 +402,22 @@ struct ASTvisitor : ASTvisitorbase {
             visit(__p);
         }
 
-        std::cout << "No error found.";
+        auto *__func = dynamic_cast <function *> (global->find("main"));
+        if(!__func || !__func->args.empty() || !__func->type.check("int",0))
+            throw error("No valid main function!");
+
+        /* Add return 0 to main function. */
+        auto *__tail = new flow_stmt;
+        auto *__zero = new literal_constant;
+        __zero->name = "0";
+        __zero->type = AST::literal_constant::NUMBER;
+        __tail->flow = "return";
+        __tail->expr = __zero;
+        __func->body->stmt.push_back(__tail);
+        __zero->space = __tail->space = __func->space;
+
+        /* Pass the semantic check! */
+        std::cout << "No error is found. Semantic check pass!";
 
         std::cout << "\n\n|----------------End scanning----------------|\n" << std::endl;
     }

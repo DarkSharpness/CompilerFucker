@@ -184,7 +184,7 @@ struct literal_constant : expression {
         TRUE,
         FALSE
     } type;
-    
+
     std::string name;
 
     void print() override { std::cout << name; }
@@ -352,7 +352,7 @@ struct variable_def : definition , statement {
 /* Both function definition and function identifier. */
 struct function_def : definition , identifier {
     block_stmt * body = nullptr; /* Function body in a block. */
-    std::vector <argument> arg_list; /* Argument list. */
+    std::vector <argument> args; /* Argument list. */
 
     void print() override {
         print_indent();
@@ -360,20 +360,22 @@ struct function_def : definition , identifier {
             // << "Function signature:\n" 
             << type.data() << ' ' << name
             << '(';
-        for(size_t i = 0 ; i < arg_list.size() ; ++i) {
+        for(size_t i = 0 ; i < args.size() ; ++i) {
             if(i != 0) std::cout << ',';
             std::cout
-                << arg_list[i].type.data() << ' '
-                << arg_list[i].name;
+                << args[i].type.data() << ' '
+                << args[i].name;
         }
         std::cout << ") "
                     //   "Function body:\n"
                       ;
-        body->print();
+        if(!is_builtin()) body->print();
+        else std::cout << " /* Built-in function. */ ;";
     }
 
     void accept(ASTvisitorbase *__p) override { return __p->visitFunction(this); }
 
+    bool is_builtin() const noexcept { return body == nullptr; }
 
     ~function_def() override { delete body; }
 };

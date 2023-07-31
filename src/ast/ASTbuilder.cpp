@@ -40,7 +40,7 @@ std::any ASTbuilder::visitFunction_Definition(MxParser::Function_DefinitionConte
         = std::any_cast <AST::argument> (visit(ctx->function_Argument()));
 
     if(ctx->function_Param_List()) {
-        __func->arg_list
+        __func->args
             = std::any_cast <AST::argument_list> (visit(ctx->function_Param_List()));
     }
 
@@ -406,6 +406,8 @@ std::any ASTbuilder::visitNew_Type(MxParser::New_TypeContext *ctx) {
     int   __dim = 0; /* Default as 0 dimensions. */
 
     if(ctx->new_Index()) {
+        if(ctx->Paren_Right())
+            throw error("No parenthesis should be applied to new array expression!");
         auto &&__tmp = std::any_cast <
             std::pair <AST::expression_list,size_t>
         > (visit(ctx->new_Index()));
