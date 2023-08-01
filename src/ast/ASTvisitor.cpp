@@ -24,7 +24,6 @@ void ASTvisitor::visitSubscriptExpr(subscript_expr *ctx) {
         throw error("Too many subscripts!",ctx);
 }
 
-
 void ASTvisitor::visitFunctionExpr(function_expr *ctx) {
     ctx->space = top;
     visit(ctx->body);
@@ -307,6 +306,7 @@ void ASTvisitor::visitConditionExpr(condition_expr *ctx) {
 void ASTvisitor::visitAtomExpr(atom_expr *ctx) {
     ctx->space = top;
     auto *__p = top->find(ctx->name);
+    ctx->real = __p;
     if (! __p) throw error("Such identifier doesn't exist: " + ctx->name);
     current_type = get_wrapper(__p);
 }
@@ -338,7 +338,7 @@ void ASTvisitor::visitLiteralConstant(literal_constant *ctx) {
 
 
 void ASTvisitor::visitForStmt(for_stmt *ctx) {
-    top = ctx->space = new scope {.prev = top};
+    top = ctx->space = new scope {top};
 
     if(ctx->init) visit(ctx->init);
     if(ctx->cond) {
@@ -360,8 +360,10 @@ void ASTvisitor::visitFlowStmt(flow_stmt *ctx) {
     if(ctx->flow[0] == 'r') {
         if(func.empty())
             throw error("Invalid flow statement: \"return \" outside function.",ctx);
+
         if(ctx->expr) {
             visit(ctx->expr);
+
             /* Check the return type. */
             if(!is_convertible(current_type,func.back()->type))
                 throw error("Invalid flow return type: "
@@ -440,9 +442,11 @@ void ASTvisitor::visitSimpleStmt(simple_stmt *ctx) {
 
 /* Variable definition won't go into any new scope. */
 void ASTvisitor::visitVariable(variable_def *ctx) {
+    auto *__def  = static_cast <definition *> (ctx);
+    __def->space = top;
+
     if(ctx->type.name() == "void")
-        throw error("Variables cannot be void type!",
-                    static_cast <definition *> (ctx));
+        throw error("Variables cannot be void type!",__def);
 
     for(auto &&[__name,__init] : ctx->init) {
         if(__init) {
@@ -453,30 +457,31 @@ void ASTvisitor::visitVariable(variable_def *ctx) {
                     current_type.data() +
                     "\" to \"" +
                     ctx->type.data() +
-                    "\".",static_cast <definition *> (ctx)
+                    "\".",__def
                 );
         }
         auto *__var = new variable;
         __var->name = __name;
         __var->type = ctx->type;
         __var->type.flag = true;
+        __var->unique_name = get_unique_name(__var->name,func.size() ? func[0] : nullptr);
         if(!top->insert(__name,__var))
-            throw error("Duplicated variable name: \"" + __name + '\"',
-                        static_cast <definition *> (ctx));
+            throw error("Duplicated variable name: \"" + __name + '\"',__def);
     }
 }
 
 
 /* Special case : function's scope has been pre-declared. */
 void ASTvisitor::visitFunction(function_def *ctx) {
+    func.push_back(ctx);
     for(auto && __p : ctx->args) {
-        auto *__ptr = new variable;
-        static_cast <argument &> (*__ptr) = __p;
-        __ptr->type.flag = true;
-        if(!ctx->space->insert(__p.name,__ptr))
+        auto *__var = new variable;
+        static_cast <argument &> (*__var) = __p;
+        __var->type.flag = true;
+        __var->unique_name = get_unique_name(__var->name,func.front());
+        if(!ctx->space->insert(__p.name,__var))
             throw error("Duplicated function argument name: \"" + __p.name + '\"',ctx);
     }
-    func.push_back(ctx);
     top = ctx->space;
     visit(ctx->body);
     func.pop_back();

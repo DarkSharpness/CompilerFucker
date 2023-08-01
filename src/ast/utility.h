@@ -211,6 +211,7 @@ struct argument {
 
 /* An identifier is a function or variable. */
 struct identifier : argument {
+    std::string unique_name; /* Unique name. */
     virtual ~identifier() = default;
 };
 

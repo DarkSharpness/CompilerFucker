@@ -94,6 +94,7 @@ struct unary_expr : expression {
 struct member_expr : expression {
     expression *lval = nullptr; /* Left hand side.     */
     std::string rval;           /* Name of the member. */
+    // identifier *real = nullptr; /* Pointer to the real identifier. */
 
     void accept(ASTvisitorbase *__p) override { return __p->visitMemberExpr(this); }
 
@@ -168,9 +169,14 @@ struct condition_expr : expression {
 
 
 struct atom_expr : expression {
-    std::string name;
+    std::string name;           /* Name of the atom expression */
+    identifier *real = nullptr; /* Pointer to real identifier. */
 
-    void print() override { std::cout << name; }
+    void print() override {
+        std::cout << name;
+        if(real)
+            std::cout << "/*" << real->unique_name << "*/";
+    }
     void accept(ASTvisitorbase *__p) override { return __p->visitAtomExpr(this); }
     ~atom_expr() override = default;
 };
@@ -202,9 +208,11 @@ struct for_stmt : statement , loop_type {
     void print() override {
         print_indent();
         std::cout << "for (";
-        if(init) init->print();
+        size_t __temp = global_indent;
+        global_indent = 0;
+        if(init) init->print(); /* Avoid the useless indent. */
+        global_indent = __temp;
         std::cout << ' ';
-        // std::cout << " ; "; Statment already contains ';'
         if(cond) cond->print();
         std::cout << "; ";
         if(step) step->print();
@@ -357,7 +365,6 @@ struct function_def : definition , identifier {
     void print() override {
         print_indent();
         std::cout
-            // << "Function signature:\n" 
             << type.data() << ' ' << name
             << '(';
         for(size_t i = 0 ; i < args.size() ; ++i) {
@@ -366,9 +373,7 @@ struct function_def : definition , identifier {
                 << args[i].type.data() << ' '
                 << args[i].name;
         }
-        std::cout << ") "
-                    //   "Function body:\n"
-                      ;
+        std::cout << ") ";
         if(!is_builtin()) body->print();
         else std::cout << " /* Built-in function. */ ;";
     }
@@ -376,6 +381,8 @@ struct function_def : definition , identifier {
     void accept(ASTvisitorbase *__p) override { return __p->visitFunction(this); }
 
     bool is_builtin() const noexcept { return body == nullptr; }
+
+    // bool is_constructor() const noexcept { return name.empty(); }
 
     ~function_def() override { delete body; }
 };
