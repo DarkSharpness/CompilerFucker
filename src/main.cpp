@@ -8,6 +8,8 @@
 
 #include "ASTbuilder.h"
 #include "ASTvisitor.h"
+#include "IRvisitor.h"
+#include "IRnode.h"
 
 // using namespace antlr4;
 //todo: regenerating files in directory named "generated" is dangerous.

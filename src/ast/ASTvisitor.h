@@ -14,14 +14,11 @@ struct ASTvisitor : ASTvisitorbase {
 
     /* This is used to help deallocate memory */
     wrapper create_function(function *__func) {
-        static std::map <function *,std::pair<size_t,typeinfo *>> __map;
-        auto &&[__n,__p] = __map[__func];
-        if(!__n) {
-            __n = __map.size();
-            __p = new typeinfo {__func,""};
-        }
+        static std::map <function *,typeinfo> __map;
+        /* Return temporary data location. */
+        auto [__iter,__] = __map.insert({__func,typeinfo {.func = __func}});
         return wrapper {
-            .type = __p,
+            .type = &__iter->second,
             .info = 0,  // No dimension
             .flag = 0   // Not assignable
         };
@@ -72,9 +69,6 @@ struct ASTvisitor : ASTvisitorbase {
     /* Top scope pointer. */
     scope *top = nullptr;
 
-    /* Top type pointer. */
-    wrapper current_type;
-
     /* Top loop pointer. */
     std::vector <loop_type *> loop;
 
@@ -120,8 +114,9 @@ struct ASTvisitor : ASTvisitorbase {
         /* Global variable: no renaming. */
         if(!__func) return __name;
         else { /* Function case. */
+            /* Every suffix in one function will never be identical. */
             static std::map <function *,size_t> __cnt;
-            std::cout << "Rename:" << __name + '-' + std::to_string(__cnt[__func]) << '\n';
+            // std::cout << "Rename:" << __name + '-' + std::to_string(__cnt[__func]) << '\n';
             return __name + '-' + std::to_string(__cnt[__func]++);
         }
     }
@@ -147,7 +142,6 @@ struct ASTvisitor : ASTvisitorbase {
     }
 
 
-    void visit(node *ctx) { return ctx->accept(this); }
     void visitBracketExpr(bracket_expr *) override;
     void visitSubscriptExpr(subscript_expr *) override;
     void visitFunctionExpr(function_expr *) override;
@@ -171,4 +165,3 @@ struct ASTvisitor : ASTvisitorbase {
 };
 
 }
-    

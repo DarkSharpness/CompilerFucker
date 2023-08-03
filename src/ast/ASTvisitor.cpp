@@ -6,82 +6,94 @@ namespace dark::AST {
 
 void ASTvisitor::visitBracketExpr(bracket_expr *ctx) {
     ctx->space = top;
-    return visit(ctx->expr);
+    visit(ctx->expr);
+    static_cast <wrapper &> (*ctx) = *ctx->expr;
 }
+
 
 void ASTvisitor::visitSubscriptExpr(subscript_expr *ctx) {
     ctx->space = top;
     for(size_t i = 1 ; i < ctx->expr.size() ; ++i) {
         auto __p = ctx->expr[i];
         visit(__p);
-        if(!current_type.check("int",0))
+        if(!__p->check("int",0))
             throw error("Non-integer subscript!",ctx);
     }
-    visit(ctx->expr.front());
-    current_type.info -= ctx->expr.size() - 1;
-    current_type.flag = true; /* Array access are re-assignable. */
-    if(current_type.info < 0)
-        throw error("Too many subscripts!",ctx);
+    auto __l = ctx->expr.front();
+    visit(__l);
+
+    static_cast <wrapper &> (*ctx) = *__l;
+    ctx->flag = true; /* Array access are re-assignable. */
+    ctx->info -= (ctx->expr.size() - 1);
+    if(ctx->info < 0) throw error("Too many subscripts!",ctx);
 }
+
 
 void ASTvisitor::visitFunctionExpr(function_expr *ctx) {
     ctx->space = top;
+    /* Check for function type. */
     visit(ctx->body);
-    if(!current_type.type->is_function())
-        throw error("Unknown function: \"" + current_type.name() + '\"',ctx->body);
-    auto *__func = current_type.type->func;
+    const wrapper &__type = *ctx->body;
+    if(!__type.type->is_function())
+        throw error("Unknown function: \"" + __type.name() + '\"',ctx->body);
+    auto *__func = __type.type->func;
     if(__func->args.size() != ctx->args.size())
         throw error("Function params length dismatch!",ctx);
 
+    /* Check for function arguments. */
     for(size_t i = 0 ; i < ctx->args.size() ; ++i) {
         auto __p = ctx->args[i];
         visit(__p);
-        if(!is_convertible(current_type,__func->args[i].type))
+        if(!is_convertible(*__p,__func->args[i].type))
             throw error(
                 "Function params dismatch: "
                 "Cannot convert type \"" 
-                + current_type.data()
+                + __p->data()
                 + "\" to \""
                 + __func->args[i].type.data()
                 + "\".",ctx
             );
     }
-    current_type = __func->type;
+
+    static_cast <wrapper &> (*ctx) = __func->type;
 }
 
 
 void ASTvisitor::visitUnaryExpr(unary_expr *ctx) {
     ctx->space = top;
     visit(ctx->expr);
-    if(ctx->op[1]) {
-        if(!current_type.check("int",0)) {
+    if(ctx->op[1]) { /* ++ or -- */
+        if(!ctx->expr->check("int",0)) {
             throw error(
                 std::string("No such operator ")
                 + ctx->op.str
                 + " for type \""
-                + current_type.name()
+                + ctx->expr->name()
                 + "\".",ctx
             );
         }
-        if(!current_type.assignable())
+        if(!ctx->expr->assignable())
             throw error("No self-iteration for right value type.",ctx);
 
-        current_type.flag = !ctx->op[2];
+        static_cast <wrapper &> (*ctx) = *ctx->expr;
+        ctx->flag = !ctx->op[2];
     } else {
-        if(((ctx->op[0] == '+' || ctx->op[0] == '-') && !current_type.check("int",0))
-        || ((ctx->op[0] == '!' || ctx->op[0] == '~') && !current_type.check("bool",0))) {
+        if(((ctx->op[0] == '+' || ctx->op[0] == '-') && !ctx->expr->check("int",0))
+        || ((ctx->op[0] == '!' || ctx->op[0] == '~') && !ctx->expr->check("bool",0))) {
             throw error(
                 std::string("No such operator ")
                 + ctx->op.str
                 + " for type \""
-                + current_type.name()
+                + ctx->expr->name()
                 + "\".",ctx
             );
         }
 
         /* Of course not assignable. */
-        current_type.flag = false;
+        static_cast <wrapper &> (*ctx) = *ctx->expr;
+        ctx->flag = false;
     }
+
 }
 
 
@@ -89,27 +101,30 @@ void ASTvisitor::visitMemberExpr(member_expr *ctx) {
     ctx->space = top;
     visit(ctx->lval);
 
-    if(current_type.type->is_function())
+    const wrapper &__type = *ctx->lval;
+    if(__type.type->is_function())
         throw error("Function doesn't possess scope!",ctx);
-    if(current_type.dimension()) {
+    if(__type.dimension()) {
+        /* Actually, only size method is ok. */
         auto __p = class_map["__array__"]->space->find(ctx->rval);
         if (!__p) /* Not found in array space. */
             throw error( "Member \"" + ctx->rval + "\" not found in array type",ctx);
-        current_type = get_wrapper(__p);
+        static_cast <wrapper &> (*ctx) = get_wrapper(__p);
         return;
     }
 
-    auto __p = current_type.type->space->find(ctx->rval);
+    auto __p = __type.type->space->find(ctx->rval);
     if (!__p) /* Not found in array space. */
         throw error(
             "Member \""
             + ctx->rval
             + "\" not found in type \""
-            +  current_type.name() + '\"',ctx
+            +  __type.name() + '\"',ctx
          );
 
-    current_type = get_wrapper(__p);
-    current_type.flag = true;  // Variables are assignable.
+    /* Variables are assignable. */
+    static_cast <wrapper &> (*ctx) = get_wrapper(__p);
+    ctx->flag = true;
 }
 
 
@@ -119,29 +134,30 @@ void ASTvisitor::visitConstructExpr(construct_expr *ctx) {
         throw error("Arrays cannot be void type!");
     for(auto __p : ctx->expr) {
         visit(__p);
-        if(!current_type.check("int",0))
+        if(!__p->check("int",0))
             throw dark::error("Non-integer subscript!",ctx);
     }
-    current_type = ctx->type;
+
+    static_cast <wrapper &> (*ctx) = ctx->type;
 }
 
 
 void ASTvisitor::visitBinaryExpr(binary_expr *ctx) {
     ctx->space = top;
     visit(ctx->lval);
-    auto temp_type = current_type;
-
     visit(ctx->rval);
+    const wrapper &__ltype = *ctx->lval;
+    const wrapper &__rtype = *ctx->rval;
 
     /* Function and void type can't be operating..... */
-    if(temp_type.type->is_function() || current_type.type->is_function())
+    if(__ltype.type->is_function() || __rtype.type->is_function())
         throw error(
             std::string("No such operator \"") 
             + ctx->op.str + "\" for function type.",ctx
         );
 
     /* Special void case */
-    if(temp_type.name() == "void" || current_type.name() == "void")
+    if(__ltype.name() == "void" || __rtype.name() == "void")
         throw error(
             std::string("No such operator \"")
             + ctx->op.str
@@ -150,155 +166,95 @@ void ASTvisitor::visitBinaryExpr(binary_expr *ctx) {
 
     /* Special case for operator = */
     if(ctx->op[0] == '=' && !ctx->op[1]) {
-        if(!temp_type.assignable()) {
+        if(!__ltype.assignable()) {
             throw error("LHS expression not assignable",ctx);
-        } else if(!is_convertible(current_type,temp_type)) {
+        } else if(!is_convertible(__rtype,__ltype)) {
             throw error(
                 "Cannot convert type \"" 
-                + current_type.data()
+                + __rtype.data()
                 + "\" to \""
-                + temp_type.data()
+                + __ltype.data()
                 + "\".",ctx
             );
         }
         /* Update the real type. */
-        return void(current_type = temp_type);
+        return void(static_cast <wrapper> (*ctx) = __ltype);
     }
 
-    /* Non assignment case.*/
-    if(temp_type == current_type) {
-        if(temp_type.dimension())
+    /* Non-assignment case.*/
+    if(__ltype == __rtype) {
+        if(__ltype.dimension())
             throw error(
                 std::string("No such operator \"") 
                 + ctx->op.str
                 + "\" for array type.",ctx
             );
 
-        if(temp_type.name() == "int") {
+        if(__ltype.name() == "int") {
             // Only && || is forbidden
-            if(ctx->op[0] == ctx->op[1]
-            && ctx->op[0] == '&' || ctx->op[0] == '|') {
-                throw error(
-                    std::string("No such operator \"")
-                    + ctx->op.str
-                    + "\" for type \"int\".",ctx
-                );
-            }
-            switch(ctx->op[0]) {
-                case '<':
-                case '>':
-                    if(ctx->op[1] == ctx->op[0]) break;
-                case '!':
-                case '=':
-                    /* Comparison operators. */
-                    current_type = get_wrapper("bool");
-            }
-        } else if(temp_type.name() == "bool") {
-            switch(ctx->op[0]) {
-                case '&':
-                case '|':
-                    if(ctx->op[1]) break;
-                case '>':
-                case '<':
-                case '+':
-                case '-':
-                case '*':
-                case '/':
-                case '%':
-                case '^':
-                    throw error(
-                        std::string("No such operator ") 
-                        + ctx->op.str
-                        + " for type \"bool\".",ctx
-                    );
-            }
-        } else if(temp_type.name() == "string") {
-            switch(ctx->op[0]) {
-                case '>':
-                case '<':
-                    if(ctx->op[0] != ctx->op[1])
-                        break;
-                case '&':
-                case '|':
-                case '-':
-                case '*':
-                case '/':
-                case '%':
-                case '^':
-                    throw error(
-                        std::string("No such operator ") 
-                        + ctx->op.str
-                        + " for type \"string\".",ctx
-                    );
-            }
-            switch(ctx->op[0]) {
-                case '+': break; /* No need to change */
-                default : current_type = get_wrapper("bool");
-            }
-        } else if(temp_type.name() == "null") {
-            throw error(
-                std::string("No such operator ") 
-                + ctx->op.str
-                + " for \"null\".",ctx
-            );
+            static_cast <wrapper &> (*ctx) =
+                get_wrapper(ASTTypeScanner::assert_int(ctx));
+        } else if(__ltype.name() == "bool") {
+            ASTTypeScanner::assert_bool(ctx);
+            static_cast <wrapper> (*ctx) = __ltype;
+            ctx->flag = false;
+        } else if(__ltype.name() == "string") {
+            static_cast <wrapper &> (*ctx) =
+                get_wrapper(ASTTypeScanner::assert_string(ctx));
+        } else if(__ltype.name() == "null") {
+            static_cast <wrapper &> (*ctx) =
+                get_wrapper(ASTTypeScanner::assert_null(ctx));
         } else {
-            /* No operator other than != and and for them. */
-            if(ctx->op[0] != '=' && ctx->op[0] != '!')
-                throw error(
-                    std::string("No such operator ") 
-                    + ctx->op.str
-                    + " for type \""
-                    + temp_type.name()
-                    + "\".",ctx
-                );
-            current_type = get_wrapper("bool");
+            static_cast <wrapper &> (*ctx) =
+                get_wrapper(ASTTypeScanner::assert_class(ctx));
         }
-    } else {
+    } else { /* Comparison for different types. */
         /* Reference comparison: Only == and != . */
         if((ctx->op[0] == '!' || ctx->op[1] == '=')
-        && (is_convertible(temp_type,current_type) 
-        ||  is_convertible(current_type,temp_type))) {
-            current_type = get_wrapper("bool");            
+        && (is_convertible(__ltype,__rtype) 
+        ||  is_convertible(__rtype,__ltype))) {
+            static_cast <wrapper> (*ctx) = get_wrapper("bool");
         } else {
             throw error(
                 std::string("No such operator \"") 
                 + ctx->op.str
                 + "\" for type \""
-                + temp_type.data()
+                + __ltype.data()
                 + "\" and \""
-                + current_type.data()
+                + __rtype.data()
                 + "\".",ctx
             );
         }
     }
-    /* No longer assignable. */
-    current_type.flag = false;
 }
+
 
 void ASTvisitor::visitConditionExpr(condition_expr *ctx) {
     ctx->space = top;
     visit(ctx->cond);
-    if(!current_type.check("bool",0))
+    if(!ctx->cond->check("bool",0))
         throw error("Non bool type condition!",ctx->cond);
 
     visit(ctx->lval);
-    auto temp_type = current_type;
     visit(ctx->rval);
+    const wrapper &__ltype = *ctx->lval;
+    const wrapper &__rtype = *ctx->rval;
 
-    if(current_type != temp_type) {
-        if(is_convertible(current_type,temp_type)) {
-            current_type = temp_type;
-        } else if(is_convertible(temp_type,current_type)) {
-            // Do nothing here.
+    if(__ltype != __rtype) {
+        if(is_convertible(__ltype,__rtype)) {
+            static_cast <wrapper &> (*ctx) = __rtype;
+        } else if(is_convertible(__rtype,__ltype)) {
+            static_cast <wrapper &> (*ctx) = __ltype;
         } else {
-            // Different type error!
+            /* Different types! */
             throw error("Different types in conditional expression!",ctx);
         }
-        // With implicit convertion , it is no longer assignable.
-        current_type.flag = false;
+        /* With implicit convertion , it is no longer assignable. */ 
+        ctx->flag = false;
     } else {
-        // If assignable, both are assignable.
-        current_type.flag &= temp_type.flag;
+        /* Assignable only when both are assignable. */
+        static_cast <wrapper &> (*ctx) = __ltype;
+        ctx->flag &= __rtype.flag;
     }
 }
 
@@ -308,7 +264,7 @@ void ASTvisitor::visitAtomExpr(atom_expr *ctx) {
     auto *__p = top->find(ctx->name);
     ctx->real = __p;
     if (! __p) throw error("Such identifier doesn't exist: " + ctx->name);
-    current_type = get_wrapper(__p);
+    static_cast <wrapper &> (*ctx) = get_wrapper(__p);
 }
 
 
@@ -316,20 +272,20 @@ void ASTvisitor::visitLiteralConstant(literal_constant *ctx) {
     ctx->space = top;
     switch(ctx->type) {
         case literal_constant::NUMBER:
-            current_type = get_wrapper("int");
+            static_cast <wrapper &> (*ctx) = get_wrapper("int");
             break;
         case literal_constant::CSTRING:
-            current_type = get_wrapper("string");
+            static_cast <wrapper &> (*ctx) = get_wrapper("string");
             break;
         case literal_constant::NULL_:
             /* This is a special case. The type will be created when used. */
-            current_type = get_wrapper("null");
+            static_cast <wrapper &> (*ctx) = get_wrapper("null");
             break;
         case literal_constant::TRUE:
-            current_type = get_wrapper("bool");
+            static_cast <wrapper &> (*ctx) = get_wrapper("bool");
             break;
         case literal_constant::FALSE:
-            current_type = get_wrapper("bool");
+            static_cast <wrapper &> (*ctx) = get_wrapper("bool");
             break;
         default:
             throw error("How can this fucking happen!",ctx);
@@ -343,7 +299,7 @@ void ASTvisitor::visitForStmt(for_stmt *ctx) {
     if(ctx->init) visit(ctx->init);
     if(ctx->cond) {
         visit(ctx->cond);
-        if(!current_type.check("bool",0))
+        if(!ctx->cond->check("bool",0))
             throw error("Non bool type condition!",ctx->cond);
     }
     if(ctx->step) visit(ctx->step);
@@ -365,10 +321,10 @@ void ASTvisitor::visitFlowStmt(flow_stmt *ctx) {
             visit(ctx->expr);
 
             /* Check the return type. */
-            if(!is_convertible(current_type,func.back()->type))
+            if(!is_convertible(*ctx->expr,func.back()->type))
                 throw error("Invalid flow return type: "
                 "Cannot convert type \"" +
-                    current_type.data() +
+                    ctx->expr->data() +
                     "\" to \"" +
                     func.back()->type.data() +
                     "\".",ctx);
@@ -376,6 +332,7 @@ void ASTvisitor::visitFlowStmt(flow_stmt *ctx) {
             if(!func.back()->type.check("void",0))
                 throw error("Invalid flow return type: return void in non-void function");
         }
+        ctx->func = func.back();
     } else {
         if(loop.empty())
             throw error(
@@ -383,6 +340,7 @@ void ASTvisitor::visitFlowStmt(flow_stmt *ctx) {
                 + (ctx->flow[0] == 'b' ? "\"break\"" : "\"continue\"" )
                 + " outside loop."
             );
+        ctx->loop = loop.back();
     }
 }
 
@@ -391,7 +349,7 @@ void ASTvisitor::visitFlowStmt(flow_stmt *ctx) {
 void ASTvisitor::visitWhileStmt(while_stmt *ctx) {
     ctx->space = new scope {.prev = top};
     visit(ctx->cond);
-    if(!current_type.check("bool",0))
+    if(!ctx->cond->check("bool",0))
         throw error("Non bool type condition!",ctx->cond);
 
     loop.push_back(ctx);
@@ -422,7 +380,7 @@ void ASTvisitor::visitBranchStmt(branch_stmt *ctx) {
     for(auto [__cond,__stmt] : ctx->data) {
         if(__cond) {
             visit(__cond);
-            if(!current_type.check("bool",0))
+            if(!__cond->check("bool",0))
                 throw error("Non bool type condition!",__cond);
         }
 
@@ -451,10 +409,10 @@ void ASTvisitor::visitVariable(variable_def *ctx) {
     for(auto &&[__name,__init] : ctx->init) {
         if(__init) {
             visit(__init);
-            if(!is_convertible(current_type,ctx->type))
+            if(!is_convertible(*__init,ctx->type))
                 throw error(
                     "Cannot convert type \"" +
-                    current_type.data() +
+                    __init->data() +
                     "\" to \"" +
                     ctx->type.data() +
                     "\".",__def

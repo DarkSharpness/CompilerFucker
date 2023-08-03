@@ -172,11 +172,7 @@ struct atom_expr : expression {
     std::string name;           /* Name of the atom expression */
     identifier *real = nullptr; /* Pointer to real identifier. */
 
-    void print() override {
-        std::cout << name;
-        if(real)
-            std::cout << "/*" << real->unique_name << "*/";
-    }
+    void print() override { std::cout << name; }
     void accept(ASTvisitorbase *__p) override { return __p->visitAtomExpr(this); }
     ~atom_expr() override = default;
 };
@@ -230,6 +226,10 @@ struct for_stmt : statement , loop_type {
 struct flow_stmt : statement {
     op_type flow; /* BREAK | RETURN | CONTINUE */
     expression *expr = nullptr; /* Return value if return. */
+    union {
+        loop_type *loop; /* The location current flow will go. */
+        function  *func; /* The location current flow will go. */
+    };
 
     void print() override {
         print_indent();

@@ -2,7 +2,7 @@
 
 #include "ASTnode.h"
 
-namespace dark::AST {
+namespace dark {
 
 /**
  * @brief Structure:

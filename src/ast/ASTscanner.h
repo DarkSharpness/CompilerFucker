@@ -8,7 +8,6 @@
 
 namespace dark::AST {
 
-
 struct ASTClassScanner {
 
     /* Add support for basic types. */
@@ -49,12 +48,15 @@ struct ASTClassScanner {
             __map.erase(__iter);
         }
 
+        /* Create null type and array type. */ 
         __ans.insert({"null",new typeinfo {nullptr,"null"}});
         __ans.insert({"__array__",new typeinfo {nullptr,"__array__"}});
 
+        /* Add some member functions. */
         make_member(__ans);
         return __ans;
     }
+
 
     /* Add member functions for arrays and string. */
     static void make_member(std::map <std::string,typeinfo *> &__map) {
@@ -154,6 +156,7 @@ struct ASTClassScanner {
 
 
 struct ASTFunctionScanner {
+
     /* Add basic support for global functions. */
     static scope *make_basic(const std::map <std::string,typeinfo *> &__map) {
         auto &&__int_type    = wrapper {__map.find("int")->second,0,0};
@@ -248,6 +251,7 @@ struct ASTFunctionScanner {
      * It will check the params of the functions and member functions.
      * In addition, it will set up the scope for class types.
      * 
+     * @throw dark::error
      * @return The global scope that is created.
     */
     static scope *scan
@@ -262,19 +266,13 @@ struct ASTFunctionScanner {
                 auto *__type  = __map.find(__class->name)->second;
                 __type->space =__class->space = new scope {__ans};
                 
-                /* Then add this to the member variable. */
-                auto *__ptr   = new variable;
-                __ptr->name   = "this";
-                __ptr->type   = {.type = __type,.info = 0,.flag = false};
-                __ptr->unique_name = __class->name + "::this";
-                __class->space->insert("this",__ptr);
-
                 /* Visiting all class members. */
                 for(auto __t : __class->member) {
                     /* Member function case. */
                     if(auto *__func = dynamic_cast <function *> (__t); __func) {
                         /* This will check the function's argument type and name. */
                         assert_member(__func,__class->space,__map);
+
                         /* Check the constructor. */
                         if(__func->name.empty()) {
                             if(__func->type.name() != __class->name)
@@ -282,18 +280,25 @@ struct ASTFunctionScanner {
                             __func->type = {__map.find("void")->second,0,0};
                         }
                         __func->space = new scope {__class->space};
+
+                        /* Then add this poibter to the member functions. */
+                        auto *__ptr   = new variable;
+                        __ptr->name   = "this";
+                        __ptr->type   = {.type = __type,.info = 0,.flag = false};
+                        __ptr->unique_name = __class->name + "::this";
+                        __func->space->insert("this",__ptr);
                     }
 
                     /* Member variable case.  */
                     else {
                         auto *__list = dynamic_cast <variable_def *> (__t);
                         if(!__list) throw error("This should never happen!");
-                        for(auto &&[__name,___] : __list->init) {
-                            // No init list!
-                            if(___ != nullptr)
+                        for(auto &&[__name,__init] : __list->init) {
+                            /* No initialization list. */
+                            if(__init != nullptr)
                                 throw error("Member variable can't possess initialization statement!");
 
-                            // No indentical name.
+                            /* Check for identical variable. */
                             auto *__var = new variable;
                             __var->name = __name;
                             __var->type = __list->type;
@@ -362,6 +367,107 @@ struct ASTFunctionScanner {
 
 };
 
+
+struct ASTTypeScanner {
+    /* Check the operator for bool type. */
+    static std::string assert_bool(binary_expr *ctx) {
+        switch(ctx->op[0]) {
+            case '&':
+            case '|':
+                if(ctx->op[1]) break;
+            case '>':
+            case '<':
+            case '+':
+            case '-':
+            case '*':
+            case '/':
+            case '%':
+            case '^':
+                throw error(
+                    std::string("No such operator ") 
+                    + ctx->op.str
+                    + " for type \"bool\".",ctx
+                );
+        } return "bool";
+    }
+
+
+    /* Check the operator for int type. */
+    static std::string assert_int(binary_expr *ctx) {
+        if(ctx->op[0] == ctx->op[1]
+            && ctx->op[0] == '&' || ctx->op[0] == '|') {
+            throw error(
+                std::string("No such operator \"")
+                + ctx->op.str
+                + "\" for type \"int\".",ctx
+            );
+        }
+        /* Specially, comparison operator will be updated. */
+        switch(ctx->op[0]) {
+            case '<': case '>': if(ctx->op[1] == ctx->op[0]) break;
+            case '!': case '=':
+                return "bool";
+        } return "int";
+    }
+
+
+    /* Check the operator for bool type. */
+    static std::string assert_string(binary_expr *ctx) {
+        switch(ctx->op[0]) {
+            case '>':
+            case '<':
+                if(ctx->op[0] != ctx->op[1])
+                    break;
+            case '&':
+            case '|':
+            case '-':
+            case '*':
+            case '/':
+            case '%':
+            case '^':
+                throw error(
+                    std::string("No such operator ") 
+                    + ctx->op.str
+                    + " for type \"string\".",ctx
+                );
+        }
+
+        /* Only addition returns a string. */
+        switch(ctx->op[0]) {
+            case '+': return "string";
+            default : return "bool";
+        }
+    }
+
+
+    /* Check the operator for bool type. */
+    static std::string assert_null(binary_expr *ctx) {
+        throw error(
+            std::string("No such operator ")
+            + ctx->op.str
+            + " for \"null\".",ctx
+        );
+    }
+
+
+    /* Check the operator for bool type. */
+    static std::string assert_class(binary_expr *ctx) {
+         /* No operator other than != and == and for them. */
+        if(ctx->op[0] == '=' || ctx->op[0] == '!') {
+            return "bool";
+        } else {
+            throw error(
+                std::string("No such operator ") 
+                + ctx->op.str
+                + " for type \""
+                + ctx->lval->name()
+                + "\".",ctx
+            );
+        }
+    }
+
+    ASTTypeScanner() = delete;
+};
 
 
 }

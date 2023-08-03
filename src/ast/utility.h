@@ -7,11 +7,37 @@
 namespace dark {
 
 
+inline constexpr size_t __string_length(const char *__str) {
+    const char *__tmp = __str;
+    while(*__tmp) ++__tmp;
+    return __tmp - __str;
+}
+inline size_t __string_length(const std::string &__str) {
+    return __str.length();
+}
+inline size_t __string_length(char) { return 1; }
+template <class ...T>
+inline size_t __string_length_sum(const T &...__args) {
+    return (__string_length(__args) + ...);
+}
+inline std::string string_join() = delete;
+/* Join strings together , safe and fast ! */
+template <class ...T>
+inline std::string string_join(T &&...__args) {
+    std::string __ans;
+    __ans.reserve(__string_length_sum(__args...));
+    (__ans += ... += std::forward <T> (__args));
+    return __ans;
+}
+
+
+
+struct scope;
+
 /* Pre declaration part. */
 namespace AST {
 
 struct ASTvisitorbase;
-struct scope;
 
 /* AST node holder. */
 struct node {
@@ -217,7 +243,7 @@ struct identifier : argument {
 
 
 /* Abstract expression tagging. */
-struct expression : node {
+struct expression : node , wrapper {
     void print()  override = 0;
     ~expression() override = default;
 };
@@ -249,7 +275,8 @@ struct variable : identifier {
 
 
 struct ASTvisitorbase {
-    virtual void visit(node *ctx) { return ctx->accept(this); }
+    /* This function should never be overwritten! */
+    void visit(node *ctx) { return ctx->accept(this); }
     virtual void visitBracketExpr(bracket_expr *) = 0;
     virtual void visitSubscriptExpr(subscript_expr *) = 0;
     virtual void visitFunctionExpr(function_expr *) = 0;
