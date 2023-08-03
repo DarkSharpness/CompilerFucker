@@ -20,13 +20,34 @@ template <class ...T>
 inline size_t __string_length_sum(const T &...__args) {
     return (__string_length(__args) + ...);
 }
+/* Empty join will be invalid. */
 inline std::string string_join() = delete;
+/* Check whether this type is string or char type. */
+template <class ...T>
+inline constexpr bool __is_string_v = (
+    (std::is_convertible_v <T,std::string_view> 
+    || std::__is_char <T> ::__value) && ...
+);
 /* Join strings together , safe and fast ! */
 template <class ...T>
-inline std::string string_join(T &&...__args) {
+inline auto string_join(T &&...__args)
+-> std::enable_if_t <__is_string_v <T...>,std::string> {
     std::string __ans;
     __ans.reserve(__string_length_sum(__args...));
     (__ans += ... += std::forward <T> (__args));
+    return __ans;
+}
+/* Join strings together , safe and fast ! */
+template <class T>
+inline auto string_join_array(T __beg,T __end)
+-> std::enable_if_t <__is_string_v <decltype (*__beg)>,std::string> {
+    size_t __cnt = 0;
+    for(auto __cur = __beg ; __cur != __end ; ++__cur)
+        __cnt += __string_length(*__cur);
+    std::string __ans;
+    __ans.reserve(__cnt);
+    for(auto __cur = __beg ; __cur != __end ; ++__cur)
+        __ans += *__cur;
     return __ans;
 }
 
