@@ -19,7 +19,7 @@ void ASTvisitor::visitSubscriptExpr(subscript_expr *ctx) {
         if(!__p->check("int",0))
             throw error("Non-integer subscript!",ctx);
     }
-    auto __l = ctx->expr.front();
+    auto __l = ctx->expr[0];
     visit(__l);
 
     static_cast <wrapper &> (*ctx) = *__l;
@@ -417,11 +417,30 @@ void ASTvisitor::visitVariable(variable_def *ctx) {
                     "\".",ctx
                 );
         }
+
         auto *__var = new variable;
         __var->name = __name;
         __var->type = ctx->type;
         __var->type.flag = true;
-        __var->unique_name = get_unique_name(__var->name,func.size() ? func[0] : nullptr);
+        auto __func = func.size() ? func[0] : nullptr;
+        __var->unique_name = get_unique_name(__var,__func);
+        if(__func) { /* Local variable. */
+            __func->unique_mapping.push_back(__var);
+        } else if(__init) { /* Global variable to initialize. */
+            auto *__stmt = new simple_stmt;
+            auto *__expr = new binary_expr;
+            auto *__atom = new atom_expr;
+            __atom->name = __name;
+            __atom->real = __var;
+            __expr->lval = __atom;
+            __expr->rval = __init;
+            __expr->op   = "=";
+            __expr->space = global_init->space;
+            static_cast <wrapper &> (*__expr) = __var->type;
+            __stmt->expr.push_back(__expr);
+            global_init->body->stmt.push_back(__stmt);
+        }
+
         if(!top->insert(__name,__var))
             throw error("Duplicated variable name: \"" + __name + '\"',ctx);
     }
@@ -435,7 +454,7 @@ void ASTvisitor::visitFunction(function_def *ctx) {
         auto *__var = new variable;
         static_cast <argument &> (*__var) = __p;
         __var->type.flag = true;
-        __var->unique_name = get_unique_name(__var->name,func.front());
+        __var->unique_name = get_unique_name(__var,func.front());
         if(!ctx->space->insert(__p.name,__var))
             throw error("Duplicated function argument name: \"" + __p.name + '\"',ctx);
     }
@@ -449,7 +468,7 @@ void ASTvisitor::visitFunction(function_def *ctx) {
 void ASTvisitor::visitClass(class_def *ctx) {
     for(auto __p : ctx->member) {
         auto __func = dynamic_cast <function_def *> (__p);
-        if(!__func) continue; // Member variable definition has been done!
+        if(!__func) continue; /* Member variable definition has been done! */
         visit(__func);
     }
 }

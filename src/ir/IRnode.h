@@ -37,8 +37,16 @@ struct node {
 /* This is a special type marker. */
 struct class_type {
     std::string name; /* Class names contains '%' || Others contains only name. */
-    std::vector <typeinfo> layout;
-    bool is_builtin() const noexcept { return name[0] == '%'; }
+    std::vector <typeinfo>    layout; /* Variable typeinfo. */
+    std::vector <std::string> member; /* Member variables. */
+    
+    size_t index(std::string_view __view) const {
+        for(size_t i = 0 ; i != member.size() ; ++i)
+            if(member[i] == __view) return i;
+        throw dark::error("This should never happen! No such Member!");
+    }
+
+    bool is_builtin() const noexcept { return name[0] != '%'; }
 };
 
 
@@ -74,25 +82,19 @@ struct definition : node {
 
 /* Variables or temporaries. */
 struct value_type : definition {
-    std::string name;
-    typeinfo    type;
+    std::string name; /* Unique name. */
+    typeinfo    type; /* Actual type. */
     typeinfo get_type() override final { return type; }
     std::string  data() override final { return name; }
 };
 
 
 /* Pure variables. */
-struct variable   : value_type {};
-
-struct local_var  : variable {
-    ~local_var() override = default;
+struct variable  : value_type {
+    ~variable() override = default;
 };
 
-struct global_var : variable {
-    ~global_var() override = default;
-};
-
-struct temporary  : value_type {
+struct temporary : value_type {
     ~temporary() override = default;
 };
 
@@ -127,19 +129,29 @@ struct boolean_constant : literal {
 };
 
 
-struct function : node {
+struct function {
     std::string name; /* Function name. */
 
     size_t temp_count = 0; /* This is used to help generate IR. */
     size_t bran_count = 0; /* This is used to help generate IR. */
     size_t loop_count = 0; /* This is used to help generate IR. */
 
-    std::vector <variable   *> args; /* Argument list. */
-    std::vector <block_stmt *> stmt; /* Body data.   */
+    std::vector <variable   *> args; /* Argument list.   */
+    std::vector <block_stmt *> stmt; /* Body data.       */
     typeinfo                   type; /* Return type. */
 
+    /* Create a temporary and return pointer to it. */
+    temporary *create_temporary(typeinfo __type) {
+        static std::vector <temporary> temp;
+        temporary __temp;
+        __temp.name = std::to_string(temp_count++);
+        __temp.type = __type;
+        temp.push_back(__temp);
+        return &temp.back();
+    }
+
     /* define <ResultType> @<FunctionName> (...) {...} */
-    std::string data() override {
+    std::string data() {
         std::string __arg; /* Arglist. */
         for(auto __p : args) {
             if(__p != args.front())
@@ -169,7 +181,6 @@ struct function : node {
     void emplace_new(block_stmt *__stmt)
     { return stmt.push_back(__stmt); }
 
-    ~function() override = default;
 };
 
 
@@ -304,7 +315,7 @@ struct call_stmt : statement {
     ~call_stmt() override = default;
 };
 
-struct load_statement : statement {
+struct load_stmt : statement {
     value_type *src;
     temporary  *dst;
 
@@ -315,6 +326,8 @@ struct load_statement : statement {
             type_map[dst->get_type()],", ptr ",src->data(),'\n'
         );
     }
+
+    ~load_stmt() = default;
 };
 
 
@@ -350,7 +363,7 @@ struct return_stmt : statement {
 
 
 struct allocate_stmt : statement {
-    local_var *dest; /* Destination must be local! */
+    variable *dest; /* Destination must be local! */
 
     /* <result> = alloca <type> */
     std::string data() override {
@@ -367,14 +380,13 @@ struct get_stmt : statement {
     inline static constexpr ssize_t NPOS = -1;
     temporary  *dst;            /* Result pointer. */
     definition *src;            /* Source pointer. */
-    ssize_t     dim;            /* Dimension (index).  */
-    definition *def = nullptr;  /* The index. */
+    size_t      idx;            /* The index. */
     class_type *type;           /* Type of the pointer. */
 
     /* <result> = getelementptr <ty> ptr <ptrval> {, <ty> <idx>} */
     std::string data() override {
         std::string __suffix;
-        if(def) __suffix = ", i32" + def->data();
+        if(idx != NPOS) __suffix = ", i32" + std::to_string(idx);
         return string_join(
             dst->data()," = getelementptr ",type->name,
             " ptr ",src->data(),__suffix
@@ -417,8 +429,8 @@ struct phi_stmt : statement {
 
 /* Initialization for global variables. */
 struct initialization {
-    global_var *dest; /* Destination.      */
-    literal    *lite; /* Const expression. */
+    variable *dest; /* Destination.      */
+    literal  *lite; /* Const expression. */
 
     std::string data() {
         return string_join(

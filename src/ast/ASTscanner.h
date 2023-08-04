@@ -248,7 +248,7 @@ struct ASTFunctionScanner {
             if (auto *__class = dynamic_cast <class_def *> (__p); __class) {
                 /* First create a scope. */
                 auto *__type  = &__map[__class->name];
-                __type->space =__class->space;
+                __type->space = __class->space;
                 __type->space->prev = __ans;
 
                 /* Then add this pointer to the class. */
@@ -277,7 +277,7 @@ struct ASTFunctionScanner {
                             __func->type = {&__map["void"],0,0};
                         }
 
-                        __func->space = new scope {__class->space};
+                        __func->space = new scope {.prev = __class->space};
                     }
 
                     /* Member variable case.  */

@@ -203,7 +203,7 @@ struct typeinfo {
 
     /* Return whether the type is trivial (non-class). */
     bool is_trivial() const noexcept {
-        return name == "int" || name == "void" || name == "bool";
+        return name == "int" || name == "bool" || name == "void";
     }
 
 };

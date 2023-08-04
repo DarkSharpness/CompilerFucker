@@ -18,7 +18,6 @@ struct scope {
     /* Mapping from a name to a variable/function */
     std::map <std::string,AST::identifier *> data;
 
-
     AST::identifier *find(const std::string &__name) const noexcept {
         if(this == nullptr) return nullptr;
         auto __iter = data.find(__name);

@@ -16,6 +16,8 @@ struct ASTvisitor : ASTvisitorbase {
     /* From a function to its wrapper. */
     std::map <function * ,typeinfo> function_map;
 
+    function_def *global_init; /* This is the special global init function. */
+
     /* This is used to help deallocate memory */
     wrapper create_function(function *__func) {
         /* Return temporary data location. */
@@ -51,11 +53,18 @@ struct ASTvisitor : ASTvisitorbase {
     }
 
     /* Tries to init from ASTbuilder. */
-    ASTvisitor(std::vector <definition *>        &__def,
+    ASTvisitor(std::vector <definition *>      &__def,
                std::map <std::string,typeinfo> &__map) {
         std::cout << "\n\n|---------------Start scanning---------------|\n" << std::endl;
         class_map =    ASTClassScanner::scan(__def,__map);
         global    = ASTFunctionScanner::scan(__def,class_map);
+
+        /* A never called global function. */
+        global_init = new function_def;
+        global_init->space = new scope{.prev = global};
+        global_init->body  = new block_stmt;
+        global_init->name  = global_init->unique_name = "__global__init__";
+        global_init->type  = get_wrapper("void");
 
         for(auto __p : __def) {
             top = global; /* Current setting. */
@@ -64,8 +73,28 @@ struct ASTvisitor : ASTvisitorbase {
 
         assert_main();
 
+        __def.push_back(global_init);
+
         /* Pass the semantic check! */
         std::cout << "No error is found. Semantic check pass!";
+
+        // for(auto __p : __def) {
+        //     if(auto *__func = dynamic_cast <function *> (__p)) {
+        //         std::cout << '\n';
+        //         for(auto &&__iter : __func->args)
+        //             std::cout << __func->space->find(__iter.name)->unique_name 
+        //                       << ' ';
+        //         for(auto __iter : __func->unique_mapping)
+        //             std::cout << __iter->unique_name << ' ';
+        //     } else if(auto *__var = dynamic_cast <variable_def *> (__p)) {
+        //         std::cout << '\n';
+        //         for(auto &&__iter : __var->init)
+        //             std::cout << global->find(__iter.first)->unique_name
+        //                       << ' ';
+        //     }
+        // }
+
+        // std::cout << '\n'; global_init->print();
 
         std::cout << "\n\n|----------------End scanning----------------|\n" << std::endl;
     }
@@ -114,20 +143,23 @@ struct ASTvisitor : ASTvisitorbase {
     }
 
     /* Return the unique name of the variable. */
-    static std::string get_unique_name(const std::string &__name,function *__func) {
+    static std::string get_unique_name(variable *__var,function *__func) {
         /* Global variable: no renaming. */
-        if(!__func) return __name;
+        if(!__func) return '@' + __var->name;
         else { /* Function case. */
             /* Every suffix in one function will never be identical. */
             static std::map <function *,size_t> __cnt;
-            // std::cout << "Rename:" << __name + '-' + std::to_string(__cnt[__func]) << '\n';
-            return __name + '-' + std::to_string(__cnt[__func]++);
+
+            /* The line below is removed because function arguments not in alloca! */
+
+            return '%' + __var->name + '-' + std::to_string(__cnt[__func]++);
         }
     }
 
     /**
      * @brief Check main function and add return 0 to it.
      * @throw dark::error
+     * 
     */
     void assert_main() {
         auto *__func = dynamic_cast <function *> (global->find("main"));
