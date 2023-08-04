@@ -106,7 +106,7 @@ void ASTvisitor::visitMemberExpr(member_expr *ctx) {
         throw error("Function doesn't possess scope!",ctx);
     if(__type.dimension()) {
         /* Actually, only size method is ok. */
-        auto __p = class_map["__array__"]->space->find(ctx->rval);
+        auto __p = class_map["__array__"].space->find(ctx->rval);
         if (!__p) /* Not found in array space. */
             throw error( "Member \"" + ctx->rval + "\" not found in array type",ctx);
         static_cast <wrapper &> (*ctx) = get_wrapper(__p);
@@ -400,11 +400,10 @@ void ASTvisitor::visitSimpleStmt(simple_stmt *ctx) {
 
 /* Variable definition won't go into any new scope. */
 void ASTvisitor::visitVariable(variable_def *ctx) {
-    auto *__def  = static_cast <definition *> (ctx);
-    __def->space = top;
+    ctx->space = top;
 
     if(ctx->type.name() == "void")
-        throw error("Variables cannot be void type!",__def);
+        throw error("Variables cannot be void type!",ctx);
 
     for(auto &&[__name,__init] : ctx->init) {
         if(__init) {
@@ -415,7 +414,7 @@ void ASTvisitor::visitVariable(variable_def *ctx) {
                     __init->data() +
                     "\" to \"" +
                     ctx->type.data() +
-                    "\".",__def
+                    "\".",ctx
                 );
         }
         auto *__var = new variable;
@@ -424,7 +423,7 @@ void ASTvisitor::visitVariable(variable_def *ctx) {
         __var->type.flag = true;
         __var->unique_name = get_unique_name(__var->name,func.size() ? func[0] : nullptr);
         if(!top->insert(__name,__var))
-            throw error("Duplicated variable name: \"" + __name + '\"',__def);
+            throw error("Duplicated variable name: \"" + __name + '\"',ctx);
     }
 }
 

@@ -83,6 +83,8 @@ inline void print_indent() {
 }
 
 struct error {
+    explicit error(error *) {}
+
     error(std::string __s) { std::cerr << "Fatal error: " << __s << '\n'; }
 
     error(std::string __s,AST::node *ptr) {
@@ -91,7 +93,13 @@ struct error {
         std::cerr << "\"\n";
         std::cerr << "Fatal error: " << __s << '\n';
     }
+};
 
+
+struct warning {
+    warning(std::string __s) {
+        std::cerr << "Warning: " << __s << '\n';
+    }
 };
 
 
@@ -271,14 +279,14 @@ struct expression : node , wrapper {
 
 
 /* Abstract statement tagging. */
-struct statement : node {
+struct statement : virtual node {
     void print() override = 0;
     ~statement() override = default;
 };
 
 
 /* Abstract definition tagging. */
-struct definition : node {
+struct definition : virtual node {
     void print()  override = 0;
     ~definition() override = default;
 };

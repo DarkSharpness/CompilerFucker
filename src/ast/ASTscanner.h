@@ -3,7 +3,9 @@
 #include "utility.h"
 #include "ASTnode.h"
 #include "scope.h"
+
 #include <map>
+#include <set>
 
 
 namespace dark::AST {
@@ -11,56 +13,22 @@ namespace dark::AST {
 struct ASTClassScanner {
 
     /* Add support for basic types. */
-    static std::map <std::string,typeinfo *>
-        make_basic(std::map <std::string,typeinfo *> &__map) {
-        std::map <std::string,typeinfo *> __ans;
-        decltype(__ans.end()) __iter;
-
-        /* int */
-        if(__iter = __map.find("int") ; __iter == __map.end()) {
-            __ans.insert({"int",new typeinfo {nullptr,"int"}});
-        } else {
-            __ans.insert(std::move(*__iter));
-            __map.erase(__iter);
-        }
-
-        /* bool */
-        if(__iter = __map.find("bool") ; __iter == __map.end()) {
-            __ans.insert({"bool",new typeinfo {nullptr,"bool"}});
-        } else {
-            __ans.insert(std::move(*__iter));
-            __map.erase(__iter);
-        }
-
-        /* void */
-        if(__iter = __map.find("void") ; __iter == __map.end()) {
-            __ans.insert({"void",new typeinfo {nullptr,"void"}});
-        } else {
-            __ans.insert(std::move(*__iter));
-            __map.erase(__iter);
-        }
-
-        /* string */
-        if(__iter = __map.find("string") ; __iter == __map.end()) {
-            __ans.insert({"string",new typeinfo {nullptr,"string"}});
-        } else {
-            __ans.insert(std::move(*__iter));
-            __map.erase(__iter);
-        }
-
-        /* Create null type and array type. */ 
-        __ans.insert({"null",new typeinfo {nullptr,"null"}});
-        __ans.insert({"__array__",new typeinfo {nullptr,"__array__"}});
+    static void make_basic(std::map <std::string,typeinfo> &__map) {
+        __map.insert({"int",      typeinfo {nullptr,"int"}});
+        __map.insert({"bool",     typeinfo {nullptr,"bool"}});
+        __map.insert({"void",     typeinfo {nullptr,"void"}});
+        __map.insert({"string",   typeinfo {nullptr,"string"}});
+        __map.insert({"null",     typeinfo {nullptr,"null"}});
+        __map.insert({"__array__",typeinfo {nullptr,"__array__"}});
 
         /* Add some member functions. */
-        make_member(__ans);
-        return __ans;
+        make_member(__map);
     }
 
 
     /* Add member functions for arrays and string. */
-    static void make_member(std::map <std::string,typeinfo *> &__map) {
-        auto &&__int_type = wrapper {__map["int"],0,0};
+    static void make_member(std::map <std::string,typeinfo> &__map) {
+        auto &&__int_type = wrapper {&__map["int"],0,0};
         { /* Array type ::size() */
             auto *__temp = new scope {nullptr};
             auto *__func = new function;
@@ -68,10 +36,12 @@ struct ASTClassScanner {
             __func->type = __int_type;
             __func->unique_name = "__array__::size";
             __temp->insert("size",__func);
-            __map["__array__"]->space = __temp;
+            __map["__array__"].space = __temp;
         }
+
         { /* String type  */
             auto *__temp = new scope {nullptr};
+
             { /* ::length() */
                 auto *__func = new function;
                 __func->name = "length";
@@ -79,14 +49,16 @@ struct ASTClassScanner {
                 __func->unique_name = "string::length";
                 __temp->insert("length",__func);
             }
+
             { /* ::substring(int l,int r) */
                 auto *__func = new function;
                 __func->name = "substring";
-                __func->type = {__map["string"],0,0};
+                __func->type = {&__map["string"],0,0};
                 __func->args = {{"l",__int_type},{"r",__int_type}};
                 __func->unique_name = "string::substring";
                 __temp->insert("substring",__func);
             }
+
             { /* ::parseInt() */
                 auto *__func = new function;
                 __func->name = "parseInt";
@@ -94,6 +66,7 @@ struct ASTClassScanner {
                 __func->unique_name = "string::parseInt";
                 __temp->insert("parseInt",__func);
             }
+
             { /* ::ord(int n) */
                 auto *__func = new function;
                 __func->name = "ord";
@@ -102,7 +75,8 @@ struct ASTClassScanner {
                 __func->unique_name = "string::ord";
                 __temp->insert("ord",__func);
             }
-            __map["string"]->space = __temp;
+
+            __map["string"].space = __temp;
         }
     }
 
@@ -112,41 +86,50 @@ struct ASTClassScanner {
      * add all classes , basic types and builtin member functions 
      * to the map. In the end, it will clear the __map.
      * 
+     * @param __def All definitions.
+     * @param __map The map of all used types.
      * @return A map of all class info.
     */
-    static std::map <std::string,typeinfo *> scan
-        (const std::vector <definition *>  &__def,
-         std::map <std::string,typeinfo *> &__map) {
-        auto __ans = make_basic(__map);
+    static std::map <std::string,typeinfo> scan
+        (const std::vector <definition *> &__def,
+         std::map <std::string,typeinfo>  &__map) {
+        make_basic(__map);
+
+        /* The name of all defined types. */
+        std::set <std::string_view> name_set = {
+            "int","void","bool","string","__array__","null"
+        };
+
+
         for(auto __p : __def) {
-            auto *__tmp = dynamic_cast <class_def *> (__p);
-            if (! __tmp) continue;
-            auto __iter = __map.find(__tmp->name);
+            auto __class = dynamic_cast <class_def *> (__p);
+            if (!__class) continue;
+            auto [______,__result] = name_set.insert(__class->name);
+            if(!__result) throw error("Duplicate class name!");
+            __class->space = new scope {.prev = nullptr};
+
+            /* This is warning part */
+            auto __iter = __map.find(__class->name); 
             if(__iter == __map.end()) {
                 /// This is an class that is never refered!
                 /// TODO: optimize it out.
 
-                typeinfo *__class = new typeinfo {nullptr,__tmp->name};
-                if(!__ans.insert({__class->name,__class}).second)
-                    throw error("Duplicate class name!");
-                std::cout << "Warning: Unused type \"" << __tmp->name  << "\"\n";
-            } else {
-                // Simply move the data within.
-                if(!__ans.insert(std::move(*__iter)).second)
-                    throw error("Duplicate class name!");
-                __map.erase(__iter);
+                warning("Unused type \"" + __class->name + "\"\n");
+                /* Maybe it should not be inserted...... */
+                __map.insert({__class->name,{nullptr,__class->name}});
+                /* This is used to mark that this class is unused. */
+                __class->space->insert("__unused__",nullptr);
             }
         }
 
         /* Check all types used in the program. */
         std::string __error = "";
-        for(auto &&[__name,__p] : __map) __error += '\"' + __name + "\" ";
+        for(auto &&[__name,__p] : __map) 
+            if(!name_set.count(__name))
+                __error += '\"' + __name + "\" ";
         if(__error != "") throw error("Undefined type: " + __error);
 
-        /* Now the memory in the map has become useless. */
-        __map.clear();
-        /* Add 4 basic types. */
-        return __ans;
+        return std::move(__map);
     }
 
 
@@ -158,10 +141,10 @@ struct ASTClassScanner {
 struct ASTFunctionScanner {
 
     /* Add basic support for global functions. */
-    static scope *make_basic(const std::map <std::string,typeinfo *> &__map) {
-        auto &&__int_type    = wrapper {__map.find("int")->second,0,0};
-        auto &&__void_type   = wrapper {__map.find("void")->second,0,0};
-        auto &&__string_type = wrapper {__map.find("string")->second,0,0};
+    static scope *make_basic(std::map <std::string,typeinfo> &__map) {
+        auto &&__int_type    = wrapper {&__map["int"],0,0};
+        auto &&__void_type   = wrapper {&__map["void"],0,0};
+        auto &&__string_type = wrapper {&__map["string"],0,0};
         auto *__temp = new scope {nullptr};
         { /* ::print(string str) */
             auto *__func = new function;
@@ -229,8 +212,8 @@ struct ASTFunctionScanner {
      * @return Whether this function pass the test.
     */
     static bool check_void(function *__func,
-                           const std::map <std::string,typeinfo *> &__map) {
-        auto __void = __map.find("void")->second;
+                           std::map <std::string,typeinfo> &__map) {
+        auto __void = &__map["void"];
 
         /* Check whether the return type is void array. */
         wrapper &__return = __func->type;
@@ -246,6 +229,7 @@ struct ASTFunctionScanner {
         return true;
     }
 
+
     /**
      * @brief This function will scan the function definitions.
      * It will check the params of the functions and member functions.
@@ -255,17 +239,25 @@ struct ASTFunctionScanner {
      * @return The global scope that is created.
     */
     static scope *scan
-        (const std::vector <definition *>        &__def,
-         const std::map <std::string,typeinfo *> &__map) {
+        (const std::vector <definition *> &__def,
+         std::map <std::string,typeinfo>  &__map) {
         scope *__ans = make_basic(__map);
         /* Build scope for class. */
         for(auto __p : __def) {
             /* Class case. */
             if (auto *__class = dynamic_cast <class_def *> (__p); __class) {
                 /* First create a scope. */
-                auto *__type  = __map.find(__class->name)->second;
-                __type->space =__class->space = new scope {__ans};
-                
+                auto *__type  = &__map[__class->name];
+                __type->space =__class->space;
+                __type->space->prev = __ans;
+
+                /* Then add this pointer to the class. */
+                auto *__ptr   = new variable;
+                __ptr->name   = "this";
+                __ptr->type   = {.type = __type,.info = 0,.flag = false};
+                __ptr->unique_name = __class->name + "::this";
+                __type->space->insert("this",__ptr);
+
                 /* Visiting all class members. */
                 for(auto __t : __class->member) {
                     /* Member function case. */
@@ -273,20 +265,19 @@ struct ASTFunctionScanner {
                         /* This will check the function's argument type and name. */
                         assert_member(__func,__class->space,__map);
 
+                        /* Function name cannot be class name. */
+                        if(__func->name == __class->name)
+                            throw error("Function name cannot be class name!");
+
                         /* Check the constructor. */
                         if(__func->name.empty()) {
                             if(__func->type.name() != __class->name)
                                 throw error("Invalid class constructor",__func);
-                            __func->type = {__map.find("void")->second,0,0};
+                            /* Update its return type. */
+                            __func->type = {&__map["void"],0,0};
                         }
-                        __func->space = new scope {__class->space};
 
-                        /* Then add this poibter to the member functions. */
-                        auto *__ptr   = new variable;
-                        __ptr->name   = "this";
-                        __ptr->type   = {.type = __type,.info = 0,.flag = false};
-                        __ptr->unique_name = __class->name + "::this";
-                        __func->space->insert("this",__ptr);
+                        __func->space = new scope {__class->space};
                     }
 
                     /* Member variable case.  */
@@ -334,11 +325,15 @@ struct ASTFunctionScanner {
      * @throw dark::error
     */
     static void assert_member(function *__func, scope *__cur,
-                              const std::map <std::string,typeinfo *> &__map) {
+                              std::map <std::string,typeinfo> &__map) {
         if(!check_void(__func,__map))
             throw error("Function arguments can't be void type!");
-        if(!__cur->insert(__func->name,__func))
-            throw error("Duplicated member function name: \""  + __func->name + '\"');
+        if(!__cur->insert(__func->name,__func)) {
+            if(__func->name.empty())
+                throw error("Duplicated constructor for type: \"" + __func->type.name() + '\"');
+            else
+                throw error("Duplicated member function name: \""  + __func->name + '\"');
+        }
     }
 
 
@@ -353,7 +348,7 @@ struct ASTFunctionScanner {
      * @throw dark::error
     */
     static void assert_global(function *__func, scope *__cur,
-                              const std::map <std::string,typeinfo *> &__map) {
+                              std::map <std::string,typeinfo> &__map) {
         if(!check_void(__func,__map))
             throw error("Function arguments cannot be void type!");
         if(__map.count(__func->name))

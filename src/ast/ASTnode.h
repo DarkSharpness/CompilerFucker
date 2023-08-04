@@ -362,6 +362,9 @@ struct function_def : definition , identifier {
     block_stmt * body = nullptr; /* Function body in a block. */
     std::vector <argument> args; /* Argument list. */
 
+     /* This unique mapping is intened to store variables.   */
+    std::vector <variable *> unique_mapping;
+
     void print() override {
         print_indent();
         std::cout

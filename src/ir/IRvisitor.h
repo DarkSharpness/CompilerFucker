@@ -1,13 +1,32 @@
 #pragma once
 
-#include "ASTscanner.h"
-
+#include "utility.h"
+#include "IRnode.h"
 
 namespace dark::IR {
 
 
-struct IRvisitor : AST::ASTvisitorbase {
+struct IRbuilder : AST::ASTvisitorbase {
     scope *global = nullptr;
+
+    std::map <std::string,IR::class_type> class_map;
+
+    function global_init; /* Global init function. */
+    std::vector <initialization> global_variable;
+
+    function *top = nullptr;
+
+    IR::typeinfo type_remap(AST::typeinfo *type) {
+        if(type->name == "int")  return IR::typeinfo::I32;
+        if(type->name == "bool") return IR::typeinfo::I1;
+        return IR::typeinfo::PTR;
+    }
+
+    IRbuilder(scope *__global) : global(__global) {
+        global_init.emplace_new(new block_stmt);
+        global_init.stmt.back()->label = "entry";
+    }
+
 
     void visitBracketExpr(AST::bracket_expr *) override;
     void visitSubscriptExpr(AST::subscript_expr *) override;
@@ -28,6 +47,12 @@ struct IRvisitor : AST::ASTvisitorbase {
     void visitVariable(AST::variable_def *) override;
     void visitFunction(AST::function_def *) override;
     void visitClass(AST::class_def *) override;
+
+    void visitGlobalVariable(AST::variable_def *);
+    void visitMemberFunction(AST::function_def *);
+
+    static std::string get_temporary_name(size_t __n)
+    { return "%" + std::to_string(__n); }
 
 };
 

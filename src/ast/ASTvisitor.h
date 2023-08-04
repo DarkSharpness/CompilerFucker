@@ -9,14 +9,19 @@ namespace dark::AST {
 struct ASTvisitor : ASTvisitorbase {
     /* Global scope. */
     scope *global = nullptr;
-    /* Global mapping. from name to specific type. */
-    std::map <std::string,typeinfo *> class_map;
+    /* Global mapping from name to specific type. */
+
+    /* From a class to its specific info. */
+    std::map <std::string,typeinfo> class_map;
+    /* From a function to its wrapper. */
+    std::map <function * ,typeinfo> function_map;
 
     /* This is used to help deallocate memory */
     wrapper create_function(function *__func) {
-        static std::map <function *,typeinfo> __map;
         /* Return temporary data location. */
-        auto [__iter,__] = __map.insert({__func,typeinfo {.func = __func}});
+        auto [__iter,__] = function_map.insert(
+            {__func,typeinfo {.func = __func}}
+        );
         return wrapper {
             .type = &__iter->second,
             .info = 0,  // No dimension
@@ -33,22 +38,21 @@ struct ASTvisitor : ASTvisitorbase {
     /* Get the type wrapper of the type by its name. */
     wrapper get_wrapper(std::string ctx) {
         return wrapper {
-            .type = class_map[ctx],
+            .type = &class_map[ctx],
             .info = 0,
             .flag = 0
         };
     }
 
-
     /* Find the class info within. */
     typeinfo *find_class(const std::string &str) {
         auto iter = class_map.find(str);
-        return iter == class_map.end() ? nullptr : iter->second;
+        return iter == class_map.end() ? nullptr : &iter->second;
     }
 
     /* Tries to init from ASTbuilder. */
     ASTvisitor(std::vector <definition *>        &__def,
-               std::map <std::string,typeinfo *> &__map) {
+               std::map <std::string,typeinfo> &__map) {
         std::cout << "\n\n|---------------Start scanning---------------|\n" << std::endl;
         class_map =    ASTClassScanner::scan(__def,__map);
         global    = ASTFunctionScanner::scan(__def,class_map);

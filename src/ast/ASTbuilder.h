@@ -12,7 +12,7 @@ struct ASTbuilder : public MxParserVisitor {
     std::vector <AST::definition *> global;
 
     /* Type mapping. */
-    std::map <std::string,AST::typeinfo *> mapping;
+    std::map <std::string,AST::typeinfo> mapping;
 
     ASTbuilder(MxParser::File_InputContext *ctx) {
         std::cout << "\n\n|---------------Start building---------------|\n" << std::endl;
@@ -32,15 +32,14 @@ struct ASTbuilder : public MxParserVisitor {
 
     /* Return the typeinfo from given string. */
     AST::typeinfo *get_typeinfo(std::string str) {
-        auto [__iter,__result] = mapping.insert({std::move(str),nullptr});
-        if(__result) {
-            auto *__info = new AST::typeinfo {
+        auto [__iter,____] = mapping.emplace(
+            std::move(str),
+            AST::typeinfo {
                 .space = nullptr,
-                .name  = __iter->first
-            };
-            __iter->second = __info;
-        }
-        return __iter->second;
+                .name  = str
+            }
+        );
+        return &__iter->second;
     }
 
     std::any visitFile_Input(MxParser::File_InputContext *) override;

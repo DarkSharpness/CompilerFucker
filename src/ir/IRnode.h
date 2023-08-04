@@ -28,20 +28,19 @@ inline constexpr c_string type_map[4] = {
 };
 
 
-/* Return the standard name of local temporary register. */
-inline std::string get_local(size_t &__n) { return '%' + std::to_string(++__n); }
-
-
 struct node {
     virtual std::string data() = 0;
     virtual ~node() = default;
 };
 
 
+/* This is a special type marker. */
 struct class_type {
-    std::string name; /* The name contains '%' */
-    std::vector <typeinfo *> layout;
+    std::string name; /* Class names contains '%' || Others contains only name. */
+    std::vector <typeinfo> layout;
+    bool is_builtin() const noexcept { return name[0] == '%'; }
 };
+
 
 struct label_type { std::string label; };
 
@@ -57,11 +56,14 @@ struct block_stmt : label_type  {
 
         __tmp.reserve(stmt.size() + 2);
         __tmp.push_back(label + ":\n");
-        for(auto __p : stmt) __tmp.push_back(__p->data());
+        for(auto __p : stmt) __tmp.push_back("    " + __p->data());
         __tmp.push_back("\n");
 
         return string_join_array(__tmp.begin(),__tmp.end());
     }
+
+    void emplace_new(statement *__stmt)
+    { return stmt.push_back(__stmt); }
 };
 
 
@@ -104,21 +106,21 @@ struct null_constant : literal {
 };
 
 struct string_constant : literal {
-    size_t index; /* The index of the string_constant. */
+    std::string context;
     typeinfo get_type() override { return typeinfo::PTR; }
-    std::string  data() override { return "@str-" + std::to_string(index); }
+    std::string  data() override { return context; }
     ~string_constant()  override = default;
 };
 
 struct integer_constant : literal {
-    int value;
+    int value = 0;
     typeinfo get_type() override { return typeinfo::I32; }
     std::string  data() override { return std::to_string(value); }
     ~integer_constant() override = default;
 };
 
 struct boolean_constant : literal {
-    bool value;
+    bool value = 0;
     typeinfo get_type() override { return typeinfo::I1; }
     std::string  data() override { return value ? "true" : "false"; }
     ~boolean_constant() override = default;
@@ -132,7 +134,7 @@ struct function : node {
     size_t bran_count = 0; /* This is used to help generate IR. */
     size_t loop_count = 0; /* This is used to help generate IR. */
 
-    std::vector <variable *>   args; /* Argument list. */
+    std::vector <variable   *> args; /* Argument list. */
     std::vector <block_stmt *> stmt; /* Body data.   */
     typeinfo                   type; /* Return type. */
 
@@ -159,6 +161,13 @@ struct function : node {
 
         return string_join_array(__tmp.begin(),__tmp.end());
     };
+
+    /* Helper function. */
+    void emplace_new(statement *__stmt)
+    { return stmt.back()->emplace_new(__stmt); }
+
+    void emplace_new(block_stmt *__stmt)
+    { return stmt.push_back(__stmt); }
 
     ~function() override = default;
 };
@@ -188,9 +197,11 @@ struct compare_stmt : statement {
 
     /* <result> = icmp <cond> <type> <operand1>, <operand2> */
     std::string data() override {
-        return string_join(dest->data()," = icmp "
-        ,str[op],' ',type_map[lvar->get_type()],' '
-        ,lvar->data(),", ",rvar->data(),'\n');
+        return string_join(
+            dest->data()," = icmp "
+            ,str[op],' ',type_map[lvar->get_type()],' '
+            ,lvar->data(),", ",rvar->data(),'\n'
+        );
     };
 };
 
@@ -227,8 +238,10 @@ struct binary_stmt : statement {
 
     /* <result> = <operator> <type> <operand1>, <operand2> */
     std::string data() override {
-        return string_join(dest->data()," = "
-        ,str[op]," i32 ",lvar->data(),", ",rvar->data(),'\n');
+        return string_join(
+            dest->data()," = ",str[op]
+            ," i32 ",lvar->data(),", ",rvar->data(),'\n'
+        );
     };
 
     ~binary_stmt() override = default;
@@ -257,7 +270,8 @@ struct branch_stmt : statement {
             "br i1",cond->data(),
             ", label %",br[1]->label,
             ", label %",br[0]->label,
-            '\n');
+            '\n'
+        );
     }
 
     ~branch_stmt() override = default;
@@ -336,7 +350,7 @@ struct return_stmt : statement {
 
 
 struct allocate_stmt : statement {
-    variable *dest;
+    local_var *dest; /* Destination must be local! */
 
     /* <result> = alloca <type> */
     std::string data() override {
@@ -399,6 +413,23 @@ struct phi_stmt : statement {
 
     ~phi_stmt() override = default;
 };
+
+
+/* Initialization for global variables. */
+struct initialization {
+    global_var *dest; /* Destination.      */
+    literal    *lite; /* Const expression. */
+
+    std::string data() {
+        return string_join(
+            dest->data()," = ",
+            type_map[dest->get_type()],lite->data()
+        );
+    }
+
+    ~initialization() = default;
+};
+
 
 
 }
