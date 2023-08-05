@@ -390,7 +390,7 @@ struct ASTTypeScanner {
     /* Check the operator for int type. */
     static std::string assert_int(binary_expr *ctx) {
         if(ctx->op[0] == ctx->op[1]
-            && ctx->op[0] == '&' || ctx->op[0] == '|') {
+        && (ctx->op[1] == '&' || ctx->op[1] == '|')) {
             throw error(
                 std::string("No such operator \"")
                 + ctx->op.str
@@ -437,7 +437,9 @@ struct ASTTypeScanner {
 
     /* Check the operator for bool type. */
     static std::string assert_null(binary_expr *ctx) {
-        throw error(
+        if(ctx->op[0] == '!' || ctx->op[0] == '=') {
+            return "bool";
+        } else throw error(
             std::string("No such operator ")
             + ctx->op.str
             + " for \"null\".",ctx

@@ -85,22 +85,45 @@ inline void print_indent() {
 struct error {
     explicit error(error *) {}
 
-    error(std::string __s) { std::cerr << "Fatal error: " << __s << '\n'; }
+    error(std::string __s) { std::cerr << "\033[31mFatal error: " << __s << "\n\033[0m"; }
 
-    error(std::string __s,AST::node *ptr) {
-        std::cerr << "Error here:\n\"";
-        ptr->print();
+    error(std::string __s,AST::node *__ptr) {
+        std::cerr << "\033[31mError here:\n\"";
+        std::cout << "\033[33m";
+        __ptr->print();
+        std::cout << "\033[0m";
         std::cerr << "\"\n";
-        std::cerr << "Fatal error: " << __s << '\n';
+        std::cerr << "Fatal error: " << __s << "\n\033[0m";
     }
 };
 
 
 struct warning {
     warning(std::string __s) {
-        std::cerr << "Warning: " << __s << '\n';
+        std::cerr << "\033[33mWarning: " << __s << "\n\033[0m";
     }
 };
+
+
+/**
+ * @brief SFINAE safe cast from one type to its virtual derived.
+ * If fails, it will throw an runtime error.
+ * 
+ * @throw dark::error
+ * 
+*/
+template <class T,class V>
+inline auto safe_cast (V *__ptr)
+-> std::enable_if_t <
+    std::is_pointer_v <T> && 
+    std::is_base_of_v <
+        std::remove_pointer_t <V>,
+        std::remove_pointer_t <T>>,
+    T > {
+    auto *__tmp = dynamic_cast <T> (__ptr);
+    if(!__tmp) throw error("Fail to cast!");
+    return __tmp;
+}
 
 
 struct op_type {

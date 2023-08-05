@@ -17,15 +17,6 @@ struct ASTbuilder : public MxParserVisitor {
     ASTbuilder(MxParser::File_InputContext *ctx) {
         std::cout << "\n\n|---------------Start building---------------|\n" << std::endl;
         visitFile_Input(ctx);
-
-        for(auto __p : global) {
-            __p->print();
-            std::cout << "\n\n";
-        }
-
-        std::cout << "// Types used:\n//     ";
-        for(auto &&[__name,__v] : mapping)
-            std::cout << __name << ' ';
         std::cout << "\n\n|----------------End building----------------|\n" << std::endl;
     }
 

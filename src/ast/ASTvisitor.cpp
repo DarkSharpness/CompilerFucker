@@ -6,6 +6,7 @@ namespace dark::AST {
 
 void ASTvisitor::visitBracketExpr(bracket_expr *ctx) {
     ctx->space = top;
+    ctx->expr->flag = ctx->flag;
     visit(ctx->expr);
     static_cast <wrapper &> (*ctx) = *ctx->expr;
 }
@@ -14,15 +15,17 @@ void ASTvisitor::visitBracketExpr(bracket_expr *ctx) {
 void ASTvisitor::visitSubscriptExpr(subscript_expr *ctx) {
     ctx->space = top;
     for(size_t i = 1 ; i < ctx->expr.size() ; ++i) {
-        auto __p = ctx->expr[i];
+        auto *__p = ctx->expr[i];
+        __p->flag = false;
         visit(__p);
         if(!__p->check("int",0))
             throw error("Non-integer subscript!",ctx);
     }
-    auto __l = ctx->expr[0];
-    visit(__l);
+    auto *__lhs = ctx->expr[0];
+    __lhs->flag = false;
+    visit(__lhs);
 
-    static_cast <wrapper &> (*ctx) = *__l;
+    static_cast <wrapper &> (*ctx) = *__lhs;
     ctx->flag = true; /* Array access are re-assignable. */
     ctx->info -= (ctx->expr.size() - 1);
     if(ctx->info < 0) throw error("Too many subscripts!",ctx);
@@ -32,6 +35,7 @@ void ASTvisitor::visitSubscriptExpr(subscript_expr *ctx) {
 void ASTvisitor::visitFunctionExpr(function_expr *ctx) {
     ctx->space = top;
     /* Check for function type. */
+    ctx->body->flag = false;
     visit(ctx->body);
     const wrapper &__type = *ctx->body;
     if(!__type.type->is_function())
@@ -42,7 +46,8 @@ void ASTvisitor::visitFunctionExpr(function_expr *ctx) {
 
     /* Check for function arguments. */
     for(size_t i = 0 ; i < ctx->args.size() ; ++i) {
-        auto __p = ctx->args[i];
+        auto  __p = ctx->args[i];
+        __p->flag = false;
         visit(__p);
         if(!is_convertible(*__p,__func->args[i].type))
             throw error(
@@ -55,12 +60,14 @@ void ASTvisitor::visitFunctionExpr(function_expr *ctx) {
             );
     }
 
+    /* Of course not assignable. */
     static_cast <wrapper &> (*ctx) = __func->type;
 }
 
 
 void ASTvisitor::visitUnaryExpr(unary_expr *ctx) {
     ctx->space = top;
+    ctx->expr->flag = ctx->op[1];
     visit(ctx->expr);
     if(ctx->op[1]) { /* ++ or -- */
         if(!ctx->expr->check("int",0)) {
@@ -75,11 +82,13 @@ void ASTvisitor::visitUnaryExpr(unary_expr *ctx) {
         if(!ctx->expr->assignable())
             throw error("No self-iteration for right value type.",ctx);
 
+        bool __flag = ctx->flag;
         static_cast <wrapper &> (*ctx) = *ctx->expr;
-        ctx->flag = !ctx->op[2];
+        ctx->flag = __flag && !ctx->op[2];
     } else {
-        if(((ctx->op[0] == '+' || ctx->op[0] == '-') && !ctx->expr->check("int",0))
-        || ((ctx->op[0] == '!' || ctx->op[0] == '~') && !ctx->expr->check("bool",0))) {
+        if(((ctx->op[0] == '+' || ctx->op[0] == '-' || ctx->op[0] == '~') 
+            && !ctx->expr->check("int",0))
+        || (ctx->op[0] == '!' && !ctx->expr->check("bool",0))) {
             throw error(
                 std::string("No such operator ")
                 + ctx->op.str
@@ -99,32 +108,33 @@ void ASTvisitor::visitUnaryExpr(unary_expr *ctx) {
 
 void ASTvisitor::visitMemberExpr(member_expr *ctx) {
     ctx->space = top;
+
+    ctx->lval->flag = false;
     visit(ctx->lval);
 
     const wrapper &__type = *ctx->lval;
+    bool __flag = ctx->flag;
     if(__type.type->is_function())
         throw error("Function doesn't possess scope!",ctx);
-    if(__type.dimension()) {
+    else if(__type.dimension()) {
         /* Actually, only size method is ok. */
         auto __p = class_map["__array__"].space->find(ctx->rval);
         if (!__p) /* Not found in array space. */
             throw error( "Member \"" + ctx->rval + "\" not found in array type",ctx);
         static_cast <wrapper &> (*ctx) = get_wrapper(__p);
-        return;
+    } else {
+        auto __p = __type.type->space->find(ctx->rval);
+        if (!__p) /* Not found in array space. */
+            throw error(
+                "Member \""
+                + ctx->rval
+                + "\" not found in type \""
+                +  __type.name() + '\"',ctx
+            );
+        static_cast <wrapper &> (*ctx) = get_wrapper(__p);
     }
-
-    auto __p = __type.type->space->find(ctx->rval);
-    if (!__p) /* Not found in array space. */
-        throw error(
-            "Member \""
-            + ctx->rval
-            + "\" not found in type \""
-            +  __type.name() + '\"',ctx
-         );
-
-    /* Variables are assignable. */
-    static_cast <wrapper &> (*ctx) = get_wrapper(__p);
-    ctx->flag = true;
+    /* Variables are assignable if required. */
+    ctx->flag = __flag;
 }
 
 
@@ -138,12 +148,18 @@ void ASTvisitor::visitConstructExpr(construct_expr *ctx) {
             throw dark::error("Non-integer subscript!",ctx);
     }
 
+    /* Return value not assignable! */
     static_cast <wrapper &> (*ctx) = ctx->type;
 }
 
 
 void ASTvisitor::visitBinaryExpr(binary_expr *ctx) {
     ctx->space = top;
+    /* When assignment requires flag to be true. */
+    if(ctx->op[0] == '=' && !ctx->op[1])
+        ctx->lval->flag = !(ctx->rval->flag = false);
+    else ctx->lval->flag =  ctx->rval->flag = false;
+
     visit(ctx->lval);
     visit(ctx->rval);
     const wrapper &__ltype = *ctx->lval;
@@ -178,7 +194,10 @@ void ASTvisitor::visitBinaryExpr(binary_expr *ctx) {
             );
         }
         /* Update the real type. */
-        return void(static_cast <wrapper> (*ctx) = __ltype);
+        bool __flag = ctx->flag;
+        static_cast <wrapper &> (*ctx) = __ltype;
+        ctx->flag = __flag;
+        return;
     }
 
     /* Non-assignment case.*/
@@ -196,7 +215,7 @@ void ASTvisitor::visitBinaryExpr(binary_expr *ctx) {
                 get_wrapper(ASTTypeScanner::assert_int(ctx));
         } else if(__ltype.name() == "bool") {
             ASTTypeScanner::assert_bool(ctx);
-            static_cast <wrapper> (*ctx) = __ltype;
+            static_cast <wrapper &> (*ctx) = __ltype;
             ctx->flag = false;
         } else if(__ltype.name() == "string") {
             static_cast <wrapper &> (*ctx) =
@@ -213,7 +232,7 @@ void ASTvisitor::visitBinaryExpr(binary_expr *ctx) {
         if((ctx->op[0] == '!' || ctx->op[1] == '=')
         && (is_convertible(__ltype,__rtype) 
         ||  is_convertible(__rtype,__ltype))) {
-            static_cast <wrapper> (*ctx) = get_wrapper("bool");
+            static_cast <wrapper &> (*ctx) = get_wrapper("bool");
         } else {
             throw error(
                 std::string("No such operator \"") 
@@ -225,16 +244,18 @@ void ASTvisitor::visitBinaryExpr(binary_expr *ctx) {
                 + "\".",ctx
             );
         }
-    }
+    }  /* Of course , it is no longer assignable. */
 }
 
 
 void ASTvisitor::visitConditionExpr(condition_expr *ctx) {
     ctx->space = top;
+    ctx->cond->flag = false;
     visit(ctx->cond);
     if(!ctx->cond->check("bool",0))
         throw error("Non bool type condition!",ctx->cond);
 
+    ctx->lval->flag = ctx->rval->flag = ctx->flag;
     visit(ctx->lval);
     visit(ctx->rval);
     const wrapper &__ltype = *ctx->lval;
@@ -253,8 +274,9 @@ void ASTvisitor::visitConditionExpr(condition_expr *ctx) {
         ctx->flag = false;
     } else {
         /* Assignable only when both are assignable. */
+        bool __flag = ctx->flag;
         static_cast <wrapper &> (*ctx) = __ltype;
-        ctx->flag &= __rtype.flag;
+        ctx->flag = ctx->flag && __rtype.flag && __flag;
     }
 }
 
@@ -264,7 +286,9 @@ void ASTvisitor::visitAtomExpr(atom_expr *ctx) {
     auto *__p = top->find(ctx->name);
     ctx->real = __p;
     if (! __p) throw error("Such identifier doesn't exist: " + ctx->name);
+    bool __flag = ctx->flag;
     static_cast <wrapper &> (*ctx) = get_wrapper(__p);
+    ctx->flag = __flag;
 }
 
 
@@ -289,7 +313,7 @@ void ASTvisitor::visitLiteralConstant(literal_constant *ctx) {
             break;
         default:
             throw error("How can this fucking happen!",ctx);
-    }
+    } /* Of course not assignable. */
 }
 
 
@@ -394,7 +418,7 @@ void ASTvisitor::visitBranchStmt(branch_stmt *ctx) {
 /* Simple case : visit all the sub-expressions. */
 void ASTvisitor::visitSimpleStmt(simple_stmt *ctx) {
     ctx->space = top;
-    for(auto __p : ctx->expr) { visit(__p); }
+    for(auto __p : ctx->expr) { __p->flag = false; visit(__p); }
 }
 
 
@@ -426,7 +450,8 @@ void ASTvisitor::visitVariable(variable_def *ctx) {
         __var->unique_name = get_unique_name(__var,__func);
         if(__func) { /* Local variable. */
             __func->unique_mapping.push_back(__var);
-        } else if(__init) { /* Global variable to initialize. */
+        } else if(__init && !dynamic_cast <literal_constant *> (__init)) {
+            /* Global variable to initialize. */
             auto *__stmt = new simple_stmt;
             auto *__expr = new binary_expr;
             auto *__atom = new atom_expr;
@@ -439,6 +464,7 @@ void ASTvisitor::visitVariable(variable_def *ctx) {
             static_cast <wrapper &> (*__expr) = __var->type;
             __stmt->expr.push_back(__expr);
             global_init->body->stmt.push_back(__stmt);
+            __init = nullptr;
         }
 
         if(!top->insert(__name,__var))

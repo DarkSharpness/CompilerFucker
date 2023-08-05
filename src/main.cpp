@@ -8,7 +8,7 @@
 
 #include "ASTbuilder.h"
 #include "ASTvisitor.h"
-#include "IRvisitor.h"
+#include "IRbuilder.h"
 #include "IRnode.h"
 
 // using namespace antlr4;
@@ -18,6 +18,7 @@ int main(int argc, const char* argv[]) {
     try {
         // freopen("test.in","r",stdin);
         MxErrorListener listener;
+
 
         antlr4::ANTLRInputStream input(std::cin);
         MxLexer lexer(&input);

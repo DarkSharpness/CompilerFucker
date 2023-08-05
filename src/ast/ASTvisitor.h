@@ -63,8 +63,9 @@ struct ASTvisitor : ASTvisitorbase {
         global_init = new function_def;
         global_init->space = new scope{.prev = global};
         global_init->body  = new block_stmt;
-        global_init->name  = global_init->unique_name = "::__global__init__";
         global_init->type  = get_wrapper("void");
+        global_init->name  = "__global__init__";
+        global_init->unique_name = "::__global__init__";
 
         for(auto __p : __def) {
             top = global; /* Current setting. */
@@ -76,25 +77,13 @@ struct ASTvisitor : ASTvisitorbase {
         __def.push_back(global_init);
 
         /* Pass the semantic check! */
-        std::cout << "No error is found. Semantic check pass!";
+        std::cout << "\033[32mNo error is found. Semantic check pass!\n"
+                     "AST tree as below :\033[0m";
 
-        // for(auto __p : __def) {
-        //     if(auto *__func = dynamic_cast <function *> (__p)) {
-        //         std::cout << '\n';
-        //         for(auto &&__iter : __func->args)
-        //             std::cout << __func->space->find(__iter.name)->unique_name 
-        //                       << ' ';
-        //         for(auto __iter : __func->unique_mapping)
-        //             std::cout << __iter->unique_name << ' ';
-        //     } else if(auto *__var = dynamic_cast <variable_def *> (__p)) {
-        //         std::cout << '\n';
-        //         for(auto &&__iter : __var->init)
-        //             std::cout << global->find(__iter.first)->unique_name
-        //                       << ' ';
-        //     }
-        // }
-
-        // std::cout << '\n'; global_init->print();
+        for(auto __p : __def) {
+            std::cout << "\n\n";
+            __p->print();
+        }
 
         std::cout << "\n\n|----------------End scanning----------------|\n" << std::endl;
     }

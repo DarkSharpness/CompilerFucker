@@ -8,6 +8,8 @@ namespace dark::IR {
 
 struct IRbuilder : AST::ASTvisitorbase {
     scope *global_scope = nullptr;
+    /* Global null constant shared by all members. */
+    inline static auto *__null__ = new pointer_constant {nullptr};
 
     struct flow_type {
         block_stmt *bk; /* Break. */
@@ -46,18 +48,12 @@ struct IRbuilder : AST::ASTvisitorbase {
     { return get_type(type.type); }
 
 
+
     IRbuilder(scope *__global,
               std::map <std::string,AST::typeinfo> &__map,
               std::vector <AST::definition *>      &__def)
     : global_scope(__global) {
         make_basic(__map["string"].space,__map["__array__"].space);
-
-        for(auto &&[__name,__id] : __global->data) {
-            /* Global variable case. */
-            auto *__var = dynamic_cast <AST::variable *> (__id);
-            if ( !__var ) continue;
-            createGlobalVariable(__var);
-        }
 
         /* Collect all member function and global functions. */
         for(auto __p : __def) {
@@ -96,28 +92,31 @@ struct IRbuilder : AST::ASTvisitorbase {
 
     void visitGlobalVariable(AST::variable_def *);
 
-    void createGlobalVariable(AST::variable  *);
+    void createGlobalVariable(AST::variable  *,AST::literal_constant *);
     void createGlobalFunction(AST::function  *);
     void createGlobalClass   (AST::class_def *);
 
-    /* Create a string constant and return the variable to it. */
-    variable *createString(const std::string &__name) {
-        static size_t __cnt = 0;
-        static std::map <std::string,variable *> __map;
-        auto [__iter,__result] = __map.insert({__name,nullptr});
-        if(!__result) return __iter->second;
-
-        auto *__str = new string_constant;
-        __str->context = __name;
-
-        auto *__var = new variable;
-        __var->name = "@str-" + std::to_string(++__cnt);
-        __var->type = typeinfo::PTR;
-
-        __iter->second = __var;
-        global_variable.push_back({__var,__str});
-        return __var;
+    /* Load a variable from result and return the temporary. */
+    temporary *force_load_variable() {
+        auto *__var  = safe_cast <variable *> (result);
+        auto *__load = new load_stmt;
+        __load->src  = __var;
+        __load->dst  = top->create_temporary(result->get_type());
+        top->emplace_new(__load);
+        return __load->dst;
     }
+
+    /* Load a variable from result and return the temporary. */
+    temporary *safe_load_variable() {
+        auto *__var  = dynamic_cast <variable *> (result);
+        if(!__var) return nullptr;
+        auto *__load = new load_stmt;
+        __load->src  = __var;
+        __load->dst  = top->create_temporary(result->get_type());
+        top->emplace_new(__load);
+        return __load->dst;
+    }
+
 
     // struct __builtin__info__ {
     //     enum {
@@ -218,21 +217,25 @@ struct IRbuilder : AST::ASTvisitorbase {
         return &class_map["ptr"];
     }
 
-
-
     /* Get a temporary name from its index. */
     static std::string get_temporary_name(size_t __n)
     { return "%" + std::to_string(__n); }
 
-    /* Create a string in global variable. */
-    variable *create_string(const std::string &ctx) {
-        static size_t __count = 0;
+    /* Create a string constant and return the variable to it. */
+    variable *create_string(const std::string &__name) {
+        static size_t __cnt = 0;
+        static std::map <std::string,variable *> __map;
+        auto [__iter,__result] = __map.insert({__name,nullptr});
+        if(!__result) return __iter->second;
+
+        auto *__str = new string_constant {__name};
+
         auto *__var = new variable;
-        __var->name = "@str-" + std::to_string(__count);
+        __var->name = "@str-" + std::to_string(++__cnt);
         __var->type = typeinfo::PTR;
-        auto *__lit = new string_constant;
-        __lit->context = ctx;
-        global_variable.push_back({__var,__lit});
+
+        __iter->second = __var;
+        global_variable.push_back({__var,__str});
         return __var;
     }
 

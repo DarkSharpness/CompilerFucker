@@ -103,15 +103,9 @@ struct literal    : definition {
     virtual std::string type_data() = 0;
 };
 
-struct null_constant : literal {
-    std::string type_data() override { return "ptr"; }
-    typeinfo get_type() override { return typeinfo::PTR; }
-    std::string  data() override { return "null"; }
-    ~null_constant()    override = default;
-};
-
 struct string_constant : literal {
     std::string context;
+    string_constant(const std::string &__ctx) : context(__ctx) {}
     std::string type_data() override {
         return
             string_join(
@@ -125,17 +119,28 @@ struct string_constant : literal {
     ~string_constant()  override = default;
 };
 
+struct pointer_constant : literal {
+    variable *var;
+    pointer_constant(variable *__ptr) : var(__ptr) {}
+    std::string type_data() override { return "ptr"; }
+    typeinfo get_type() override { return typeinfo::PTR; }
+    std::string  data() override { return var ? var->name : "null"; }
+    ~pointer_constant()    override = default;
+};
+
 struct integer_constant : literal {
-    int value = 0;
+    int value;
+    /* Must initialize with a value. */
+    explicit integer_constant(int __v) : value(__v) {}
     std::string type_data() override { return "i32"; }
     typeinfo get_type() override { return typeinfo::I32; }
     std::string  data() override { return std::to_string(value); }
     ~integer_constant() override = default;
 };
 
-
 struct boolean_constant : literal {
-    bool value = 0;
+    bool value;
+    explicit boolean_constant(bool __v) : value(__v) {}
     std::string type_data() override { return "i1"; }
     typeinfo get_type() override { return typeinfo::I1; }
     std::string  data() override { return value ? "true" : "false"; }

@@ -1,4 +1,4 @@
-#include "IRvisitor.h"
+#include "IRbuilder.h"
 
 
 namespace dark::IR {
@@ -52,8 +52,36 @@ void IRbuilder::visitFunctionExpr(AST::function_expr *ctx) {
 
 
 void IRbuilder::visitUnaryExpr(AST::unary_expr *ctx) {
+    visit(ctx->expr);
+    if(ctx->op[1]) { /* ++ or -- */
+        /* Load into memory from a variable. */
+        auto *__tmp = force_load_variable();
+
+        auto *__bin = new binary_stmt;
+        __bin->op   = ctx->op[1] == '+' ? binary_stmt::ADD : binary_stmt::SUB;
+        __bin->lvar = __tmp;
+        static auto *__one = new integer_constant {1};
+        __bin->rvar = __one;
+        __bin->dest = top->create_temporary(typeinfo::I32);
+        top->emplace_new(__bin);
+
+        auto *__store = new store_stmt;
+        __store->dst  = safe_cast <variable *> (result);
+        __store->src  = __bin->dest;
+        top->emplace_new(__store);
+
+        /* Suffix ++/-- : Take loaded value. */
+        if(ctx->op[2]) result = __tmp;
+    } else {
+        if(ctx->op[0] == '!') {
+            // if()
+
+
+        }
+    }
 
 }
+
 
 
 void IRbuilder::visitMemberExpr(AST::member_expr *ctx) {
@@ -61,8 +89,16 @@ void IRbuilder::visitMemberExpr(AST::member_expr *ctx) {
 }
 
 
-void IRbuilder::visitConstructExpr(AST::construct_expr *) {}
-void IRbuilder::visitBinaryExpr(AST::binary_expr *) {}
+void IRbuilder::visitConstructExpr(AST::construct_expr *) {
+    throw error("Not implemented!");
+}
+
+
+void IRbuilder::visitBinaryExpr(AST::binary_expr *) {
+
+}
+
+
 void IRbuilder::visitConditionExpr(AST::condition_expr *) {}
 
 
@@ -91,26 +127,19 @@ void IRbuilder::visitAtomExpr(AST::atom_expr *ctx) {
 
 void IRbuilder::visitLiteralConstant(AST::literal_constant *ctx) {
     switch(ctx->type) {
-        case AST::literal_constant::NUMBER: {
-            auto *__int  = new integer_constant;
-            __int->value = std::stoi(ctx->name);
-            result = __int;
+        case AST::literal_constant::NUMBER:
+            result = new integer_constant{std::stoi(ctx->name)};
             break;
-        }
-        case AST::literal_constant::CSTRING: {
-            result = createString(ctx->name);
+        case AST::literal_constant::CSTRING:
+            result = create_string(ctx->name);
             break;
-        }
-        case AST::literal_constant::NULL_ : {
-            auto *__null__ = new null_constant;
+        case AST::literal_constant::NULL_ :
             result = __null__;
             break;
-        }
-        default: {
-            auto *__bool  = new boolean_constant;
-            __bool->value = (ctx->type == AST::literal_constant::TRUE);
-            result = __bool;
-        }
+        default:
+            result = new boolean_constant {
+                ctx->type == AST::literal_constant::TRUE
+            };
     }
 }
 
@@ -360,7 +389,11 @@ void IRbuilder::visitClass(AST::class_def *ctx) {
 
 
 void IRbuilder::visitGlobalVariable(AST::variable_def *ctx) {
-    /* This will do nothing. */
+    for(auto &&[__name,__init] : ctx->init)
+        createGlobalVariable(
+            safe_cast <AST::variable *> (global_scope->find(__name)),
+            dynamic_cast <AST::literal_constant *>(__init)
+        );
 }
 
 
@@ -371,9 +404,10 @@ void IRbuilder::createGlobalClass(AST::class_def *ctx) {
         auto *__func = dynamic_cast <AST::function_def *> (__p);
         if (__func) { createGlobalFunction(__func); continue; }
 
-        auto *__var = dynamic_cast <AST::variable_def *> (__p);
+        auto *__var = safe_cast <AST::variable_def *> (__p);
         auto __info = get_type(__var->type);
 
+        /* Make the member variables. */
         for(auto &&[__name,__init] : __var->init) {
             __class->layout.push_back(__info);
             __class->member.push_back(__name);
@@ -388,17 +422,26 @@ void IRbuilder::createGlobalClass(AST::class_def *ctx) {
 
 
 /* This will be called globally to create a global variable with no initialization. */
-void IRbuilder::createGlobalVariable(AST::variable *ctx) {
+void IRbuilder::createGlobalVariable(AST::variable *ctx,AST::literal_constant *lit) {
+    /* Make the global variables. */
     auto *__var = new variable;
     __var->name = ctx->unique_name;
     __var->type = get_type(ctx->type);
     variable_map[ctx] = __var;
-    literal *__lit;
+
+    literal *__lit; /* Literal constant. */
     switch(__var->type) {
-        case typeinfo::I1 : __lit = new boolean_constant;
-        case typeinfo::I32: __lit = new integer_constant;
-        default:            __lit = new null_constant;
+        case typeinfo::I1 : __lit = new boolean_constant{
+            lit && lit->name[0] == 't'
+        }; break;
+        case typeinfo::I32: __lit = new integer_constant{
+            lit ? std::stoi(lit->name) : 0
+        }; break;
+        default:
+            if(!lit || lit->type == lit->NULL_) { __lit = __null__; break; }
+            __lit = new pointer_constant {create_string(lit->name)};
     }
+
     global_variable.push_back({__var,__lit});
 }
 
@@ -432,7 +475,7 @@ void IRbuilder::createGlobalFunction(AST::function *ctx) {
         __var->type = typeinfo::PTR;
         top->args.push_back(__var);
         auto __this = ctx->space->find("this");
-        if (!__this) throw error("Invalid member function",ctx);
+        if (!__this) throw error("Invalid member function!",ctx);
         variable_map[__this] = __var;
 
         /* Load %this% pointer first. */

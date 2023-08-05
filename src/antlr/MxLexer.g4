@@ -11,10 +11,10 @@ Comment_Single  : '//'.*? (NewLine | EOF) -> channel(COMMENTS)  ;
 
 
 /* Basics...... */
-Cstring : '"' ('\\"' | .)*? '"' ;
+Cstring : '"' (EscapeChar | .)*? '"' ;
+fragment EscapeChar: '\\\\' | '\\n' | '\\t' | '\\"';
 NewLine : ('\r' | '\n' | '\u2028' | '\u2029')           -> skip ;
 Blank   : (' ' | '\t' | '\u000B' | '\u000C' | '\u00A0') -> skip ;
-
 
 /* Basic types. */
 BasicTypes  : 'int' | 'bool' | 'void' | 'string' ;
