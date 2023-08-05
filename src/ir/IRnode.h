@@ -39,7 +39,7 @@ struct class_type {
     std::string name; /* Class names contains '%' || Others contains only name. */
     std::vector <typeinfo>    layout; /* Variable typeinfo. */
     std::vector <std::string> member; /* Member variables. */
-    
+
     size_t index(std::string_view __view) const {
         for(size_t i = 0 ; i != member.size() ; ++i)
             if(member[i] == __view) return i;
@@ -99,9 +99,12 @@ struct temporary : value_type {
 };
 
 /* Literal constants. */
-struct literal    : definition {};
+struct literal    : definition {
+    virtual std::string type_data() = 0;
+};
 
 struct null_constant : literal {
+    std::string type_data() override { return "ptr"; }
     typeinfo get_type() override { return typeinfo::PTR; }
     std::string  data() override { return "null"; }
     ~null_constant()    override = default;
@@ -109,20 +112,31 @@ struct null_constant : literal {
 
 struct string_constant : literal {
     std::string context;
+    std::string type_data() override {
+        return
+            string_join(
+                "private unnamed_addr constant [",
+                std::to_string(context.length() - 1), /* This length is for fun only. */
+                " x i8]"
+            );
+    }
     typeinfo get_type() override { return typeinfo::PTR; }
-    std::string  data() override { return context; }
+    std::string  data() override { return string_join('c',context); }
     ~string_constant()  override = default;
 };
 
 struct integer_constant : literal {
     int value = 0;
+    std::string type_data() override { return "i32"; }
     typeinfo get_type() override { return typeinfo::I32; }
     std::string  data() override { return std::to_string(value); }
     ~integer_constant() override = default;
 };
 
+
 struct boolean_constant : literal {
     bool value = 0;
+    std::string type_data() override { return "i1"; }
     typeinfo get_type() override { return typeinfo::I1; }
     std::string  data() override { return value ? "true" : "false"; }
     ~boolean_constant() override = default;
@@ -130,25 +144,48 @@ struct boolean_constant : literal {
 
 
 struct function {
-    std::string name; /* Function name. */
+  private:
+    std::vector <temporary> vec; /* Real data holder. */
+    size_t temp_count  = 0; /* This is used to help generate IR. */
+    size_t cond_count  = 0; /* This is used to help generate IR. */
+    size_t for_count   = 0; /* This is used to help generate IR. */
+    size_t while_count = 0; /* This is used to help generate IR. */
 
-    size_t temp_count = 0; /* This is used to help generate IR. */
-    size_t bran_count = 0; /* This is used to help generate IR. */
-    size_t loop_count = 0; /* This is used to help generate IR. */
+  public:
+    std::string name; /* Function name. */
 
     std::vector <variable   *> args; /* Argument list.   */
     std::vector <block_stmt *> stmt; /* Body data.       */
     typeinfo                   type; /* Return type. */
 
+    std::string create_branch() {
+        return "if-" + std::to_string(cond_count++);
+    }
+
+    std::string create_for() {
+        return "for-" + std::to_string(for_count++); 
+    }
+
+    std::string create_while() {
+        return "while-" + std::to_string(for_count++); 
+    }
+
+
     /* Create a temporary and return pointer to it. */
     temporary *create_temporary(typeinfo __type) {
-        static std::vector <temporary> temp;
-        temporary __temp;
-        __temp.name = std::to_string(temp_count++);
-        __temp.type = __type;
-        temp.push_back(__temp);
-        return &temp.back();
+        return create_temporary(__type,std::to_string(temp_count++));
     }
+
+    /* Create a temporary with given name and return pointer to it. */
+    temporary *create_temporary(typeinfo __type,const std::string &__name) {
+        temporary __temp;
+        __temp.name = '%' + __name;
+        __temp.type = __type;
+        vec.push_back(__temp);
+        return &vec.back();
+    }
+
+
 
     /* define <ResultType> @<FunctionName> (...) {...} */
     std::string data() {
@@ -174,10 +211,11 @@ struct function {
         return string_join_array(__tmp.begin(),__tmp.end());
     };
 
-    /* Helper function. */
+    /* Add one statement to the last block. */
     void emplace_new(statement *__stmt)
     { return stmt.back()->emplace_new(__stmt); }
 
+    /* Opens a new block. */
     void emplace_new(block_stmt *__stmt)
     { return stmt.push_back(__stmt); }
 
@@ -348,7 +386,7 @@ struct store_stmt : statement {
 
 
 struct return_stmt : statement {
-    definition *rval;
+    definition *rval = nullptr;
 
     std::string data() override {
         if(!rval) return "ret void\n";
@@ -398,7 +436,7 @@ struct get_stmt : statement {
 struct phi_stmt : statement {
     using pair_t = struct {
         definition *value;
-        label_type *label;
+        block_stmt *label;
     };
 
     variable *dest;             /* Result.     */
@@ -435,8 +473,8 @@ struct initialization {
     std::string data() {
         return string_join(
             dest->data()," = ",
-            type_map[dest->get_type()],lite->data()
-        );
+            lite->type_data(),' ',lite->data()
+        ); 
     }
 
     ~initialization() = default;

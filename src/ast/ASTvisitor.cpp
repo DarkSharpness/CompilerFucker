@@ -304,8 +304,8 @@ void ASTvisitor::visitForStmt(for_stmt *ctx) {
     }
     if(ctx->step) visit(ctx->step);
 
-    loop.push_back(ctx);
     top = ctx->space;
+    loop.push_back(ctx);
     visit(ctx->stmt);
     loop.pop_back();
 }

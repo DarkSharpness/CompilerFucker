@@ -251,13 +251,6 @@ struct ASTFunctionScanner {
                 __type->space = __class->space;
                 __type->space->prev = __ans;
 
-                /* Then add this pointer to the class. */
-                auto *__ptr   = new variable;
-                __ptr->name   = "this";
-                __ptr->type   = {.type = __type,.info = 0,.flag = false};
-                __ptr->unique_name = __class->name + "::this";
-                __type->space->insert("this",__ptr);
-
                 /* Visiting all class members. */
                 for(auto __t : __class->member) {
                     /* Member function case. */
@@ -278,6 +271,13 @@ struct ASTFunctionScanner {
                         }
 
                         __func->space = new scope {.prev = __class->space};
+
+                        /* Then add this pointer to the function. */
+                        auto *__ptr   = new variable;
+                        __ptr->name   = "this";
+                        __ptr->type   = {.type = __type,.info = 0,.flag = false};
+                        __ptr->unique_name = __class->name + "::this";
+                        __func->space->insert("this",__ptr);
                     }
 
                     /* Member variable case.  */

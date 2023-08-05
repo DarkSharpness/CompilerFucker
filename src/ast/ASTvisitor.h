@@ -63,7 +63,7 @@ struct ASTvisitor : ASTvisitorbase {
         global_init = new function_def;
         global_init->space = new scope{.prev = global};
         global_init->body  = new block_stmt;
-        global_init->name  = global_init->unique_name = "__global__init__";
+        global_init->name  = global_init->unique_name = "::__global__init__";
         global_init->type  = get_wrapper("void");
 
         for(auto __p : __def) {

@@ -188,8 +188,8 @@ using function = function_def;
 /* The actual definition and details of a type. */
 struct typeinfo {
     union {
-        function *func ;
-        scope    *space;
+        function *func ; /* Available only when name is empty. */
+        scope    *space; /* Available only when name is valid. */
     };
 
     /* If the typeinfo has no name, it means that the type is a function. */
@@ -305,7 +305,10 @@ struct variable : identifier {
 
 struct ASTvisitorbase {
     /* This function should never be overwritten! */
-    void visit(node *ctx) { return ctx->accept(this); }
+    void visit(node *ctx) {
+        if(!ctx) throw error("How could this happen......");
+        return ctx->accept(this);
+    }
     virtual void visitBracketExpr(bracket_expr *) = 0;
     virtual void visitSubscriptExpr(subscript_expr *) = 0;
     virtual void visitFunctionExpr(function_expr *) = 0;
