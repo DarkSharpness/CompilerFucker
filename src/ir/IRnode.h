@@ -1,6 +1,7 @@
 #pragma once
 
 #include "scope.h"
+#include "IRtype.h"
 
 #include <string>
 #include <vector>
@@ -8,47 +9,10 @@
 
 namespace dark::IR {
 
-
-/* A special method. */
-using c_string = char [8];
-
-/* enum class will fail here! */
-enum typeinfo : unsigned char {
-    PTR  = 0, /* string/array/reference  */
-    I32  = 1, /* int  */
-    I1   = 2, /* bool */
-    VOID = 3, /* void */
-};
-/* Type to name mapping. */
-inline constexpr c_string type_map[4] = {
-    [typeinfo::PTR]  = {'p','t','r'},
-    [typeinfo::I32]  = {'i','3','2'},
-    [typeinfo::I1]   = {'i','1'},
-    [typeinfo::VOID] = {'v','o','i','d'}
-};
-
-
 struct node {
-    virtual std::string data() = 0;
+    virtual std::string data() const = 0;
     virtual ~node() = default;
 };
-
-
-/* This is a special type marker. */
-struct class_type {
-    std::string name; /* Class names contains '%' || Others contains only name. */
-    std::vector <typeinfo>    layout; /* Variable typeinfo. */
-    std::vector <std::string> member; /* Member variables. */
-
-    size_t index(std::string_view __view) const {
-        for(size_t i = 0 ; i != member.size() ; ++i)
-            if(member[i] == __view) return i;
-        throw dark::error("This should never happen! No such Member!");
-    }
-
-    bool is_builtin() const noexcept { return name[0] != '%'; }
-};
-
 
 struct label_type { std::string label; };
 
@@ -77,91 +41,87 @@ struct block_stmt : label_type  {
 
 /* A definition can be variable / literal */
 struct definition : node {
-    virtual typeinfo get_type() = 0;
+    virtual wrapper get_value_type() const = 0;
+    wrapper get_point_type() const { return --get_value_type(); };
 };
 
-/* Variables or temporaries. */
-struct value_type : definition {
-    std::string name; /* Unique name. */
-    typeinfo    type; /* Actual type. */
-    typeinfo get_type() override final { return type; }
-    std::string  data() override final { return name; }
-};
-
-
-/* Pure variables. */
-struct variable  : value_type {
-    ~variable() override = default;
-};
-
-struct temporary : value_type {
-    ~temporary() override = default;
+/* Non literal type. (Variable / Temporary) */
+struct non_literal : definition {
+    std::string name; /* Unique name.  */
+    wrapper     type; /* Type wrapper. */
+    wrapper get_value_type() const override final { return type; }
+    std::string       data() const override final { return name; }
 };
 
 /* Literal constants. */
-struct literal    : definition {
-    virtual std::string type_data() = 0;
+struct literal : definition {
+    /* Special function used in global variable initialization. */
+    virtual std::string type_data() const = 0;
+};
+
+/* Variables are pointers to value. */
+struct variable : non_literal {
+    ~variable() override = default;
+};
+
+/* Temporaries! */
+struct temporary : non_literal {
+    ~temporary() override = default;
 };
 
 struct string_constant : literal {
-    std::string context;
-    string_constant(const std::string &__ctx) : context(__ctx) {}
-    std::string type_data() override {
-        return
-            string_join(
-                "private unnamed_addr constant [",
-                std::to_string(context.length() - 1), /* This length is for fun only. */
-                " x i8]"
-            );
-    }
-    typeinfo get_type() override { return typeinfo::PTR; }
-    std::string  data() override { return string_join('c',context); }
-    ~string_constant()  override = default;
+    std::string  context;
+    cstring_type   type;
+    explicit string_constant(const std::string &__ctx) : context(__ctx),type({}) {}
+    wrapper get_value_type() const override { return wrapper {&type,0}; }
+    std::string  type_data() const override { return string_join("private unnamed_addr constant ",type.name()); }
+    std::string data() const override { return context; }
+    ~string_constant() override = default;
 };
 
 struct pointer_constant : literal {
     variable *var;
-    pointer_constant(variable *__ptr) : var(__ptr) {}
-    std::string type_data() override { return "ptr"; }
-    typeinfo get_type() override { return typeinfo::PTR; }
-    std::string  data() override { return var ? var->name : "null"; }
-    ~pointer_constant()    override = default;
+    explicit pointer_constant(variable *__ptr) : var(__ptr) {}
+    std::string  type_data() const override { return "global ptr"; }
+    wrapper get_value_type() const override { return var ? ++var->type : wrapper {&__null_class__,0}; }
+    std::string  data()      const override { return var ? var->name : "null"; }
+    ~pointer_constant() override = default;
 };
 
 struct integer_constant : literal {
     int value;
     /* Must initialize with a value. */
     explicit integer_constant(int __v) : value(__v) {}
-    std::string type_data() override { return "i32"; }
-    typeinfo get_type() override { return typeinfo::I32; }
-    std::string  data() override { return std::to_string(value); }
+    std::string  type_data() const override { return "global i32"; }
+    wrapper get_value_type() const override { return {&__integer_class__,0}; }
+    std::string  data()      const override { return std::to_string(value); }
     ~integer_constant() override = default;
 };
 
 struct boolean_constant : literal {
     bool value;
     explicit boolean_constant(bool __v) : value(__v) {}
-    std::string type_data() override { return "i1"; }
-    typeinfo get_type() override { return typeinfo::I1; }
-    std::string  data() override { return value ? "true" : "false"; }
+    std::string  type_data() const override { return "global i1"; }
+    wrapper get_value_type() const override { return {&__boolean_class__,0}; }
+    std::string  data()      const override { return value ? "true" : "false"; }
     ~boolean_constant() override = default;
 };
 
 
 struct function {
   private:
-    std::vector <temporary> vec; /* Real data holder. */
     size_t temp_count  = 0; /* This is used to help generate IR. */
     size_t cond_count  = 0; /* This is used to help generate IR. */
     size_t for_count   = 0; /* This is used to help generate IR. */
     size_t while_count = 0; /* This is used to help generate IR. */
+    std::vector <temporary> temp; /* Real temporary holder. */
 
   public:
     std::string name; /* Function name. */
 
-    std::vector <variable   *> args; /* Argument list.   */
+    std::vector < variable  *> args; /* Argument list.   */
     std::vector <block_stmt *> stmt; /* Body data.       */
-    typeinfo                   type; /* Return type. */
+    wrapper                    type; /* Return type. */
 
     std::string create_branch() {
         return "if-" + std::to_string(cond_count++);
@@ -172,33 +132,36 @@ struct function {
     }
 
     std::string create_while() {
-        return "while-" + std::to_string(for_count++); 
+        return "while-" + std::to_string(while_count++); 
     }
 
 
     /* Create a temporary and return pointer to it. */
-    temporary *create_temporary(typeinfo __type) {
-        return create_temporary(__type,std::to_string(temp_count++));
+    temporary *create_temporary(wrapper __type) {
+        return create_temporary(__type,"");
     }
 
-    /* Create a temporary with given name and return pointer to it. */
-    temporary *create_temporary(typeinfo __type,const std::string &__name) {
-        temporary __temp;
-        __temp.name = '%' + __name;
-        __temp.type = __type;
-        vec.push_back(__temp);
-        return &vec.back();
+    /* Create a temporary with given name and return pointer to __temp. */
+    temporary *create_temporary(wrapper __type,const std::string &__name) {
+        auto *__temp = &temp.emplace_back();
+        __temp->name = '%' + __name + std::to_string(temp_count++);
+        __temp->type = __type;
+        return __temp;
     }
 
-
+    /**
+     * @brief Return pointer to the first temporary of the function.
+     * If member function, then current temporary is 'this' pointer.
+    */
+    temporary *front_temporary() { return &temp.front(); }
 
     /* define <ResultType> @<FunctionName> (...) {...} */
-    std::string data() {
+    std::string data() const {
         std::string __arg; /* Arglist. */
         for(auto __p : args) {
             if(__p != args.front())
                 __arg += ',';
-            __arg += type_map[__p->get_type()];
+            __arg += __p->get_point_type().name();
             __arg += ' ';
             __arg += __p->data();
         }
@@ -207,7 +170,7 @@ struct function {
 
         __tmp.reserve(stmt.size() + 2);
         __tmp.push_back(string_join(
-            "define ",type_map[type]," @",name,
+            "define ",type.name()," @",name,
             " (",std::move(__arg),") {\n"
         ));
         for(auto __p : stmt) __tmp.push_back(__p->data());
@@ -228,6 +191,7 @@ struct function {
 
 
 struct compare_stmt : statement {
+    using c_string = char[4];
     enum : unsigned char {
         EQ = 0,
         NE = 1,
@@ -250,10 +214,14 @@ struct compare_stmt : statement {
     definition *rvar;
 
     /* <result> = icmp <cond> <type> <operand1>, <operand2> */
-    std::string data() override {
+    std::string data() const override {
+        runtime_assert("Invalid compare expression!",
+            lvar->get_value_type() == rvar->get_value_type(),
+            dest->get_value_type().name() == "i1"
+        );
         return string_join(
             dest->data()," = icmp "
-            ,str[op],' ',type_map[lvar->get_type()],' '
+            ,str[op],' ',lvar->get_value_type().name(),' '
             ,lvar->data(),", ",rvar->data(),'\n'
         );
     };
@@ -261,6 +229,7 @@ struct compare_stmt : statement {
 
 
 struct binary_stmt : statement {
+    using c_string = char [8];
     enum : unsigned char {
         ADD  = 0,
         SUB  = 1,
@@ -291,10 +260,17 @@ struct binary_stmt : statement {
     definition *rvar;
 
     /* <result> = <operator> <type> <operand1>, <operand2> */
-    std::string data() override {
+    std::string data() const override {
+        runtime_assert("Invalid binary expression!",
+            lvar->get_value_type() ==
+                rvar->get_value_type(),
+            lvar->get_value_type() ==
+                dest->get_value_type()
+        );
         return string_join(
-            dest->data()," = ",str[op]
-            ," i32 ",lvar->data(),", ",rvar->data(),'\n'
+            dest->data()," = ",str[op],' ',
+            dest->get_value_type().name(),' '
+            ,lvar->data(),", ",rvar->data(),'\n'
         );
     };
 
@@ -307,7 +283,7 @@ struct jump_stmt : statement {
     block_stmt *dest;
 
     /* br label <dest> */
-    std::string data() override {
+    std::string data() const override {
         return string_join("br label %",dest->label,'\n');
     }
 };
@@ -315,11 +291,14 @@ struct jump_stmt : statement {
 
 /* Conditional branch. */
 struct branch_stmt : statement {
-    definition *cond;  /* The condition variable. */
+    definition *cond;  /* The condition. */
     block_stmt *br[2]; /* Label with a name. */
 
     /* br i1 <cond>, label <iftrue>, label <if_false> */
-    std::string data() override {
+    std::string data() const override {
+        runtime_assert("Branch condition must be boolean type!",
+            cond->get_value_type().name() == "i1"
+        );
         return string_join(
             "br i1",cond->data(),
             ", label %",br[1]->label,
@@ -331,27 +310,28 @@ struct branch_stmt : statement {
     ~branch_stmt() override = default;
 };
 
+
 struct call_stmt : statement {
     function  *func;
     temporary *dest;
     std::vector <definition *> args;
 
     /* <result> = call <ResultType> @<FunctionName> (<argument>) */
-    std::string data() override {
+    std::string data() const override {
         std::string __arg; /* Arglist. */
         for(auto __p : args) {
             if(__p != args.front())
                 __arg += ',';
-            __arg += type_map[__p->get_type()];
+            __arg += __p->get_value_type().name();
             __arg += ' ';
             __arg += __p->data();
         }
         std::string __prefix;
-        if(func->type != typeinfo::VOID)
+        if(func->type.name() != "void")
             __prefix = dest->data() + " = ";
         return string_join(
             __prefix, "call ",
-            type_map[func->type]," @",func->name,
+           func->type.name()," @",func->name,
             " (",std::move(__arg),")\n"
         );
     }
@@ -359,14 +339,17 @@ struct call_stmt : statement {
 };
 
 struct load_stmt : statement {
-    value_type *src;
-    temporary  *dst;
+    non_literal *src;
+    temporary   *dst;
 
     /* <result> = load <type>, ptr <pointer>  */
-    std::string data() override {
+    std::string data() const override {
+        runtime_assert("Invalid load statement",
+            src->get_point_type() == dst->get_value_type()
+        );
         return string_join(
             dst->data(), " = load ",
-            type_map[dst->get_type()],", ptr ",src->data(),'\n'
+            dst->get_value_type().name(),", ptr ",src->data(),'\n'
         );
     }
 
@@ -375,13 +358,16 @@ struct load_stmt : statement {
 
 
 struct store_stmt : statement {
-    definition *src;
-    variable   *dst;
+    definition  *src;
+    non_literal *dst;
 
     /* store <type> <value>, ptr <pointer>  */
-    std::string data() override {
+    std::string data() const override {
+        runtime_assert("Invalid load statement!",
+            src->get_value_type() == dst->get_point_type()
+        );
         return string_join(
-            "store ",type_map[dst->get_type()],' ',
+            "store ",src->get_value_type().name(),' ',
             src->data(),", ptr ",dst->data(),'\n'
         );
     }
@@ -391,13 +377,17 @@ struct store_stmt : statement {
 
 
 struct return_stmt : statement {
+    function   *func = nullptr;
     definition *rval = nullptr;
 
-    std::string data() override {
+    std::string data() const override {
+        runtime_assert("Invalid return statement!",
+            func->type == rval->get_value_type()
+        );
         if(!rval) return "ret void\n";
         else {
             return string_join(
-                "ret ",type_map[rval->get_type()],' ',rval->data(),'\n'
+                "ret ",func->type.name(),' ',rval->data(),'\n'
             );
         }
     }
@@ -409,9 +399,9 @@ struct allocate_stmt : statement {
     variable *dest; /* Destination must be local! */
 
     /* <result> = alloca <type> */
-    std::string data() override {
+    std::string data() const override {
         return string_join(
-            dest->data()," = alloca ",type_map[dest->get_type()],'\n'
+            dest->data()," = alloca ",dest->get_point_type().name(),'\n'
         );
     }
 
@@ -423,16 +413,20 @@ struct get_stmt : statement {
     inline static constexpr ssize_t NPOS = -1;
     temporary  *dst;            /* Result pointer. */
     definition *src;            /* Source pointer. */
-    size_t      idx;            /* The index. */
-    class_type *type;           /* Type of the pointer. */
+    definition *idx;            /* Index of the array. */
+    size_t      mem;            /* Index of member. */
 
     /* <result> = getelementptr <ty> ptr <ptrval> {, <ty> <idx>} */
-    std::string data() override {
+    std::string data() const override {
         std::string __suffix;
-        if(idx != NPOS) __suffix = ", i32" + std::to_string(idx);
+        if(mem != NPOS) __suffix = ", i32 " + std::to_string(mem);
+        else runtime_assert("Invalid get statement!",
+            idx->get_value_type().name() == "i32",
+            dst->get_value_type() == src->get_value_type()
+        );
         return string_join(
-            dst->data()," = getelementptr ",type->name,
-            " ptr ",src->data(),__suffix
+            dst->data()," = getelementptr ",dst->get_point_type().name(),
+            " ptr ",src->data(), ", i32 ",dst->data(),__suffix
         );
     }
 };
@@ -444,19 +438,21 @@ struct phi_stmt : statement {
         block_stmt *label;
     };
 
-    variable *dest;             /* Result.     */
+    temporary *dest;             /* Result.     */
     std::vector <pair_t> cond;  /* Conditions. */
 
     /* <result> = phi <ty> [ <value,label> ],...... */
-    std::string data() override {
+    std::string data() const override {
         std::vector <std::string> __tmp;
 
         __tmp.reserve(cond.size() + 2);
         __tmp.push_back(string_join(
-            dest->data()," =  phi ",
-            type_map[dest->get_type()])
+            dest->data()," =  phi ", dest->get_value_type().name())
         );
         for(auto [value,label] : cond) {
+            runtime_assert("Invalid phi statement!",
+                dest->get_value_type() == value->get_value_type()
+            );
             __tmp.push_back(string_join(
                 (label == cond.front().label ? " [ " : " ,[ "),
                 value->data()," , ",label->label," ]"
@@ -476,10 +472,20 @@ struct initialization {
     literal  *lite; /* Const expression. */
 
     std::string data() {
+        if(dynamic_cast <string_constant *> (lite)) {
+            runtime_assert("Invalid global initialization!",
+                dynamic_cast <const string_type *> (dest->type.type) != nullptr,
+                dest->type.dimension == 1
+            );
+        } else {
+            runtime_assert("Invalid global initialization!",
+                dest->get_point_type() == lite->get_value_type()
+            );
+        }
         return string_join(
             dest->data()," = ",
             lite->type_data(),' ',lite->data()
-        ); 
+        );
     }
 
     ~initialization() = default;

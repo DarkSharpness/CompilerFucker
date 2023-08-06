@@ -276,7 +276,7 @@ struct ASTFunctionScanner {
                         auto *__ptr   = new variable;
                         __ptr->name   = "this";
                         __ptr->type   = {.type = __type,.info = 0,.flag = false};
-                        __ptr->unique_name = __class->name + "::this";
+                        __ptr->unique_name = "%this";
                         __func->space->insert("this",__ptr);
                     }
 

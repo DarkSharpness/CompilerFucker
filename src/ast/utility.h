@@ -89,13 +89,18 @@ struct error {
 
     error(std::string __s,AST::node *__ptr) {
         std::cerr << "\033[31mError here:\n\"";
-        std::cout << "\033[33m";
         __ptr->print();
-        std::cout << "\033[0m";
         std::cerr << "\"\n";
         std::cerr << "Fatal error: " << __s << "\n\033[0m";
     }
 };
+
+
+inline auto runtime_assert(std::string __str) = delete;
+template <class ...T>
+inline auto runtime_assert(std::string __str,T ...__cond)
+-> std::enable_if_t <(std::is_same_v <T,bool> && ...),void>
+{ if(!(__cond && ...)) throw error(std::move(__str)); }
 
 
 struct warning {

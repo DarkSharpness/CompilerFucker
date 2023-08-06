@@ -25,8 +25,9 @@ void ASTvisitor::visitSubscriptExpr(subscript_expr *ctx) {
     __lhs->flag = false;
     visit(__lhs);
 
+    bool __flag = ctx->flag;
     static_cast <wrapper &> (*ctx) = *__lhs;
-    ctx->flag = true; /* Array access are re-assignable. */
+    ctx->flag = __flag; /* Array access are re-assignable if required. */
     ctx->info -= (ctx->expr.size() - 1);
     if(ctx->info < 0) throw error("Too many subscripts!",ctx);
 }
@@ -102,7 +103,6 @@ void ASTvisitor::visitUnaryExpr(unary_expr *ctx) {
         static_cast <wrapper &> (*ctx) = *ctx->expr;
         ctx->flag = false;
     }
-
 }
 
 
@@ -186,7 +186,7 @@ void ASTvisitor::visitBinaryExpr(binary_expr *ctx) {
             throw error("LHS expression not assignable",ctx);
         } else if(!is_convertible(__rtype,__ltype)) {
             throw error(
-                "Cannot convert type \"" 
+                "Cannot convert type \""
                 + __rtype.data()
                 + "\" to \""
                 + __ltype.data()
