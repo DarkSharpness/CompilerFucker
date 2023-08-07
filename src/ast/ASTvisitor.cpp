@@ -313,12 +313,14 @@ void ASTvisitor::visitForStmt(for_stmt *ctx) {
     top = ctx->space = new scope {top};
 
     if(ctx->init) visit(ctx->init);
+
     if(ctx->cond) {
         visit(ctx->cond);
         if(!ctx->cond->check("bool",0))
             throw error("Non bool type condition!",ctx->cond);
     }
-    if(ctx->step) visit(ctx->step);
+
+    if(ctx->step) { ctx->step->flag = true, visit(ctx->step); }
 
     top = ctx->space;
     loop.push_back(ctx);
@@ -395,7 +397,6 @@ void ASTvisitor::visitBranchStmt(branch_stmt *ctx) {
     ctx->space = top;
     for(auto [__cond,__stmt] : ctx->data) {
         if(__cond) {
-            __cond->flag = false;
             visit(__cond);
             if(!__cond->check("bool",0))
                 throw error("Non bool type condition!",__cond);
@@ -411,7 +412,7 @@ void ASTvisitor::visitBranchStmt(branch_stmt *ctx) {
 /* Simple case : visit all the sub-expressions. */
 void ASTvisitor::visitSimpleStmt(simple_stmt *ctx) {
     ctx->space = top;
-    for(auto __p : ctx->expr) { __p->flag = false; visit(__p); }
+    for(auto __p : ctx->expr) { __p->flag = true; visit(__p); }
 }
 
 

@@ -36,6 +36,7 @@ int main(int argc, const char* argv[]) {
         dark::AST::ASTvisitor Conless(Wankupi.global,Wankupi.mapping);
         dark::IR::IRbuilder Hastin(Conless.global,Conless.class_map,Wankupi.global);
     } catch(dark::error &err) {
+        if(err.data == "Not implemented!") return 0;
         return 1;
     } catch(std::exception &err) {
         std::cerr << err.what() << std::endl;

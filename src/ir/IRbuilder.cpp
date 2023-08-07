@@ -11,18 +11,27 @@ void IRbuilder::visitSubscriptExpr(AST::subscript_expr *ctx) {
     auto *__lhs = ctx->expr[0];
     visit(__lhs); /* Visit it first. */
     auto __type = result->get_value_type();
-    for(auto *__p : ctx->expr) {
-        if(__p == __lhs) continue; /* Skip the first element. */
+    for(auto __iter = ctx->expr.begin() + 1,__end = ctx->expr.end();;) {
+        auto *__p   = *__iter;
         auto *__get = new get_stmt;
         __get->src  = result;
         visit(__p);
         __get->idx  = result;
         __get->mem  = get_stmt::NPOS;
+        __get->dst  = top->create_temporary(__type,"arrayidx");
         --__type.dimension; /* Decrease the dimension by one. */
-        __get->dst  = top->create_temporary(__type);
+
         top->emplace_new(__get);
+
+        if(++__iter == __end) {
+            result = __get->dst;
+            break;
+        }
+
         result = __get->dst;
+        result = safe_load_variable();
     }
+
     if(!ctx->assignable()) result = safe_load_variable();
 }
 
@@ -44,7 +53,7 @@ void IRbuilder::visitFunctionExpr(AST::function_expr *ctx) {
         __call->args.push_back(result);
     }
 
-    __call->dest = top->create_temporary(get_type(*ctx));
+    __call->dest = top->create_temporary(get_type(*ctx),"call");
     top->emplace_new(__call);
     result = __call->dest;
 }
@@ -58,7 +67,10 @@ void IRbuilder::visitUnaryExpr(AST::unary_expr *ctx) {
 
         auto *__bin = new binary_stmt;
         __bin->op   = ctx->op[1] == '+' ? binary_stmt::ADD : binary_stmt::SUB;
-        __bin->dest = top->create_temporary(wrapper {&__integer_class__,0});
+        __bin->dest = top->create_temporary(
+            wrapper {&__integer_class__,0},
+            binary_stmt::str[__bin->op]
+        );
         __bin->lvar = __tmp;
         __bin->rvar = __one1__;
         top->emplace_new(__bin);
@@ -74,13 +86,15 @@ void IRbuilder::visitUnaryExpr(AST::unary_expr *ctx) {
         if(ctx->op[0] == '+') return;
         auto *__bin = new binary_stmt;
         __bin->op   = ctx->op[0] == '-' ? binary_stmt::SUB : binary_stmt::XOR;
-        __bin->dest = top->create_temporary(wrapper {
-            ctx->op[0] == '!' ? 
+        __bin->dest = top->create_temporary(
+            wrapper { ctx->op[0] == '!' ? 
                 (dark::IR::typeinfo *)&__boolean_class__ :
                 (dark::IR::typeinfo *)&__integer_class__,0
-        });
-        __bin->lvar = ctx->op[0] == '-' ? __zero__ : 
-                      ctx->op[0] == '!' ? __one1__ : __neg1__;
+            } ,
+            binary_stmt::str[__bin->op]
+        );
+        __bin->lvar = ctx->op[0] == '-' ? (definition *)__zero__ : 
+                      ctx->op[0] == '!' ? (definition *)__true__ : __one1__;
         __bin->rvar = result;
         top->emplace_new(__bin);
         result = __bin->dest;
@@ -92,11 +106,15 @@ void IRbuilder::visitUnaryExpr(AST::unary_expr *ctx) {
 void IRbuilder::visitMemberExpr(AST::member_expr *ctx) {
     visit(ctx->lval);
 
+    /* Member function case. */
+    if(ctx->type->is_function()) return;
+
     /* Class member access. */
-    auto *__class = get_class(ctx->type->name);
+    auto *__class = get_class(ctx->lval->type->name);
     auto *__get = new get_stmt;
     __get->src  = result;
-    __get->dst  = top->create_temporary(++get_type(*ctx),ctx->rval);
+    __get->dst  = top->create_temporary(++get_type(*ctx),
+        string_join(ctx->lval->type->name,".",ctx->rval,'-'));
     __get->idx  = __zero__;
     __get->mem  = __class->index(ctx->rval);
 
@@ -131,7 +149,7 @@ void IRbuilder::visitBinaryExpr(AST::binary_expr *ctx) {
     /* Normal arithmetic case. */
     if(ctx->op == "+" || ctx->op == "-" || ctx->op == "|"
     || ctx->op == "&" || ctx->op == "^" || ctx->op == "<<"
-    || ctx->op == ">>") {
+    || ctx->op == ">>"|| ctx->op == "*" || ctx->op == "/" || ctx->op == "%") {
         auto *__bin = new binary_stmt;
         switch(ctx->op[0]) {
             case '+': __bin->op = binary_stmt::ADD; break;
@@ -140,13 +158,17 @@ void IRbuilder::visitBinaryExpr(AST::binary_expr *ctx) {
             case '&': __bin->op = binary_stmt::AND; break;
             case '^': __bin->op = binary_stmt::XOR; break;
             case '<': __bin->op = binary_stmt::SHL; break;
-            case '>': __bin->op = binary_stmt::ASHR; break;
+            case '>': __bin->op = binary_stmt::ASHR;break;
+            case '*': __bin->op = binary_stmt::MUL; break;
+            case '/': __bin->op = binary_stmt::SDIV;break;
+            case '%': __bin->op = binary_stmt::SREM;break;
         }
         visit(ctx->lval);
         __bin->lvar = result;
         visit(ctx->rval);
         __bin->rvar = result;
-        __bin->dest = top->create_temporary({&__integer_class__,0});
+        __bin->dest = top->create_temporary({&__integer_class__,0},binary_stmt::str[__bin->op]);
+        __bin->dest->type = get_type(*ctx);
 
         top->emplace_new(__bin);
         result = __bin->dest;
@@ -167,7 +189,10 @@ void IRbuilder::visitBinaryExpr(AST::binary_expr *ctx) {
         __cmp->lvar = result;
         visit(ctx->rval);
         __cmp->rvar = result;
-        __cmp->dest = top->create_temporary({&__boolean_class__,0});
+        __cmp->dest = top->create_temporary(
+            {&__boolean_class__,0},
+            compare_stmt::str[__cmp->op]
+        );
 
         top->emplace_new(__cmp);
         result = __cmp->dest;
@@ -185,9 +210,11 @@ void IRbuilder::visitBinaryExpr(AST::binary_expr *ctx) {
     __br->cond  = result;
     __br->br[ __is_or] = __new;
     __br->br[!__is_or] = __end;
-    __br->br[0]->label = __name + "-true";
-    __br->br[1]->label = __name + "-false";
+    __br->br[ __is_or]->label = __name + '-' + (__is_or ? "false" : "true");
+    __br->br[!__is_or]->label = __name + "-end";
 
+    /* Name of previous branch */
+    auto *__block = top->stmt.back();
     top->emplace_new(__br);
     top->emplace_new(__new);
 
@@ -201,8 +228,11 @@ void IRbuilder::visitBinaryExpr(AST::binary_expr *ctx) {
 
     auto *__phi  = new phi_stmt;
     __phi->cond.push_back({result,__new});
-    __phi->cond.push_back({__is_or ? __true__ : __false__,__end});
+    __phi->cond.push_back({__is_or ? __true__ : __false__,__block});
+    __phi->dest = top->create_temporary({&__boolean_class__,0},"phi");
     top->emplace_new(__phi);
+
+    result = __phi->dest;
 }
 
 
@@ -235,8 +265,9 @@ void IRbuilder::visitConditionExpr(AST::condition_expr *ctx) {
     __phi->cond.push_back({result,__br->br[1]});
     __jump       = new jump_stmt;
     __jump->dest = __end;
+    __end->label = __name + "-end";
     /* If assignable, return the pointer to the data. */
-    __phi ->dest = top->create_temporary(get_type(*ctx) + ctx->flag);
+    __phi ->dest = top->create_temporary(get_type(*ctx) + ctx->flag,"ternary");
 
     top->emplace_new(__jump);
     top->emplace_new(__end);
@@ -248,18 +279,25 @@ void IRbuilder::visitConditionExpr(AST::condition_expr *ctx) {
 
 void IRbuilder::visitAtomExpr(AST::atom_expr *ctx) {
     /* If function, nothing should be done. */
-    if(ctx->type->is_function()) return;
+    if(ctx->type->is_function()) {
+        auto __name = ctx->type->func->unique_name;
+        /* Member function case. */
+        if(__name[0] != ':' && __name != "main")
+            result = get_this_pointer();
+        return;
+    }
 
     /* Special case : this pointer has been loaded! */
-    if(ctx->name == "this") return void(result = top->front_temporary());
 
+    auto __name = ctx->real->unique_name;
     /* Global or local variable. */
-    if(ctx->real->unique_name[0] == '@' || ctx->real->unique_name[0] == '%') {
+    if(__name[0] == '@' || __name[0] == '%') {
         result = variable_map[ctx->real];
     } else { /* Class member access. */
-        auto *__class = get_class(ctx->type->name);
+        size_t __len  = __name.find(':');
+        auto *__class = get_class(__name.substr(0,__len));
         auto *__get = new get_stmt;
-        __get->src  = top->front_temporary();
+        __get->src  = get_this_pointer();
         __get->dst  = top->create_temporary(++get_type(*ctx),ctx->name);
         __get->idx  = __zero__;
         __get->mem  = __class->index(ctx->name);
@@ -407,6 +445,7 @@ void IRbuilder::visitWhileStmt(AST::while_stmt *ctx) {
     auto *__cond = new block_stmt;
     __cond->label = __name + "-cond";
     auto *__jump = new jump_stmt;
+    __jump->dest = __cond;
     top->emplace_new(__jump);
     top->emplace_new(__cond);
 
@@ -430,7 +469,7 @@ void IRbuilder::visitWhileStmt(AST::while_stmt *ctx) {
 
     /* End of body block. */
     __jump       = new jump_stmt;
-    __jump->dest = __beg;
+    __jump->dest = __cond;
     top->emplace_new(__jump);
     top->emplace_new(__end);
 }
@@ -463,8 +502,8 @@ void IRbuilder::visitBranchStmt(AST::branch_stmt *ctx) {
     for(auto &&[__cond,__stmt] : ctx->data) {
         block_stmt *__next = __end;
         if(__cond) {
-            std::string __num = std::to_string(i++);
             visit(__cond);
+            std::string __num = std::to_string(i++);
 
             /* Opens a new branch! */
             auto * __br = new branch_stmt;
@@ -495,18 +534,12 @@ void IRbuilder::visitBranchStmt(AST::branch_stmt *ctx) {
 
 
 void IRbuilder::visitBlockStmt(AST::block_stmt *ctx) {
-    for(auto __p : ctx->stmt) {
-        result = nullptr;
-        visit(__p);
-    }
+    for(auto __p : ctx->stmt) visit(__p);
 }
 
 
 void IRbuilder::visitSimpleStmt(AST::simple_stmt *ctx) {
-    for(auto __p : ctx->expr) {
-        result = nullptr;
-        visit(__p);
-    }
+    for(auto __p : ctx->expr) visit(__p);
 }
 
 
@@ -515,16 +548,23 @@ void IRbuilder::visitVariable(AST::variable_def *ctx) {
     if(!top) return; /* Global variable definition case. */
     for(auto [__name,__init] : ctx->init) {
         if(!__init) continue;
-        result = variable_map[ctx->space->find(__name)];
-        safe_load_variable();
+        visit(__init);
+        auto *__store = new store_stmt;
+        __store->src  = result;
+        __store->dst  = variable_map[ctx->space->find(__name)];
+        top->emplace_new(__store);
     }
 }
 
 
 void IRbuilder::visitFunction(AST::function_def *ctx) {
-    runtime_assert("Fuck",function_map.count(ctx) > 0);
     top = function_map[ctx];
     visit(ctx->body);
+    if(top->type.name() == "void") {
+        auto *__ret = new return_stmt;
+        __ret->func = top;
+        top->emplace_new(__ret);
+    }
 }
 
 
@@ -538,7 +578,7 @@ void IRbuilder::visitClass(AST::class_def *ctx) {
 
 void IRbuilder::visitGlobalVariable(AST::variable_def *ctx) {
     for(auto &&[__name,__init] : ctx->init)
-        createGlobalVariable(
+        visitGlobalVariable(
             safe_cast <AST::variable *> (global_scope->find(__name)),
             dynamic_cast <AST::literal_constant *>(__init)
         );
@@ -546,16 +586,20 @@ void IRbuilder::visitGlobalVariable(AST::variable_def *ctx) {
 
 
 /* It will go down to member function and member variables. */
-void IRbuilder::createGlobalClass(AST::class_def *ctx) {
+void IRbuilder::visitGlobalClass(AST::class_def *ctx) {
     auto *&__type = class_map[ctx->name];
-    class_type *__class = nullptr;
-    if(!__type) __type = __class = new class_type {'%' + ctx->name};
+    if(!__type)  {
+        __type = new class_type {"%struct." + ctx->name};
+        for(auto __p : ctx->member)
+            function_cnt += dynamic_cast <AST::function_def *> (__p) != nullptr;
+        return;
+    }
+
+    class_type *__class = safe_cast <class_type *> (__type);
     for(auto __p : ctx->member) {
         if (auto *__func = dynamic_cast <AST::function_def *> (__p)) {
-            /* Visit it in the second visit. */
-            if(!__class) createGlobalFunction(__func);
-            else       ++function_cnt;
-        } else if(__class) {
+            visitGlobalFunction(__func);
+        } else {
             auto *__var = safe_cast <AST::variable_def *> (__p);
             auto __info = get_type(__var->type);
             /* Make the member variables. */
@@ -574,7 +618,7 @@ void IRbuilder::createGlobalClass(AST::class_def *ctx) {
 
 
 /* This will be called globally to create a global variable with no initialization. */
-void IRbuilder::createGlobalVariable(AST::variable *ctx,AST::literal_constant *lit) {
+void IRbuilder::visitGlobalVariable(AST::variable *ctx,AST::literal_constant *lit) {
     /* Make the global variables. */
     auto *__var = new variable;
     __var->name = ctx->unique_name;
@@ -582,7 +626,7 @@ void IRbuilder::createGlobalVariable(AST::variable *ctx,AST::literal_constant *l
     variable_map[ctx] = __var;
 
     literal *__lit; /* Literal constant. */
-    auto __type = __var->type.name();
+    auto __type = (--__var->type).name();
     if(__type == "i1") {
         __lit = new boolean_constant { lit && lit->name[0] == 't'};
     } else if(__type == "i32") {
@@ -598,7 +642,7 @@ void IRbuilder::createGlobalVariable(AST::variable *ctx,AST::literal_constant *l
 
 
 /* This will be called globally to create a global or member function. */
-void IRbuilder::createGlobalFunction(AST::function *ctx) {
+void IRbuilder::visitGlobalFunction(AST::function_def *ctx) {
     top = &global_function.emplace_back();
     function_map[ctx] = top;
     top->name = ctx->unique_name;
@@ -618,34 +662,46 @@ void IRbuilder::createGlobalFunction(AST::function *ctx) {
         top->emplace_new(__alloca);
     }
 
-    /* Member function case. */
-    if(top->name[0] != ':') {
-        /* Argument list : add argument %this%. */
-        auto __this = ctx->space->find("this");
-        auto *__var = new variable;
-        __var->name = "%this"; /* aka: __this->unique_name */
-        __var->type = ++get_type(__this->type);
-        top->args.push_back(__var);
-        if (!__this) throw error("Invalid member function!",ctx);
-        variable_map[__this] = __var;
+    std::vector <store_stmt *> __store;
+    __store.reserve(ctx->args.size() + 1);
 
-        /* Load %this% pointer first. */
-        auto __load = new load_stmt;
-        __load->dst = top->create_temporary(__var->get_point_type());
-        __load->src = __var;
-        top->emplace_new(__load);
+    /* Global function case. */
+    if(top->name[0] != ':' & top->name != "main") {
+        auto __this = ctx->space->find("this");
+        if (!__this) throw error("Invalid member function!",ctx);
+        __store.push_back(visitFunctionParam(__this));
+
+        /* May be this pointer should be pre-loaded. */
+        // safe_load_variable();
     }
 
     /* Add all of the function params. */
-    for(auto &&[__name,__type] : ctx->args) {
-        auto *__p   = ctx->space->find(__name);
-        auto *__var = new variable;
-        __var->name = __p->unique_name;
-        __var->type = ++get_type(__p->type);
-        variable_map[__p] = __var;
-        top->args.push_back(__var);
-    }
+    for(auto &&[__name,__type] : ctx->args)
+        __store.push_back(visitFunctionParam(ctx->space->find(__name)));
 
+    for(auto __s : __store) top->emplace_new(__s);
+}
+
+
+store_stmt *IRbuilder::visitFunctionParam(AST::identifier *__p) {
+    auto *__var = new variable;
+    __var->name = __p->unique_name;
+    __var->type = get_type(__p->type);
+    top->args.push_back(__var);
+
+    auto *__store = new store_stmt;
+    __store->src  = __var; /* Variable in the param */
+
+    auto *__alloc = new allocate_stmt;
+    __alloc->dest = __var = new variable;
+    __store->dst  = __var;
+
+    top->emplace_new(__alloc);
+
+    __var->name = __p->unique_name + ".addr";
+    __var->type = ++get_type(__p->type);
+    result = variable_map[__p] = __var;
+    return __store;
 }
 
 
@@ -668,7 +724,7 @@ void IRbuilder::make_basic(scope *__string,scope *__array) {
      * 
     */
     builtin_function.resize(14);
-    
+
     class_map["bool"] = &__boolean_class__;
     class_map["null"] = &__null_class__;
 

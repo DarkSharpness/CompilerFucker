@@ -140,9 +140,6 @@ struct ASTvisitor : ASTvisitorbase {
         else { /* Function case. */
             /* Every suffix in one function will never be identical. */
             static std::map <function *,size_t> __cnt;
-
-            /* The line below is removed because function arguments not in alloca! */
-
             return '%' + __var->name + '-' + std::to_string(__cnt[__func]++);
         }
     }
@@ -156,6 +153,7 @@ struct ASTvisitor : ASTvisitorbase {
         auto *__func = dynamic_cast <function *> (global->find("main"));
         if(!__func || !__func->args.empty() || !__func->type.check("int",0))
             throw error("No valid main function!");
+        __func->unique_name = "main";
 
         // add_return_zero(__func);
     }

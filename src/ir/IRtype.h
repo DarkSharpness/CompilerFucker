@@ -103,7 +103,7 @@ struct cstring_type : integer_type <8> {
     cstring_type(size_t __len) noexcept : length(__len) {}
     
     std::string name() const override {
-        return string_join('[',std::to_string(length)," x ",type_name,']');
+        return string_join('[',std::to_string(length - 1)," x ",type_name,']');
     }
 
     size_t size() const override { return length; }
@@ -116,7 +116,7 @@ struct string_type : typeinfo {
     string_type() noexcept = default;
 
     bool is_trivial()  const override { return false; }
-    std::string name() const override { throw error("String should never be refered."); }
+    std::string name() const override { return "ERROR!"; }
     size_t size()      const override { return MxPTRSIZE; }
     ~string_type() override = default;
 };
@@ -139,6 +139,18 @@ struct class_type : typeinfo {
         size_t __n = 0;
         for(auto &&__p : layout) __n += __p.size();
         return __n;
+    }
+
+    std::string data() {
+        std::vector <std::string> __view;
+        __view.reserve(member.size() << 1 | 1);
+        __view.push_back(unique_name + " = type { ");
+        for(auto __p : layout) {
+            __view.push_back(__p.name());
+            __view.push_back(", ");
+        }
+        __view.back() = " }";
+        return string_join_array(__view.begin(),__view.end());
     }
 
     bool is_trivial()  const override { return false; }

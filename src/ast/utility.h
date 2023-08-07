@@ -83,9 +83,11 @@ inline void print_indent() {
 }
 
 struct error {
+    std::string data;
     explicit error(error *) {}
 
-    error(std::string __s) { std::cerr << "\033[31mFatal error: " << __s << "\n\033[0m"; }
+    error(std::string __s) : data(std::move(__s))
+    { std::cerr << "\033[31mFatal error: " << data << "\n\033[0m"; }
 
     error(std::string __s,AST::node *__ptr) {
         std::cerr << "\033[31mError here:\n\"";

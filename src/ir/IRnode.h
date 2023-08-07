@@ -72,7 +72,7 @@ struct temporary : non_literal {
 struct string_constant : literal {
     std::string  context;
     cstring_type   type;
-    explicit string_constant(const std::string &__ctx) : context(__ctx),type({}) {}
+    explicit string_constant(const std::string &__ctx) : context(__ctx),type({__ctx.length()}) {}
     wrapper get_value_type() const override { return wrapper {&type,0}; }
     std::string  type_data() const override { return string_join("private unnamed_addr constant ",type.name()); }
     std::string data() const override { return context; }
@@ -110,11 +110,11 @@ struct boolean_constant : literal {
 
 struct function {
   private:
-    size_t temp_count  = 0; /* This is used to help generate IR. */
-    size_t cond_count  = 0; /* This is used to help generate IR. */
     size_t for_count   = 0; /* This is used to help generate IR. */
+    size_t cond_count  = 0; /* This is used to help generate IR. */
     size_t while_count = 0; /* This is used to help generate IR. */
     std::vector <temporary *> temp; /* Real temporary holder. */
+    std::map <std::string,size_t> count; /* Count of each case. */
 
   public:
     std::string name; /* Function name. */
@@ -144,7 +144,7 @@ struct function {
     /* Create a temporary with given name and return pointer to __temp. */
     temporary *create_temporary(wrapper __type,const std::string &__name) {
         auto *__temp = temp.emplace_back(new temporary);
-        __temp->name = '%' + __name + std::to_string(temp_count++);
+        __temp->name = '%' + __name + std::to_string(count[__name]++);
         __temp->type = __type;
         return __temp;
     }
@@ -152,6 +152,7 @@ struct function {
     /**
      * @brief Return pointer to the first temporary of the function.
      * If member function, then current temporary is 'this' pointer.
+     * This only works when this pointer is preloaded.
     */
     temporary *front_temporary() { return temp.front(); }
 
@@ -161,7 +162,7 @@ struct function {
         for(auto __p : args) {
             if(__p != args.front())
                 __arg += ',';
-            __arg += __p->get_point_type().name();
+            __arg += __p->get_value_type().name();
             __arg += ' ';
             __arg += __p->data();
         }
@@ -300,7 +301,7 @@ struct branch_stmt : statement {
             cond->get_value_type().name() == "i1"
         );
         return string_join(
-            "br i1",cond->data(),
+            "br i1 ",cond->data(),
             ", label %",br[0]->label,
             ", label %",br[1]->label,
             '\n'
@@ -382,7 +383,8 @@ struct return_stmt : statement {
 
     std::string data() const override {
         runtime_assert("Invalid return statement!",
-            func->type == rval->get_value_type()
+            !rval || func->type == rval->get_value_type(),
+             rval || func->type.name() == "void"
         );
         if(!rval) return "ret void\n";
         else {
@@ -426,7 +428,7 @@ struct get_stmt : statement {
         );
         return string_join(
             dst->data()," = getelementptr ",dst->get_point_type().name(),
-            " ptr ",src->data(), ", i32 ",dst->data(),__suffix
+            " ptr ",src->data(), ", i32 ",idx->data(),__suffix,'\n'
         );
     }
 };
@@ -447,14 +449,14 @@ struct phi_stmt : statement {
 
         __tmp.reserve(cond.size() + 2);
         __tmp.push_back(string_join(
-            dest->data()," =  phi ", dest->get_value_type().name())
+            dest->data()," = phi ", dest->get_value_type().name())
         );
         for(auto [value,label] : cond) {
             runtime_assert("Invalid phi statement!",
                 dest->get_value_type() == value->get_value_type()
             );
             __tmp.push_back(string_join(
-                (label == cond.front().label ? " [ " : " ,[ "),
+                (label == cond.front().label ? " [ " : " , [ "),
                 value->data()," , ",label->label," ]"
             ));
         } __tmp.push_back("\n");
@@ -472,16 +474,16 @@ struct initialization {
     literal  *lite; /* Const expression. */
 
     std::string data() {
-        if(dynamic_cast <string_constant *> (lite)) {
-            runtime_assert("Invalid global initialization!",
-                dynamic_cast <const string_type *> (dest->type.type) != nullptr,
-                dest->type.dimension == 1
-            );
-        } else {
-            runtime_assert("Invalid global initialization!",
-                dest->get_point_type() == lite->get_value_type()
-            );
-        }
+        // if(dynamic_cast <string_constant *> (lite)) {
+        //     runtime_assert("Invalid global initialization!",
+        //         dynamic_cast <const string_type *> (dest->type.type) != nullptr,
+        //         dest->type.dimension == 1
+        //     );
+        // } else {
+        //     runtime_assert("Invalid global initialization!",
+        //         dest->get_point_type() == lite->get_value_type()
+        //     );
+        // }
         return string_join(
             dest->data()," = ",
             lite->type_data(),' ',lite->data()

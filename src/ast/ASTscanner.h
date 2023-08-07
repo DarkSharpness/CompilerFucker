@@ -271,6 +271,7 @@ struct ASTFunctionScanner {
                         }
 
                         __func->space = new scope {.prev = __class->space};
+                        __func->unique_name = string_join(__class->name,"::",__func->name);
 
                         /* Then add this pointer to the function. */
                         auto *__ptr   = new variable;
