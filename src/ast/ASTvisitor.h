@@ -75,6 +75,8 @@ struct ASTvisitor : ASTvisitorbase {
         assert_main();
 
         __def.push_back(global_init);
+        top = global;
+        visit(global_init);
 
         /* Pass the semantic check! */
         std::cout << "\033[32mNo error is found. Semantic check pass!\n"
@@ -109,7 +111,7 @@ struct ASTvisitor : ASTvisitorbase {
                __name == "string")
                 return false;
             // None basic type case: ok.
-            return true;    
+            return true;
         } return false;
     }
 
@@ -155,17 +157,23 @@ struct ASTvisitor : ASTvisitorbase {
         if(!__func || !__func->args.empty() || !__func->type.check("int",0))
             throw error("No valid main function!");
 
+        // add_return_zero(__func);
+    }
+
+    /* Add return 0. */
+    void add_return_zero(function *__func) {
         /* Add return 0 to main function. */
         auto *__tail = new flow_stmt;
         auto *__zero = new literal_constant;
         __zero->name = "0";
         __zero->type = AST::literal_constant::NUMBER;
+        static_cast <wrapper &> (*__zero) = get_wrapper("int");
         __tail->flow = "return";
         __tail->expr = __zero;
+        __tail->func = __func;
         __func->body->stmt.push_back(__tail);
         __zero->space = __tail->space = __func->space;
     }
-
 
     void visitBracketExpr(bracket_expr *) override;
     void visitSubscriptExpr(subscript_expr *) override;

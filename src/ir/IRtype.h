@@ -71,7 +71,7 @@ template <size_t __n>
 struct integer_type : typeinfo {
     inline static const std::string type_name = 'i' + std::to_string(__n);
     integer_type() noexcept = default;
-    bool is_trivial()  const override { return false; }
+    bool is_trivial()  const override { return true; }
     std::string name() const override { return type_name; }
     size_t size()      const override { return ((__n - 1) >> 3) + 1; }
     ~integer_type() override = default;

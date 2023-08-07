@@ -34,6 +34,7 @@ int main(int argc, const char* argv[]) {
         auto *tree = parser.file_Input();
         dark::ASTbuilder Wankupi(tree);
         dark::AST::ASTvisitor Conless(Wankupi.global,Wankupi.mapping);
+        dark::IR::IRbuilder Hastin(Conless.global,Conless.class_map,Wankupi.global);
     } catch(dark::error &err) {
         return 1;
     } catch(std::exception &err) {

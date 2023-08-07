@@ -169,6 +169,14 @@ struct op_type {
         return *this;
     }
 
+    template <size_t __n>
+    auto operator == (const char (&__s)[__n]) noexcept
+        -> std::enable_if_t <__n <= 8,bool> {
+        for(int i = 0 ; i < __n ; ++i)
+            if(str[i] != __s[i]) return false;
+        return true;
+    }
+
 };
 
 
@@ -239,9 +247,9 @@ struct typeinfo {
 
 /* Wrapper of a specific type with dimension and other infos */
 struct wrapper {
-    typeinfo *type; /* Pointer to real type. */
-    int       info; /* Dimension.            */
-    bool      flag; /* Whether assignable.   */
+    typeinfo *type = 0; /* Pointer to real type. */
+    int       info = 0; /* Dimension.            */
+    bool      flag = 0; /* Whether assignable.   */
 
     /* Dimension of the object. */
     size_t dimension()  const { return info; }

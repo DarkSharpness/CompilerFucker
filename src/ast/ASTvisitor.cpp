@@ -201,16 +201,8 @@ void ASTvisitor::visitBinaryExpr(binary_expr *ctx) {
     }
 
     /* Non-assignment case.*/
-    if(__ltype == __rtype) {
-        if(__ltype.dimension())
-            throw error(
-                std::string("No such operator \"") 
-                + ctx->op.str
-                + "\" for array type.",ctx
-            );
-
+    if(__ltype == __rtype && !__ltype.dimension()) {
         if(__ltype.name() == "int") {
-            // Only && || is forbidden
             static_cast <wrapper &> (*ctx) =
                 get_wrapper(ASTTypeScanner::assert_int(ctx));
         } else if(__ltype.name() == "bool") {
@@ -372,6 +364,7 @@ void ASTvisitor::visitFlowStmt(flow_stmt *ctx) {
 /* While case : just check the statement. */
 void ASTvisitor::visitWhileStmt(while_stmt *ctx) {
     ctx->space = new scope {.prev = top};
+    ctx->cond->flag = false;
     visit(ctx->cond);
     if(!ctx->cond->check("bool",0))
         throw error("Non bool type condition!",ctx->cond);
@@ -392,7 +385,6 @@ void ASTvisitor::visitBlockStmt(block_stmt *ctx) {
         } else {
             top = ctx->space;
         }
-        
         visit(__p);
     }
 }
@@ -403,6 +395,7 @@ void ASTvisitor::visitBranchStmt(branch_stmt *ctx) {
     ctx->space = top;
     for(auto [__cond,__stmt] : ctx->data) {
         if(__cond) {
+            __cond->flag = false;
             visit(__cond);
             if(!__cond->check("bool",0))
                 throw error("Non bool type condition!",__cond);

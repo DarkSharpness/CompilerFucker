@@ -79,7 +79,8 @@ void IRbuilder::visitUnaryExpr(AST::unary_expr *ctx) {
                 (dark::IR::typeinfo *)&__boolean_class__ :
                 (dark::IR::typeinfo *)&__integer_class__,0
         });
-        __bin->lvar = ctx->op[0] == '-' ? __zero__ : __neg1__;
+        __bin->lvar = ctx->op[0] == '-' ? __zero__ : 
+                      ctx->op[0] == '!' ? __one1__ : __neg1__;
         __bin->rvar = result;
         top->emplace_new(__bin);
         result = __bin->dest;
@@ -127,7 +128,81 @@ void IRbuilder::visitBinaryExpr(AST::binary_expr *ctx) {
         return;
     }
 
+    /* Normal arithmetic case. */
+    if(ctx->op == "+" || ctx->op == "-" || ctx->op == "|"
+    || ctx->op == "&" || ctx->op == "^" || ctx->op == "<<"
+    || ctx->op == ">>") {
+        auto *__bin = new binary_stmt;
+        switch(ctx->op[0]) {
+            case '+': __bin->op = binary_stmt::ADD; break;
+            case '-': __bin->op = binary_stmt::SUB; break;
+            case '|': __bin->op = binary_stmt::OR;  break;
+            case '&': __bin->op = binary_stmt::AND; break;
+            case '^': __bin->op = binary_stmt::XOR; break;
+            case '<': __bin->op = binary_stmt::SHL; break;
+            case '>': __bin->op = binary_stmt::ASHR; break;
+        }
+        visit(ctx->lval);
+        __bin->lvar = result;
+        visit(ctx->rval);
+        __bin->rvar = result;
+        __bin->dest = top->create_temporary({&__integer_class__,0});
 
+        top->emplace_new(__bin);
+        result = __bin->dest;
+        return;
+    }
+
+    /* Noraml logical case. */
+    if(ctx->op[0] != '&' && ctx->op[0] != '|') {
+        auto *__cmp = new compare_stmt;
+        __cmp->op = ctx->op == "!=" ? compare_stmt::NE :
+                    ctx->op == "==" ? compare_stmt::EQ :
+                    ctx->op == "<"  ? compare_stmt::LT :
+                    ctx->op == ">"  ? compare_stmt::GT :
+                    ctx->op == "<=" ? compare_stmt::LE :
+                    ctx->op == ">=" ? compare_stmt::GE :
+                        throw error("Unknown operator!");
+        visit(ctx->lval);
+        __cmp->lvar = result;
+        visit(ctx->rval);
+        __cmp->rvar = result;
+        __cmp->dest = top->create_temporary({&__boolean_class__,0});
+
+        top->emplace_new(__cmp);
+        result = __cmp->dest;
+        return;
+    }
+
+    /* Short-circuit logic case. */
+    std::string __name = top->create_branch();
+    bool __is_or = ctx->op[0] == '|';
+
+    visit(ctx->lval);
+    auto *__br  = new branch_stmt;
+    auto *__end = new block_stmt;
+    auto *__new = new block_stmt;
+    __br->cond  = result;
+    __br->br[ __is_or] = __new;
+    __br->br[!__is_or] = __end;
+    __br->br[0]->label = __name + "-true";
+    __br->br[1]->label = __name + "-false";
+
+    top->emplace_new(__br);
+    top->emplace_new(__new);
+
+    visit(ctx->rval);
+
+    auto *__jump = new jump_stmt;
+    __jump->dest = __end;
+
+    top->emplace_new(__jump);
+    top->emplace_new(__end);
+
+    auto *__phi  = new phi_stmt;
+    __phi->cond.push_back({result,__new});
+    __phi->cond.push_back({__is_or ? __true__ : __false__,__end});
+    top->emplace_new(__phi);
 }
 
 
@@ -210,9 +285,7 @@ void IRbuilder::visitLiteralConstant(AST::literal_constant *ctx) {
             result = __null__;
             break;
         default:
-            result = new boolean_constant {
-                ctx->type == AST::literal_constant::TRUE
-            };
+            result = ctx->type == AST::literal_constant::TRUE ? __true__ : __false__;
     }
 }
 
@@ -449,6 +522,7 @@ void IRbuilder::visitVariable(AST::variable_def *ctx) {
 
 
 void IRbuilder::visitFunction(AST::function_def *ctx) {
+    runtime_assert("Fuck",function_map.count(ctx) > 0);
     top = function_map[ctx];
     visit(ctx->body);
 }
@@ -480,6 +554,7 @@ void IRbuilder::createGlobalClass(AST::class_def *ctx) {
         if (auto *__func = dynamic_cast <AST::function_def *> (__p)) {
             /* Visit it in the second visit. */
             if(!__class) createGlobalFunction(__func);
+            else       ++function_cnt;
         } else if(__class) {
             auto *__var = safe_cast <AST::variable_def *> (__p);
             auto __info = get_type(__var->type);
@@ -524,8 +599,8 @@ void IRbuilder::createGlobalVariable(AST::variable *ctx,AST::literal_constant *l
 
 /* This will be called globally to create a global or member function. */
 void IRbuilder::createGlobalFunction(AST::function *ctx) {
-    global_function.emplace_back();
-    top = &global_function.back();
+    top = &global_function.emplace_back();
+    function_map[ctx] = top;
     top->name = ctx->unique_name;
     top->type = get_type(ctx->type);
     top->emplace_new(new block_stmt);
@@ -571,7 +646,6 @@ void IRbuilder::createGlobalFunction(AST::function *ctx) {
         top->args.push_back(__var);
     }
 
-    function_map[ctx] = top;
 }
 
 
@@ -646,7 +720,7 @@ void IRbuilder::make_basic(scope *__string,scope *__array) {
     function_map[global_scope->find("getInt")]      = __builtin + 10;
     function_map[global_scope->find("toString")]    = __builtin + 11;
 
-    runtime_assert("How can this happen......Fuck!",function_map[nullptr] != nullptr);
+    runtime_assert("How can this happen......Fuck!",function_map.find(nullptr) == function_map.end());
 }
 
 }

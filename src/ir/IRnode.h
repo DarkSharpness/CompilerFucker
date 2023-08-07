@@ -114,7 +114,7 @@ struct function {
     size_t cond_count  = 0; /* This is used to help generate IR. */
     size_t for_count   = 0; /* This is used to help generate IR. */
     size_t while_count = 0; /* This is used to help generate IR. */
-    std::vector <temporary> temp; /* Real temporary holder. */
+    std::vector <temporary *> temp; /* Real temporary holder. */
 
   public:
     std::string name; /* Function name. */
@@ -143,7 +143,7 @@ struct function {
 
     /* Create a temporary with given name and return pointer to __temp. */
     temporary *create_temporary(wrapper __type,const std::string &__name) {
-        auto *__temp = &temp.emplace_back();
+        auto *__temp = temp.emplace_back(new temporary);
         __temp->name = '%' + __name + std::to_string(temp_count++);
         __temp->type = __type;
         return __temp;
@@ -153,7 +153,7 @@ struct function {
      * @brief Return pointer to the first temporary of the function.
      * If member function, then current temporary is 'this' pointer.
     */
-    temporary *front_temporary() { return &temp.front(); }
+    temporary *front_temporary() { return temp.front(); }
 
     /* define <ResultType> @<FunctionName> (...) {...} */
     std::string data() const {
@@ -301,8 +301,8 @@ struct branch_stmt : statement {
         );
         return string_join(
             "br i1",cond->data(),
-            ", label %",br[1]->label,
             ", label %",br[0]->label,
+            ", label %",br[1]->label,
             '\n'
         );
     }

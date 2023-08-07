@@ -12,6 +12,9 @@ struct IRbuilder : AST::ASTvisitorbase {
     inline static auto *__neg1__ = new integer_constant {-1};   /* Literal -1.  */
     inline static auto *__zero__ = new integer_constant {0};    /* Literal 0.   */
     inline static auto *__one1__ = new integer_constant {1};    /* Literal 1.   */
+    inline static auto *__true__ = new boolean_constant {true}; /* Literal true. */
+    inline static auto *__false__= new boolean_constant {false};/* Literal false. */
+
     struct flow_type {
         block_stmt *bk; /* Break. */
         block_stmt *ct; /* Continue. */
@@ -33,13 +36,12 @@ struct IRbuilder : AST::ASTvisitorbase {
     scope *global_scope = nullptr;
     function    *top    = nullptr;  /* Current function.*/
     definition  *result = nullptr;  /* Last definition used. */
+    size_t function_cnt = 0;        /* Count of functions. */
 
     /* This will transform AST wrapper to IR wrapper. */
     wrapper get_type(AST::wrapper type) {
         auto *__ptr = class_map[type.name()];
         return { __ptr ,(ssize_t) type.dimension() + !__ptr->is_trivial()};
-        /// TODO: try the below instead
-        // return { __ptr , type.dimension() + ctx->flag + !__ptr->is_trivial()};
     }
 
     IRbuilder(scope *__global,
@@ -49,9 +51,15 @@ struct IRbuilder : AST::ASTvisitorbase {
         make_basic(__map["string"].space,__map["__array__"].space);
 
         /* Build up user-defined class information. */
-        for(auto __p : __def) 
+        for(auto __p : __def) {
             if(auto *__class = dynamic_cast <AST::class_def *> (__p))
                 createGlobalClass(__class);
+            else  if(auto *__func = dynamic_cast <AST::function_def *> (__p))
+                ++function_cnt;
+        }
+
+        /* This is used to avoid allocation! */
+        global_function.reserve(function_cnt);
 
         /* Collect all member function and global functions. */
         for(auto __p : __def) {
@@ -64,6 +72,9 @@ struct IRbuilder : AST::ASTvisitorbase {
 
         /* Visit it! Right now! */
         for(auto __p : __def) { top = nullptr; visit(__p); }
+
+        for(auto &__func : global_function)
+            std::cout << __func.data() << '\n';
     }
 
     void make_basic(scope *__string,scope *__array);
