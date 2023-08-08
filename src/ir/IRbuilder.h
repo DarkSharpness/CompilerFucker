@@ -38,6 +38,8 @@ struct IRbuilder : AST::ASTvisitorbase {
     definition  *result = nullptr;  /* Last definition used. */
     size_t function_cnt = 0;        /* Count of functions. */
 
+    function *main_function = nullptr; /* Main function. */
+
     /* This will transform AST wrapper to IR wrapper. */
     wrapper get_type(AST::wrapper type) {
         auto *__ptr = class_map[type.name()];
@@ -69,6 +71,11 @@ struct IRbuilder : AST::ASTvisitorbase {
                 visitGlobalFunction(__func);
             } else { visitGlobalVariable(safe_cast <AST::variable_def *> (__p)); } 
         }
+
+        auto *__call = new call_stmt;
+        __call->dest = nullptr;
+        __call->func = function_map[safe_cast <AST::function_def *> (__def.back())];
+        main_function->emplace_new(__call);
 
         /* Visit it! Right now! */
         for(auto __p : __def) { top = nullptr; visit(__p); }
@@ -114,6 +121,7 @@ struct IRbuilder : AST::ASTvisitorbase {
     void visitGlobalVariable(AST::variable_def *);
     void visitGlobalFunction(AST::function_def *);
     void visitGlobalVariable(AST::variable *,AST::literal_constant *);
+    void visitStringBinary(AST::binary_expr *);
     store_stmt *visitFunctionParam(AST::identifier *);
 
     /* Return the 'this' pointer. */
@@ -137,7 +145,8 @@ struct IRbuilder : AST::ASTvisitorbase {
     }
 
     function *get_string_add() { return &builtin_function[12]; }
-    function *get_string_cmp() { return &builtin_function[13]; }
+    function *get_string_cmp(decltype(compare_stmt::op) __op)
+    { return &builtin_function[13 + __op]; }
 
     /* This will only be used in member access. */
     class_type *get_class(const std::string &__name) {
@@ -147,6 +156,17 @@ struct IRbuilder : AST::ASTvisitorbase {
     /* Get a temporary name from its index. */
     static std::string get_temporary_name(size_t __n)
     { return "%" + std::to_string(__n); }
+
+    /* Test whether the function is global. */
+    static bool is_global_function(std::string_view __name) {
+        /* Special case for built-in functions. */
+        if(__name.substr(0,2) == "__")
+            return __name[2] >= 'a' && __name[2] <= 'z';
+
+        auto __n = __name.find(':');
+        /* No ':' or ':' at the beginning. */
+        return __n == std::string_view::npos || __n == 0;
+    }
 
     /* Create a string constant and return the variable to it. */
     variable *create_string(const std::string &__name) {

@@ -18,7 +18,7 @@ void IRbuilder::visitSubscriptExpr(AST::subscript_expr *ctx) {
         visit(__p);
         __get->idx  = result;
         __get->mem  = get_stmt::NPOS;
-        __get->dst  = top->create_temporary(__type,"arrayidx");
+        __get->dst  = top->create_temporary(__type,"arrayidx.");
         --__type.dimension; /* Decrease the dimension by one. */
 
         top->emplace_new(__get);
@@ -45,7 +45,7 @@ void IRbuilder::visitFunctionExpr(AST::function_expr *ctx) {
     __call->func = function_map[__func];
 
     /* Member function case: Pass 'this' pointer. */
-    if(__func->unique_name[0] != ':')
+    if(!is_global_function(__func->unique_name))
         __call->args.push_back(result);
  
     for(auto *__p : ctx->args) {
@@ -53,7 +53,7 @@ void IRbuilder::visitFunctionExpr(AST::function_expr *ctx) {
         __call->args.push_back(result);
     }
 
-    __call->dest = top->create_temporary(get_type(*ctx),"call");
+    __call->dest = top->create_temporary(get_type(*ctx),"call.");
     top->emplace_new(__call);
     result = __call->dest;
 }
@@ -69,7 +69,7 @@ void IRbuilder::visitUnaryExpr(AST::unary_expr *ctx) {
         __bin->op   = ctx->op[1] == '+' ? binary_stmt::ADD : binary_stmt::SUB;
         __bin->dest = top->create_temporary(
             wrapper {&__integer_class__,0},
-            binary_stmt::str[__bin->op]
+            string_join(binary_stmt::str[__bin->op],'.')
         );
         __bin->lvar = __tmp;
         __bin->rvar = __one1__;
@@ -91,7 +91,7 @@ void IRbuilder::visitUnaryExpr(AST::unary_expr *ctx) {
                 (dark::IR::typeinfo *)&__boolean_class__ :
                 (dark::IR::typeinfo *)&__integer_class__,0
             } ,
-            binary_stmt::str[__bin->op]
+            string_join(binary_stmt::str[__bin->op],'.')
         );
         __bin->lvar = ctx->op[0] == '-' ? (definition *)__zero__ : 
                       ctx->op[0] == '!' ? (definition *)__true__ : __one1__;
@@ -100,7 +100,6 @@ void IRbuilder::visitUnaryExpr(AST::unary_expr *ctx) {
         result = __bin->dest;
     }
 }
-
 
 
 void IRbuilder::visitMemberExpr(AST::member_expr *ctx) {
@@ -146,6 +145,9 @@ void IRbuilder::visitBinaryExpr(AST::binary_expr *ctx) {
         return;
     }
 
+    /* Special case. */
+    if(ctx->lval->type->name == "string") return visitStringBinary(ctx);
+
     /* Normal arithmetic case. */
     if(ctx->op == "+" || ctx->op == "-" || ctx->op == "|"
     || ctx->op == "&" || ctx->op == "^" || ctx->op == "<<"
@@ -167,7 +169,10 @@ void IRbuilder::visitBinaryExpr(AST::binary_expr *ctx) {
         __bin->lvar = result;
         visit(ctx->rval);
         __bin->rvar = result;
-        __bin->dest = top->create_temporary({&__integer_class__,0},binary_stmt::str[__bin->op]);
+        __bin->dest = top->create_temporary(
+            {&__integer_class__,0},
+            string_join(binary_stmt::str[__bin->op],'.')
+        );
         __bin->dest->type = get_type(*ctx);
 
         top->emplace_new(__bin);
@@ -178,21 +183,19 @@ void IRbuilder::visitBinaryExpr(AST::binary_expr *ctx) {
     /* Noraml logical case. */
     if(ctx->op[0] != '&' && ctx->op[0] != '|') {
         auto *__cmp = new compare_stmt;
-        __cmp->op = ctx->op == "!=" ? compare_stmt::NE :
-                    ctx->op == "==" ? compare_stmt::EQ :
-                    ctx->op == "<"  ? compare_stmt::LT :
-                    ctx->op == ">"  ? compare_stmt::GT :
-                    ctx->op == "<=" ? compare_stmt::LE :
-                    ctx->op == ">=" ? compare_stmt::GE :
+        __cmp->op = 
+                ctx->op == "==" ? compare_stmt::EQ :
+                ctx->op == "!=" ? compare_stmt::NE :
+                ctx->op == ">"  ? compare_stmt::GT :
+                ctx->op == ">=" ? compare_stmt::GE :
+                ctx->op == "<"  ? compare_stmt::LT :
+                ctx->op == "<=" ? compare_stmt::LE :
                         throw error("Unknown operator!");
         visit(ctx->lval);
         __cmp->lvar = result;
         visit(ctx->rval);
         __cmp->rvar = result;
-        __cmp->dest = top->create_temporary(
-            {&__boolean_class__,0},
-            compare_stmt::str[__cmp->op]
-        );
+        __cmp->dest = top->create_temporary({&__boolean_class__,0},"cmp.");
 
         top->emplace_new(__cmp);
         result = __cmp->dest;
@@ -227,9 +230,9 @@ void IRbuilder::visitBinaryExpr(AST::binary_expr *ctx) {
     top->emplace_new(__end);
 
     auto *__phi  = new phi_stmt;
-    __phi->cond.push_back({result,__new});
     __phi->cond.push_back({__is_or ? __true__ : __false__,__block});
-    __phi->dest = top->create_temporary({&__boolean_class__,0},"phi");
+    __phi->cond.push_back({result,__new});
+    __phi->dest = top->create_temporary({&__boolean_class__,0},"phi.");
     top->emplace_new(__phi);
 
     result = __phi->dest;
@@ -267,7 +270,7 @@ void IRbuilder::visitConditionExpr(AST::condition_expr *ctx) {
     __jump->dest = __end;
     __end->label = __name + "-end";
     /* If assignable, return the pointer to the data. */
-    __phi ->dest = top->create_temporary(get_type(*ctx) + ctx->flag,"ternary");
+    __phi ->dest = top->create_temporary(get_type(*ctx) + ctx->flag,"ternary.");
 
     top->emplace_new(__jump);
     top->emplace_new(__end);
@@ -282,7 +285,7 @@ void IRbuilder::visitAtomExpr(AST::atom_expr *ctx) {
     if(ctx->type->is_function()) {
         auto __name = ctx->type->func->unique_name;
         /* Member function case. */
-        if(__name[0] != ':' && __name != "main")
+        if(!is_global_function(__name))
             result = get_this_pointer();
         return;
     }
@@ -295,10 +298,14 @@ void IRbuilder::visitAtomExpr(AST::atom_expr *ctx) {
         result = variable_map[ctx->real];
     } else { /* Class member access. */
         size_t __len  = __name.find(':');
-        auto *__class = get_class(__name.substr(0,__len));
+        auto  __cname = __name.substr(0,__len); /* Class name. */
+        auto *__class = get_class(__cname);
         auto *__get = new get_stmt;
         __get->src  = get_this_pointer();
-        __get->dst  = top->create_temporary(++get_type(*ctx),ctx->name);
+        __get->dst  = top->create_temporary(
+            ++get_type(*ctx),
+            string_join(__cname,'.',ctx->name,'-')
+        );
         __get->idx  = __zero__;
         __get->mem  = __class->index(ctx->name);
 
@@ -665,15 +672,17 @@ void IRbuilder::visitGlobalFunction(AST::function_def *ctx) {
     std::vector <store_stmt *> __store;
     __store.reserve(ctx->args.size() + 1);
 
-    /* Global function case. */
-    if(top->name[0] != ':' & top->name != "main") {
+    if(top->name == "main") {
+        main_function = top;
+        return; /* Main function has no params. */
+    } else if(!is_global_function(top->name)) {
         auto __this = ctx->space->find("this");
         if (!__this) throw error("Invalid member function!",ctx);
         __store.push_back(visitFunctionParam(__this));
-
         /* May be this pointer should be pre-loaded. */
         // safe_load_variable();
     }
+
 
     /* Add all of the function params. */
     for(auto &&[__name,__type] : ctx->args)
@@ -720,17 +729,16 @@ void IRbuilder::make_basic(scope *__string,scope *__array) {
      * ::getInt()                           = 10
      * ::toString(int n)                    = 11
      * ::__string__add__(string a,string b) = 12
-     * ::__string__cmp__(string a,string b) = 13
+     * ::__string__cmp__(string a,string b) = 13 ~ 18
      * 
     */
-    builtin_function.resize(14);
-
-    class_map["bool"] = &__boolean_class__;
-    class_map["null"] = &__null_class__;
+    builtin_function.resize(21);
 
     wrapper __str = {class_map["string"] = new string_type {} ,1};
     wrapper __i32 = {class_map["int"]    = &__integer_class__ ,0};
     wrapper __voi = {class_map["void"]   = &   __void_class__ ,0};
+    wrapper __boo = {class_map["bool"]   = &__boolean_class__ ,0};
+    wrapper __nul = {class_map["null"]   = &   __null_class__ ,0};
 
     builtin_function[0].type = __i32;
     builtin_function[1].type = __i32;
@@ -745,22 +753,37 @@ void IRbuilder::make_basic(scope *__string,scope *__array) {
     builtin_function[10].type = __i32;
     builtin_function[11].type = __str;
     builtin_function[12].type = __str;
-    builtin_function[13].type = __i32;
+    builtin_function[13].type = __boo;
+    builtin_function[14].type = __boo;
+    builtin_function[15].type = __boo;
+    builtin_function[16].type = __boo;
+    builtin_function[17].type = __boo;
+    builtin_function[18].type = __boo;
+    builtin_function[19].type = __nul;
+    builtin_function[20].type = __nul;
 
-    builtin_function[0].name = "__array__::size";
-    builtin_function[1].name = "string::length";
-    builtin_function[2].name = "string::substring";
-    builtin_function[3].name = "string::parseInt";
-    builtin_function[4].name = "string::ord";
-    builtin_function[5].name = "::print";
-    builtin_function[6].name = "::println";
-    builtin_function[7].name = "::printInt";
-    builtin_function[8].name = "::printlnInt";
-    builtin_function[9].name = "::getString";
-    builtin_function[10].name = "::getInt";
-    builtin_function[11].name = "::toString";
-    builtin_function[12].name = "::__string__add__";
-    builtin_function[13].name = "::__string__cmp__";
+
+    builtin_function[0].name = "__Array_size__";
+    builtin_function[1].name = "__String_length__";
+    builtin_function[2].name = "__String_substring__";
+    builtin_function[3].name = "__String_parseInt__";
+    builtin_function[4].name = "__String_ord__";
+    builtin_function[5].name = "__print__";
+    builtin_function[6].name = "__println__";
+    builtin_function[7].name = "__printInt__";
+    builtin_function[8].name = "__printlnInt__";
+    builtin_function[9].name = "__getString__";
+    builtin_function[10].name = "__getInt__";
+    builtin_function[11].name = "__toString__";
+    builtin_function[12].name = "__string_add__";
+    builtin_function[13].name = "__string_eq__";
+    builtin_function[14].name = "__string_ne__";
+    builtin_function[15].name = "__string_gt__";
+    builtin_function[16].name = "__string_ge__";
+    builtin_function[17].name = "__string_lt__";
+    builtin_function[18].name = "__string_le__";
+    builtin_function[19].name = "__new_array1__";
+    builtin_function[19].name = "__new_array4__";
 
     auto *__builtin = builtin_function.data();
     function_map[__array->find("size")]             = __builtin + 0;
@@ -777,6 +800,35 @@ void IRbuilder::make_basic(scope *__string,scope *__array) {
     function_map[global_scope->find("toString")]    = __builtin + 11;
 
     runtime_assert("How can this happen......Fuck!",function_map.find(nullptr) == function_map.end());
+}
+
+void IRbuilder::visitStringBinary(AST::binary_expr *ctx) {
+    auto *__call = new call_stmt;
+    if(ctx->op == "+") {
+        __call->func = get_string_add();
+    } else {
+        decltype(compare_stmt::op)
+        __op = 
+            ctx->op == "==" ? compare_stmt::EQ :
+            ctx->op == "!=" ? compare_stmt::NE :
+            ctx->op == ">"  ? compare_stmt::GT :
+            ctx->op == ">=" ? compare_stmt::GE :
+            ctx->op == "<"  ? compare_stmt::LT :
+            ctx->op == "<=" ? compare_stmt::LE :
+                throw error("Unknown operator!");
+        __call->func = get_string_cmp(__op);
+    }
+    visit(ctx->lval);
+    __call->args.push_back(result);
+    visit(ctx->rval);
+    __call->args.push_back(result);
+    top->emplace_new(__call);
+    __call->dest = top->create_temporary(
+        ctx->op == "+" ? wrapper {class_map["string"],1}
+                       : wrapper {class_map["bool"],0},
+        "call."
+    );
+    result = __call->dest;
 }
 
 }

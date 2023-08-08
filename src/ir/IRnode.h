@@ -172,7 +172,7 @@ struct function {
         __tmp.reserve(stmt.size() + 2);
         __tmp.push_back(string_join(
             "define ",type.name()," @",name,
-            " (",std::move(__arg),") {\n"
+            "(",std::move(__arg),") {\n"
         ));
         for(auto __p : stmt) __tmp.push_back(__p->data());
         __tmp.push_back(string_join("}\n\n"));
@@ -333,7 +333,7 @@ struct call_stmt : statement {
         return string_join(
             __prefix, "call ",
            func->type.name()," @",func->name,
-            " (",std::move(__arg),")\n"
+            "(",std::move(__arg),")\n"
         );
     }
     ~call_stmt() override = default;
@@ -427,7 +427,7 @@ struct get_stmt : statement {
             dst->get_value_type() == src->get_value_type()
         );
         return string_join(
-            dst->data()," = getelementptr ",dst->get_point_type().name(),
+            dst->data()," = getelementptr ",src->get_point_type().name(),
             " ptr ",src->data(), ", i32 ",idx->data(),__suffix,'\n'
         );
     }
@@ -457,7 +457,7 @@ struct phi_stmt : statement {
             );
             __tmp.push_back(string_join(
                 (label == cond.front().label ? " [ " : " , [ "),
-                value->data()," , ",label->label," ]"
+                value->data()," , %",label->label," ]"
             ));
         } __tmp.push_back("\n");
 
@@ -474,16 +474,6 @@ struct initialization {
     literal  *lite; /* Const expression. */
 
     std::string data() {
-        // if(dynamic_cast <string_constant *> (lite)) {
-        //     runtime_assert("Invalid global initialization!",
-        //         dynamic_cast <const string_type *> (dest->type.type) != nullptr,
-        //         dest->type.dimension == 1
-        //     );
-        // } else {
-        //     runtime_assert("Invalid global initialization!",
-        //         dest->get_point_type() == lite->get_value_type()
-        //     );
-        // }
         return string_join(
             dest->data()," = ",
             lite->type_data(),' ',lite->data()
