@@ -123,18 +123,8 @@ struct function {
     std::vector <block_stmt *> stmt; /* Body data.       */
     wrapper                    type; /* Return type. */
 
-    std::string create_branch() {
-        return "if-" + std::to_string(cond_count++);
-    }
-
-    std::string create_for() {
-        return "for-" + std::to_string(for_count++); 
-    }
-
-    std::string create_while() {
-        return "while-" + std::to_string(while_count++); 
-    }
-
+    std::string create_label(const std::string &__name)
+    { return string_join(__name,'-',std::to_string(count[__name]++)); }
 
     /* Create a temporary and return pointer to it. */
     temporary *create_temporary(wrapper __type) {
@@ -145,6 +135,14 @@ struct function {
     temporary *create_temporary(wrapper __type,const std::string &__name) {
         auto *__temp = temp.emplace_back(new temporary);
         __temp->name = '%' + __name + std::to_string(count[__name]++);
+        __temp->type = __type;
+        return __temp;
+    }
+
+    /* Create a temporary with given name (no suffix) and return pointer to __temp. */
+    temporary *create_temporary_no_suffix(wrapper __type,const std::string &__name) {
+        auto *__temp = temp.emplace_back(new temporary);
+        __temp->name = '%' + __name;
         __temp->type = __type;
         return __temp;
     }

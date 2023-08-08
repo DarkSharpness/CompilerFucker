@@ -125,8 +125,19 @@ void IRbuilder::visitMemberExpr(AST::member_expr *ctx) {
 }
 
 
-void IRbuilder::visitConstructExpr(AST::construct_expr *) {
-    throw error("Not implemented!");
+void IRbuilder::visitConstructExpr(AST::construct_expr *ctx) {
+    // throw error("Not implemented!");
+    auto  __type = get_type(*ctx);
+    auto *__data = ctx->expr.data();
+    std::vector <definition *> __args;
+    __args.reserve(ctx->expr.size());
+    for(auto __iter  = ctx->expr.rbegin() ; 
+             __iter != ctx->expr.rend() ; ++__iter) {
+        visit(*__iter);
+        __args.push_back(result);
+    }
+    if(__args.size()) return visitNewExpr(__type,__args);
+    else throw error("Not implemented!");
 }
 
 
@@ -164,6 +175,7 @@ void IRbuilder::visitBinaryExpr(AST::binary_expr *ctx) {
             case '*': __bin->op = binary_stmt::MUL; break;
             case '/': __bin->op = binary_stmt::SDIV;break;
             case '%': __bin->op = binary_stmt::SREM;break;
+            default : throw error("Unknown operator!");
         }
         visit(ctx->lval);
         __bin->lvar = result;
@@ -203,7 +215,7 @@ void IRbuilder::visitBinaryExpr(AST::binary_expr *ctx) {
     }
 
     /* Short-circuit logic case. */
-    std::string __name = top->create_branch();
+    std::string __name = top->create_label("logic");
     bool __is_or = ctx->op[0] == '|';
 
     visit(ctx->lval);
@@ -241,8 +253,7 @@ void IRbuilder::visitBinaryExpr(AST::binary_expr *ctx) {
 
 void IRbuilder::visitConditionExpr(AST::condition_expr *ctx) {
     visit(ctx->cond);
-    std::string __name = top->create_branch();
-    jump_stmt  *__jump = nullptr;
+    std::string __name = top->create_label("cond");
 
     auto *__br  = new branch_stmt;
     __br->cond  = result;
@@ -253,26 +264,27 @@ void IRbuilder::visitConditionExpr(AST::condition_expr *ctx) {
 
     top->emplace_new(__br);
     top->emplace_new(__br->br[0]);
-    visit(ctx->lval);
 
-    auto *__phi  = new phi_stmt;
-    auto *__end  = new block_stmt;
-    __phi->cond.push_back({result,__br->br[0]});
-    __jump       = new jump_stmt;
-    __jump->dest = __end;
+    auto *__phi = new phi_stmt;
+    auto *__end = new block_stmt;
 
-    top->emplace_new(__jump);
+    { /* Branch true. */
+        visit(ctx->lval);
+       __phi->cond.push_back({result,__br->br[0]});
+        create_jump(__end);
+    }
+
     top->emplace_new(__br->br[1]);
-    visit(ctx->rval);
 
-    __phi->cond.push_back({result,__br->br[1]});
-    __jump       = new jump_stmt;
-    __jump->dest = __end;
-    __end->label = __name + "-end";
+    { /* Branch false. */
+        visit(ctx->rval);
+        __phi->cond.push_back({result,__br->br[1]});
+        create_jump(__end);
+    }
+
     /* If assignable, return the pointer to the data. */
-    __phi ->dest = top->create_temporary(get_type(*ctx) + ctx->flag,"ternary.");
-
-    top->emplace_new(__jump);
+    __end->label = __name + "-end";
+    __phi->dest  = top->create_temporary(get_type(*ctx) + ctx->flag,"ternary.");
     top->emplace_new(__end);
     top->emplace_new(__phi);
 
@@ -353,8 +365,7 @@ void IRbuilder::visitForStmt(AST::for_stmt *ctx) {
     */
     if(ctx->init) visit(ctx->init);
 
-    std::string __name = top->create_for();
-    jump_stmt  *__jump = nullptr ;
+    std::string __name = top->create_label("for");
     block_stmt *__cond = nullptr;
     block_stmt *__body = new block_stmt;
     block_stmt *__step = nullptr;
@@ -366,51 +377,45 @@ void IRbuilder::visitForStmt(AST::for_stmt *ctx) {
         /* Jump to condition first. */
         __cond = new block_stmt;
         __cond->label = __name + "-cond";
-        __jump = new jump_stmt;
-        __jump->dest  = __cond;
-        top->emplace_new(__jump);
-        top->emplace_new(__cond);
+        create_jump(__cond);
 
-        /* Build up condition body. */
-        visit(ctx->cond);
-        auto * __br = new branch_stmt;
-        __br->cond  = result;
-        __br->br[0] = __body;
-        __br->br[1] = __end;
-        /* Conditional jump to body. */
-        top->emplace_new(__br);
+        { /* Build up condition body. */
+            top->emplace_new(__cond);
+            visit(ctx->cond);
+            auto * __br = new branch_stmt;
+            __br->cond  = result;
+            __br->br[0] = __body;
+            __br->br[1] = __end;
+            /* Conditional jump to body. */
+            top->emplace_new(__br);
+        }
     } else { /* Unconditional jump to body. */
         __cond = __body;
-        __jump = new jump_stmt;
-        __jump->dest = __cond;
-        top->emplace_new(__jump);
+        create_jump(__body);
     }
 
     if(ctx->step) {
-        /* Build the step block first. */
-        __step = new block_stmt;
-        __step->label = __name + "-step";
-        top->emplace_new(__step);
-        visit(ctx->step);
-
+        { /* Build the step block first. */
+            __step = new block_stmt;
+            __step->label = __name + "-step";
+            top->emplace_new(__step);
+            visit(ctx->step);
+        }
         /* Unconditional jump to condition. */
-        __jump = new jump_stmt;
-        __jump->dest = __cond;
-        top->emplace_new(__jump);
+        create_jump(__cond);
     } else { /* No need to jump to step. */
         __step = __cond;
     }
 
-    /* Build up body. */
-    top->emplace_new(__body);
-    loop_flow.push_back({.bk = __end,.ct = __step});
-    visit(ctx->stmt);
-    loop_flow.pop_back();
+    { /* Build up body. */
+        top->emplace_new(__body);
+        loop_flow.push_back({.bk = __end,.ct = __step});
+        visit(ctx->stmt);
+        loop_flow.pop_back();
+    }
 
     /* Unconditionally jump to step. */
-    __jump = new jump_stmt;
-    __jump->dest = __step;
-    top->emplace_new(__jump);
+    create_jump(__step);
     top->emplace_new(__end);
 }
 
@@ -425,10 +430,8 @@ void IRbuilder::visitFlowStmt(AST::flow_stmt *ctx) {
         __ret->func = function_map[ctx->func];
         top->emplace_new(__ret);
     } else {
-        auto *__loop = loop_flow.back() [ctx->flow[0] == 'c'];
-        auto *__jump = new jump_stmt;
-        __jump->dest = __loop;
-        top->emplace_new(__jump);
+        /* Jump to target directly. */
+        create_jump(loop_flow.back() [ctx->flow[0] == 'c']);
     }
 }
 
@@ -446,14 +449,12 @@ void IRbuilder::visitWhileStmt(AST::while_stmt *ctx) {
      * 
     */
 
-    std::string __name = top->create_while();
+    std::string __name = top->create_label("while");
 
     /* Jump into condition block. */
     auto *__cond = new block_stmt;
     __cond->label = __name + "-cond";
-    auto *__jump = new jump_stmt;
-    __jump->dest = __cond;
-    top->emplace_new(__jump);
+    create_jump(__cond);
     top->emplace_new(__cond);
 
     /* Building condition block and divide. */
@@ -475,9 +476,7 @@ void IRbuilder::visitWhileStmt(AST::while_stmt *ctx) {
     loop_flow.pop_back();
 
     /* End of body block. */
-    __jump       = new jump_stmt;
-    __jump->dest = __cond;
-    top->emplace_new(__jump);
+    create_jump(__cond);
     top->emplace_new(__end);
 }
 
@@ -502,7 +501,7 @@ void IRbuilder::visitBranchStmt(AST::branch_stmt *ctx) {
     */
 
     auto *__end  = new block_stmt;
-    std::string __name = top->create_branch();
+    std::string __name = top->create_label("if");
     __end->label = __name + "-end";
     size_t i = 0;
 
@@ -532,9 +531,7 @@ void IRbuilder::visitBranchStmt(AST::branch_stmt *ctx) {
         }
 
         visit(__stmt);
-        auto *__jump = new jump_stmt;
-        __jump->dest = __end;
-        top->emplace_new(__jump);
+        create_jump(__end);
         top->emplace_new(__next);
     }
 }
@@ -657,6 +654,21 @@ void IRbuilder::visitGlobalFunction(AST::function_def *ctx) {
     top->emplace_new(new block_stmt);
     top->stmt[0]->label = "entry";
 
+    std::vector <store_stmt *> __store;
+    __store.reserve(ctx->args.size() + 1);
+
+    /* Add this pointer to the param of member function. */
+    if(!is_global_function(top->name)) {
+        auto __this = ctx->space->find("this");
+        if (!__this) throw error("Invalid member function!",ctx);
+        __store.push_back(visitFunctionParam(__this));
+        /* Maybe this pointer should be pre-loaded. */
+    }
+
+    /* Add all of the function params. */
+    for(auto &&[__name,__type] : ctx->args)
+        __store.push_back(visitFunctionParam(ctx->space->find(__name)));
+
     /* All the local variables used. */
     for(auto *__p : ctx->unique_mapping) {
         auto *__var = new variable;
@@ -669,25 +681,10 @@ void IRbuilder::visitGlobalFunction(AST::function_def *ctx) {
         top->emplace_new(__alloca);
     }
 
-    std::vector <store_stmt *> __store;
-    __store.reserve(ctx->args.size() + 1);
+    /* Set the main function. */
+    if(top->name == "main") return void(main_function = top);
 
-    if(top->name == "main") {
-        main_function = top;
-        return; /* Main function has no params. */
-    } else if(!is_global_function(top->name)) {
-        auto __this = ctx->space->find("this");
-        if (!__this) throw error("Invalid member function!",ctx);
-        __store.push_back(visitFunctionParam(__this));
-        /* May be this pointer should be pre-loaded. */
-        // safe_load_variable();
-    }
-
-
-    /* Add all of the function params. */
-    for(auto &&[__name,__type] : ctx->args)
-        __store.push_back(visitFunctionParam(ctx->space->find(__name)));
-
+    /* Store the function arguments after allocation. */
     for(auto __s : __store) top->emplace_new(__s);
 }
 
@@ -704,7 +701,6 @@ store_stmt *IRbuilder::visitFunctionParam(AST::identifier *__p) {
     auto *__alloc = new allocate_stmt;
     __alloc->dest = __var = new variable;
     __store->dst  = __var;
-
     top->emplace_new(__alloc);
 
     __var->name = __p->unique_name + ".addr";
@@ -732,13 +728,14 @@ void IRbuilder::make_basic(scope *__string,scope *__array) {
      * ::__string__cmp__(string a,string b) = 13 ~ 18
      * 
     */
-    builtin_function.resize(21);
 
     wrapper __str = {class_map["string"] = new string_type {} ,1};
     wrapper __i32 = {class_map["int"]    = &__integer_class__ ,0};
     wrapper __voi = {class_map["void"]   = &   __void_class__ ,0};
     wrapper __boo = {class_map["bool"]   = &__boolean_class__ ,0};
     wrapper __nul = {class_map["null"]   = &   __null_class__ ,0};
+
+    builtin_function.resize(21);
 
     builtin_function[0].type = __i32;
     builtin_function[1].type = __i32;
@@ -762,7 +759,6 @@ void IRbuilder::make_basic(scope *__string,scope *__array) {
     builtin_function[19].type = __nul;
     builtin_function[20].type = __nul;
 
-
     builtin_function[0].name = "__Array_size__";
     builtin_function[1].name = "__String_length__";
     builtin_function[2].name = "__String_substring__";
@@ -783,7 +779,7 @@ void IRbuilder::make_basic(scope *__string,scope *__array) {
     builtin_function[17].name = "__string_lt__";
     builtin_function[18].name = "__string_le__";
     builtin_function[19].name = "__new_array1__";
-    builtin_function[19].name = "__new_array4__";
+    builtin_function[20].name = "__new_array4__";
 
     auto *__builtin = builtin_function.data();
     function_map[__array->find("size")]             = __builtin + 0;
@@ -830,5 +826,108 @@ void IRbuilder::visitStringBinary(AST::binary_expr *ctx) {
     );
     result = __call->dest;
 }
+
+
+void IRbuilder::visitNewExpr(wrapper __type,std::vector <definition *> __vec) {
+    const std::string &__name = top->create_label("new");
+    auto *__len = __vec.back(); __vec.pop_back();
+
+    { /* Allocate the pointer. */
+        auto *__call  = new call_stmt;
+        __call->args.push_back(__len);
+        __call->func  = get_new_array((--__type).size());
+        __call->dest  = top->create_temporary_no_suffix(__type,__name + ".ptr");
+        top->emplace_new(__call);
+        result = __call->dest;
+    }
+
+    if(__vec.empty()) return;
+
+    /* Pointer to the first data. */
+    definition *__beg  = result;
+
+    { /* Work out the tail pointer first. */
+        auto *__get = new get_stmt;
+        __get->dst  = top->create_temporary_no_suffix(__type,__name + ".beg");
+        __get->src  = __beg;
+        __get->idx  = __len;
+        top->emplace_new(__get);
+        result      = __get->dst;
+    }
+
+    /* The pointer that will only be used when entering the loop. */
+    auto *__pre  = result;
+    /* Current pointer that is created by getelementptr. */
+    auto *__cur  = top->create_temporary_no_suffix(__type,__name + ".cur");
+    /* Temporaray pointer as result of the phi statement. */
+    auto *__tmp  = top->create_temporary_no_suffix(__type,__name + ".tmp");
+
+    auto *__last = top->stmt.back();/* Block before body. */
+    auto *__body = new block_stmt;  /* Body block.        */
+    auto *__cond = new block_stmt;  /* Condition block.   */
+
+    __body->label = __name + "-body";
+    create_jump(__cond);
+    top->emplace_new(__body);
+
+    /* Work out the next dimension. */
+    visitNewExpr(--__type,std::move(__vec));
+
+    { /* Sub the pointer. */
+        auto *__get = new get_stmt;
+        __get->dst  = __cur;
+        __get->src  = __tmp;
+        __get->idx  = __neg1__;
+        __get->mem  = get_stmt::NPOS;
+        top->emplace_new(__get);
+    }
+
+    { /* Store the result. */
+        auto *__store = new store_stmt;
+        __store ->src = result;
+        __store ->dst = __cur;
+        top->emplace_new(__store);
+    }
+
+    __cond->label = __name + "-cond";
+    create_jump(__cond);
+    top->emplace_new(__cond);
+
+    { /* Use phi to assign. */
+        auto *__phi = new phi_stmt;
+        __phi->dest = __tmp;
+        __phi->cond.push_back({__pre,__last});
+        __phi->cond.push_back({__cur,__body});
+        top->emplace_new(__phi);
+    }
+
+    { /* Compare current pointer and head pointer. */
+        auto *__cmp = new compare_stmt;
+        __cmp->op   = compare_stmt::NE;
+        __cmp->dest = top->create_temporary_no_suffix(
+            {&__boolean_class__,0}, /* Result type: bool */
+            __name + ".cmp"         /* Compare result. */
+        );
+        __cmp->lvar = __tmp;
+        __cmp->rvar = __beg;
+        top->emplace_new(__cmp);
+        result = __cmp->dest;
+    }
+
+    { /* Branch to initialize. */
+        auto *__br  = new branch_stmt;
+        __br->cond  = result;
+        __br->br[0] = __body;
+        __br->br[1] = new block_stmt;    
+        __br->br[0]->label = __name + "-body";
+        __br->br[1]->label = __name + "-end";
+        top->emplace_new(__br);
+        top->emplace_new(__br->br[1]);
+    }
+
+    result = __beg;
+}
+
+
 
 }

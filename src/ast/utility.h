@@ -116,7 +116,7 @@ struct warning {
  * @brief SFINAE safe cast from one type to its virtual derived.
  * If fails, it will throw an runtime error.
  * 
- * @throw dark::error
+ * @throw dark::error ("Fail to cast!") if fails.
  * 
 */
 template <class T,class V>

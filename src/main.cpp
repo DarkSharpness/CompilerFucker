@@ -11,14 +11,11 @@
 #include "IRbuilder.h"
 #include "IRnode.h"
 
-// using namespace antlr4;
-//todo: regenerating files in directory named "generated" is dangerous.
-//       if you really need to regenerate,please ask TA for help.
+
 int main(int argc, const char* argv[]) {
     try {
         // freopen("test.in","r",stdin);
         MxErrorListener listener;
-
 
         antlr4::ANTLRInputStream input(std::cin);
         MxLexer lexer(&input);

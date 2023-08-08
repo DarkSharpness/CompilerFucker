@@ -6,6 +6,7 @@
 
 namespace dark::IR {
 
+struct function;
 
 inline static constexpr size_t MxPTRSIZE = 4;
 
@@ -38,8 +39,8 @@ struct wrapper {
     */
     wrapper operator --(void) const {
         if(dimension <= 0) throw error("No dereference for non-pointer types!");
-        if(dimension == 1 && !type->is_trivial())
-            warning("Stupid Mx does not support dereference for class type!");
+        // if(dimension == 1 && !type->is_trivial())
+            // warning("Stupid Mx does not support dereference for class type!");
         return wrapper {type , dimension - 1};
     }
 
@@ -124,6 +125,7 @@ struct string_type : typeinfo {
 
 /* This is a special type marker. */
 struct class_type : typeinfo {
+    function            *constructor;   /* Constructor function. */
     std::string          unique_name;   /* Class name (with '%'). */
     std::vector <  wrapper  > layout;   /* Variable typeinfo. */
     std::vector <std::string> member;   /* Member variables. */

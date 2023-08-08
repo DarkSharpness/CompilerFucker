@@ -72,11 +72,18 @@ struct IRbuilder : AST::ASTvisitorbase {
             } else { visitGlobalVariable(safe_cast <AST::variable_def *> (__p)); } 
         }
 
-        auto *__call = new call_stmt;
-        __call->dest = nullptr;
-        __call->func = function_map[safe_cast <AST::function_def *> (__def.back())];
-        main_function->emplace_new(__call);
-
+        { /* Add call statement to global init. */
+            auto *__func = safe_cast <AST::function_def *> (__def.back());
+            if(__func->body->stmt.empty()) {
+                delete __func;
+                __def.pop_back();
+            } else {
+                auto *__call = new call_stmt;
+                __call->dest = nullptr;
+                __call->func = function_map[__func];
+                main_function->emplace_new(__call);
+            }
+        }
         /* Visit it! Right now! */
         for(auto __p : __def) { top = nullptr; visit(__p); }
 
@@ -122,7 +129,9 @@ struct IRbuilder : AST::ASTvisitorbase {
     void visitGlobalFunction(AST::function_def *);
     void visitGlobalVariable(AST::variable *,AST::literal_constant *);
     void visitStringBinary(AST::binary_expr *);
+    void visitNewExpr(wrapper,std::vector <definition *>);
     store_stmt *visitFunctionParam(AST::identifier *);
+
 
     /* Return the 'this' pointer. */
     definition *get_this_pointer() {
@@ -147,6 +156,13 @@ struct IRbuilder : AST::ASTvisitorbase {
     function *get_string_add() { return &builtin_function[12]; }
     function *get_string_cmp(decltype(compare_stmt::op) __op)
     { return &builtin_function[13 + __op]; }
+
+    function *get_new_array(size_t __n) {
+        if(__n == 4) return &builtin_function[20];
+        if(__n == 1) return &builtin_function[19];
+        throw error("Invalid array length!");
+    }
+
 
     /* This will only be used in member access. */
     class_type *get_class(const std::string &__name) {
@@ -185,6 +201,13 @@ struct IRbuilder : AST::ASTvisitorbase {
         __iter->second = __var;
         global_variable.push_back({__var,__str});
         return __var;
+    }
+
+    /* Create a jump statement. */
+    void create_jump(block_stmt *__block) {
+        auto *__jump = new jump_stmt;
+        __jump->dest = __block;
+        top->emplace_new(__jump);
     }
 
 };

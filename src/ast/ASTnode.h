@@ -113,15 +113,13 @@ struct construct_expr : expression {
         std::cout << "new " << type.type->name;
 
         size_t i = 0;
-        size_t __len = expr.size();
-        for(; i < __len ; ++i) {
+        for(; i < expr.size() ; ++i) {
             std::cout << '[';
             expr[i]->print();
             std::cout << ']';
         }
 
-        __len = type.dimension();
-        for(; i < __len ; ++i)
+        for(; i < type.dimension() ; ++i)
             std::cout << '[' << ']';
     }
 
