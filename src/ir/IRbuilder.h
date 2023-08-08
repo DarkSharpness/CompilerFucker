@@ -72,18 +72,20 @@ struct IRbuilder : AST::ASTvisitorbase {
             } else { visitGlobalVariable(safe_cast <AST::variable_def *> (__p)); } 
         }
 
-        { /* Add call statement to global init. */
+        { /* If init is empty, then it won't be generated. */
             auto *__func = safe_cast <AST::function_def *> (__def.back());
             if(__func->body->stmt.empty()) {
                 delete __func;
+                global_function.pop_back();
                 __def.pop_back();
-            } else {
+            } else { /* Add call statement to global init. */
                 auto *__call = new call_stmt;
                 __call->dest = nullptr;
                 __call->func = function_map[__func];
                 main_function->emplace_new(__call);
             }
         }
+
         /* Visit it! Right now! */
         for(auto __p : __def) { top = nullptr; visit(__p); }
 
@@ -162,7 +164,7 @@ struct IRbuilder : AST::ASTvisitorbase {
         if(__n == 1) return &builtin_function[19];
         throw error("Invalid array length!");
     }
-
+    function *get_new_object() { return &builtin_function[21]; }
 
     /* This will only be used in member access. */
     class_type *get_class(const std::string &__name) {

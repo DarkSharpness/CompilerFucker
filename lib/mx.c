@@ -120,3 +120,7 @@ void *__new_array1__(int len) {
     *buf = len;
     return buf + 1;
 }
+
+void *__new_object__(int size) {
+    return malloc(size);
+}

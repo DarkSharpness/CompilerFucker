@@ -7,6 +7,7 @@ void IRbuilder::visitBracketExpr(AST::bracket_expr *ctx) {
     return visit(ctx->expr);
 }
 
+
 void IRbuilder::visitSubscriptExpr(AST::subscript_expr *ctx) {
     auto *__lhs = ctx->expr[0];
     visit(__lhs); /* Visit it first. */
@@ -126,7 +127,6 @@ void IRbuilder::visitMemberExpr(AST::member_expr *ctx) {
 
 
 void IRbuilder::visitConstructExpr(AST::construct_expr *ctx) {
-    // throw error("Not implemented!");
     auto  __type = get_type(*ctx);
     auto *__data = ctx->expr.data();
     std::vector <definition *> __args;
@@ -137,7 +137,28 @@ void IRbuilder::visitConstructExpr(AST::construct_expr *ctx) {
         __args.push_back(result);
     }
     if(__args.size()) return visitNewExpr(__type,__args);
-    else throw error("Not implemented!");
+    else {
+        {
+            auto *__call = new call_stmt;
+            __call->func = get_new_object();
+            __call->args = { new integer_constant {(int) (--__type).size()} };
+            __call->dest = top->create_temporary(__type,"new.");
+            top->emplace_new(__call);
+            result = __call->dest;
+        }
+
+        auto *__class = safe_cast <const class_type *> (__type.type);
+        if(!__class->constructor) return;
+
+        {
+            auto *__call = new call_stmt;
+            __call->func = __class->constructor;
+            __call->args = { result };
+            __call->dest = top->create_temporary(__type,__class->name() + ".");
+            top->emplace_new(__call);
+            result = __call->dest;
+        }
+    }
 }
 
 
@@ -603,6 +624,11 @@ void IRbuilder::visitGlobalClass(AST::class_def *ctx) {
     for(auto __p : ctx->member) {
         if (auto *__func = dynamic_cast <AST::function_def *> (__p)) {
             visitGlobalFunction(__func);
+            /* Constructor function (not empty). */
+            if(__func->name == "" && !__func->body->stmt.empty()) {
+                __class->constructor = &global_function.back();
+                __class->constructor->name += ctx->name;
+            }
         } else {
             auto *__var = safe_cast <AST::variable_def *> (__p);
             auto __info = get_type(__var->type);
@@ -726,7 +752,7 @@ void IRbuilder::make_basic(scope *__string,scope *__array) {
      * ::toString(int n)                    = 11
      * ::__string__add__(string a,string b) = 12
      * ::__string__cmp__(string a,string b) = 13 ~ 18
-     * 
+     * ::new(int a,int b)                   = 19 ~ 21
     */
 
     wrapper __str = {class_map["string"] = new string_type {} ,1};
@@ -735,7 +761,7 @@ void IRbuilder::make_basic(scope *__string,scope *__array) {
     wrapper __boo = {class_map["bool"]   = &__boolean_class__ ,0};
     wrapper __nul = {class_map["null"]   = &   __null_class__ ,0};
 
-    builtin_function.resize(21);
+    builtin_function.resize(22);
 
     builtin_function[0].type = __i32;
     builtin_function[1].type = __i32;
@@ -758,6 +784,7 @@ void IRbuilder::make_basic(scope *__string,scope *__array) {
     builtin_function[18].type = __boo;
     builtin_function[19].type = __nul;
     builtin_function[20].type = __nul;
+    builtin_function[21].type = __nul;
 
     builtin_function[0].name = "__Array_size__";
     builtin_function[1].name = "__String_length__";
@@ -780,6 +807,7 @@ void IRbuilder::make_basic(scope *__string,scope *__array) {
     builtin_function[18].name = "__string_le__";
     builtin_function[19].name = "__new_array1__";
     builtin_function[20].name = "__new_array4__";
+    builtin_function[21].name = "__new_object__";
 
     auto *__builtin = builtin_function.data();
     function_map[__array->find("size")]             = __builtin + 0;
@@ -797,6 +825,7 @@ void IRbuilder::make_basic(scope *__string,scope *__array) {
 
     runtime_assert("How can this happen......Fuck!",function_map.find(nullptr) == function_map.end());
 }
+
 
 void IRbuilder::visitStringBinary(AST::binary_expr *ctx) {
     auto *__call = new call_stmt;

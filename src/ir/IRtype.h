@@ -125,7 +125,7 @@ struct string_type : typeinfo {
 
 /* This is a special type marker. */
 struct class_type : typeinfo {
-    function            *constructor;   /* Constructor function. */
+    function * constructor = nullptr;   /* Constructor function. */
     std::string          unique_name;   /* Class name (with '%'). */
     std::vector <  wrapper  > layout;   /* Variable typeinfo. */
     std::vector <std::string> member;   /* Member variables. */
