@@ -17,6 +17,7 @@ literal_constant *constant_work(literal_constant *__lhs,
             case '%': return new literal_constant(lval % rval,*__bin);
             case '&': return new literal_constant(lval & rval,*__bin);
             case '|': return new literal_constant(lval | rval,*__bin);
+            case '^': return new literal_constant(lval ^ rval,*__bin);
             case '<':
             switch(__bin->op[1]) {
                 case  0 : return new literal_constant(lval  < rval,*__bin);
