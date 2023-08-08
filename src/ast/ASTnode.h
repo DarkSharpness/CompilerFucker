@@ -187,7 +187,28 @@ struct literal_constant : expression {
 
     std::string name;
 
-    void print() override { std::cout << name; }
+    literal_constant() = default;
+
+    explicit literal_constant(int __n,wrapper __w) 
+    noexcept : type(NUMBER), name(std::to_string(__n)) {
+        static_cast <wrapper &> (*this) = __w;
+    }
+
+    explicit literal_constant(std::string __str,wrapper __w) 
+    noexcept : type(CSTRING), name(std::move(__str)) {
+        static_cast <wrapper &> (*this) = __w;
+    }
+
+    explicit literal_constant(bool __b,wrapper __w)
+    noexcept : type(__b ? TRUE : FALSE), name(__b ? "true" : "false") {
+        static_cast <wrapper &> (*this) = __w;
+    }
+
+    void print() override {
+        if(type == CSTRING) std::cout << '\"' << name << '\"';
+        else std::cout << name;
+    }
+
     void accept(ASTvisitorbase *__p) override { return __p->visitLiteralConstant(this); }
     ~literal_constant() override = default;
 };
@@ -224,10 +245,7 @@ struct for_stmt : statement , loop_type {
 struct flow_stmt : statement {
     op_type flow; /* BREAK | RETURN | CONTINUE */
     expression *expr = nullptr; /* Return value if return. */
-    union {
-        loop_type *loop; /* The location current flow will go. */
-        function  *func; /* The location current flow will go. */
-    };
+    function  *func; /* The location current flow will go. */
 
     void print() override {
         print_indent();

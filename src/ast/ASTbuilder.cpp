@@ -372,7 +372,10 @@ std::any ASTbuilder::visitLiteral(MxParser::LiteralContext *ctx) {
 
     __lite->name = __temp->getText();
     if(__temp->Number())        __lite->type = AST::literal_constant::NUMBER;
-    else if(__temp->Cstring())  __lite->type = AST::literal_constant::CSTRING;
+    else if(__temp->Cstring()) {
+        __lite->type = AST::literal_constant::CSTRING;
+        __lite->name = Mx_string_parse(std::move(__lite->name));
+    }
     else if(__temp->Null())     __lite->type = AST::literal_constant::NULL_;
     else if(__temp->True())     __lite->type = AST::literal_constant::TRUE;
     else                        __lite->type = AST::literal_constant::FALSE;

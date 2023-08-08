@@ -104,7 +104,7 @@ struct cstring_type : integer_type <8> {
     cstring_type(size_t __len) noexcept : length(__len) {}
     
     std::string name() const override {
-        return string_join('[',std::to_string(length - 1)," x ",type_name,']');
+        return string_join('[',std::to_string(length + 1)," x ",type_name,']');
     }
 
     size_t size() const override { return length; }

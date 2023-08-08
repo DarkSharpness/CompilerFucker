@@ -3,11 +3,97 @@
 
 namespace dark::AST {
 
+literal_constant *constant_work(literal_constant *__lhs,
+                                literal_constant *__rhs,
+                                binary_expr      *__bin) {
+    if(__lhs->type == literal_constant::NUMBER) {
+        int lval = std::stoi(__lhs->name);
+        int rval = std::stoi(__rhs->name);
+        switch(__bin->op[0]) {
+            case '+': return new literal_constant(lval + rval,*__bin);
+            case '-': return new literal_constant(lval - rval,*__bin);
+            case '*': return new literal_constant(lval * rval,*__bin);
+            case '/': return new literal_constant(lval / rval,*__bin);
+            case '%': return new literal_constant(lval % rval,*__bin);
+            case '&': return new literal_constant(lval & rval,*__bin);
+            case '|': return new literal_constant(lval | rval,*__bin);
+            case '<':
+            switch(__bin->op[1]) {
+                case  0 : return new literal_constant(lval  < rval,*__bin);
+                case '=': return new literal_constant(lval <= rval,*__bin);
+                case '<': return new literal_constant(lval << rval,*__bin);
+            }
+            case '>':
+            switch(__bin->op[1]) {
+                case  0 : return new literal_constant(lval  > rval,*__bin);
+                case '=': return new literal_constant(lval >= rval,*__bin);
+                case '>': return new literal_constant(lval >> rval,*__bin);
+            }
+        }
+    } else if(__lhs->type == literal_constant::CSTRING) {
+        switch(__bin->op[0]) {
+            case '+': return new literal_constant(
+                __lhs->name + __rhs->name,
+                *__bin
+            );
+            case '!': return new literal_constant(
+                __lhs->name != __rhs->name,
+                *__bin
+            );
+            case '=': return new literal_constant(
+                __lhs->name == __rhs->name,
+                *__bin
+            );
+            case '<':
+                switch(__bin->op[1]) {
+                    case '=': return new literal_constant(
+                        __lhs->name <= __rhs->name,
+                        *__bin
+                    );
+                    case  0 : return new literal_constant(
+                        __lhs->name < __rhs->name,
+                        *__bin
+                    );
+                }
+            case '>':
+                switch(__bin->op[1]) {
+                    case '=': return new literal_constant(
+                        __lhs->name >= __rhs->name,
+                        *__bin
+                    );
+                    case  0 : return new literal_constant(
+                        __lhs->name > __rhs->name,
+                        *__bin
+                    );
+                }
+        }
+    } else if(__lhs->type == literal_constant::NULL_) {
+        switch(__bin->op[0]) {
+            case '=': return new literal_constant(true ,*__bin);
+            case '!': return new literal_constant(false,*__bin);
+        }
+    } else { /* Boolean type. */
+        bool lval = __lhs->name[0] == 't';
+        bool rval = __rhs->name[0] == 't';
+        switch(__bin->op[0]) {
+            case '&': return new literal_constant(lval && rval,*__bin);
+            case '|': return new literal_constant(lval || rval,*__bin);
+            case '=': return new literal_constant(lval == rval,*__bin);
+            case '!': return new literal_constant(lval != rval,*__bin);
+        }
+    }
+    throw error("Unknown error in constant folding!",__bin);
+}
+
 
 void ASTvisitor::visitBracketExpr(bracket_expr *ctx) {
     ctx->space = top;
     ctx->expr->flag = ctx->flag;
+
     visit(ctx->expr);
+    if(auto *__constant = update_constant(ctx->expr))
+        constant_map[ctx] = __constant;
+
     static_cast <wrapper &> (*ctx) = *ctx->expr;
 }
 
@@ -24,6 +110,8 @@ void ASTvisitor::visitSubscriptExpr(subscript_expr *ctx) {
     auto *__lhs = ctx->expr[0];
     __lhs->flag = false;
     visit(__lhs);
+
+    for(auto &&__p : ctx->expr) update_constant(__p);
 
     bool __flag = ctx->flag;
     static_cast <wrapper &> (*ctx) = *__lhs;
@@ -60,6 +148,8 @@ void ASTvisitor::visitFunctionExpr(function_expr *ctx) {
                 + "\".",ctx
             );
     }
+
+    for(auto &&__p : ctx->args) update_constant(__p);
 
     /* Of course not assignable. */
     static_cast <wrapper &> (*ctx) = __func->type;
@@ -98,10 +188,23 @@ void ASTvisitor::visitUnaryExpr(unary_expr *ctx) {
                 + "\".",ctx
             );
         }
-
+        
         /* Of course not assignable. */
         static_cast <wrapper &> (*ctx) = *ctx->expr;
         ctx->flag = false;
+
+        if(auto *__constant = update_constant(ctx->expr)) {
+            constant_map[ctx] = __constant;
+            switch(ctx->op[0]) {
+                case '+': break;
+                case '-': __constant->name = std::to_string(std::stoi(__constant->name)) ; break;
+                case '!': __constant->name = __constant->name[0] == 't' ? "false" : "true"; break;
+                case '~': __constant->name = std::to_string(~std::stoi(__constant->name)) ; break;
+                throw error("Unknown unary operator!",ctx);
+            }
+        }
+
+        
     }
 }
 
@@ -148,6 +251,8 @@ void ASTvisitor::visitConstructExpr(construct_expr *ctx) {
             throw dark::error("Non-integer subscript!",ctx);
     }
 
+    for(auto &&__p : ctx->expr) update_constant(__p);
+
     /* Return value not assignable! */
     static_cast <wrapper &> (*ctx) = ctx->type;
 }
@@ -162,6 +267,7 @@ void ASTvisitor::visitBinaryExpr(binary_expr *ctx) {
 
     visit(ctx->lval);
     visit(ctx->rval);
+
     const wrapper &__ltype = *ctx->lval;
     const wrapper &__rtype = *ctx->rval;
 
@@ -193,6 +299,8 @@ void ASTvisitor::visitBinaryExpr(binary_expr *ctx) {
                 + "\".",ctx
             );
         }
+
+        update_constant(ctx->rval);
         /* Update the real type. */
         bool __flag = ctx->flag;
         static_cast <wrapper &> (*ctx) = __ltype;
@@ -237,6 +345,14 @@ void ASTvisitor::visitBinaryExpr(binary_expr *ctx) {
             );
         }
     }  /* Of course , it is no longer assignable. */
+
+    auto *__constlhs = update_constant(ctx->lval);
+    auto *__constrhs = update_constant(ctx->rval);
+
+    if(__constlhs && __constrhs) {
+        constant_map[ctx] = constant_work(__constlhs,__constrhs,ctx);
+        delete __constlhs , delete __constrhs;
+    }
 }
 
 
@@ -246,10 +362,13 @@ void ASTvisitor::visitConditionExpr(condition_expr *ctx) {
     visit(ctx->cond);
     if(!ctx->cond->check("bool",0))
         throw error("Non bool type condition!",ctx->cond);
+    update_constant(ctx->cond);
 
     ctx->lval->flag = ctx->rval->flag = ctx->flag;
     visit(ctx->lval);
     visit(ctx->rval);
+    update_constant(ctx->lval);
+    update_constant(ctx->rval);
     const wrapper &__ltype = *ctx->lval;
     const wrapper &__rtype = *ctx->rval;
 
@@ -306,6 +425,7 @@ void ASTvisitor::visitLiteralConstant(literal_constant *ctx) {
         default:
             throw error("How can this fucking happen!",ctx);
     } /* Of course not assignable. */
+    constant_map[ctx] = ctx;
 }
 
 
@@ -318,6 +438,7 @@ void ASTvisitor::visitForStmt(for_stmt *ctx) {
         visit(ctx->cond);
         if(!ctx->cond->check("bool",0))
             throw error("Non bool type condition!",ctx->cond);
+        update_constant(ctx->cond);
     }
 
     if(ctx->step) { ctx->step->flag = true, visit(ctx->step); }
@@ -337,7 +458,7 @@ void ASTvisitor::visitFlowStmt(flow_stmt *ctx) {
 
         if(ctx->expr) {
             visit(ctx->expr);
-
+            update_constant(ctx->expr);
             /* Check the return type. */
             if(!is_convertible(*ctx->expr,func.back()->type))
                 throw error("Invalid flow return type: "
@@ -358,7 +479,6 @@ void ASTvisitor::visitFlowStmt(flow_stmt *ctx) {
                 + (ctx->flow[0] == 'b' ? "\"break\"" : "\"continue\"" )
                 + " outside loop."
             );
-        ctx->loop = loop.back();
     }
 }
 
@@ -370,6 +490,7 @@ void ASTvisitor::visitWhileStmt(while_stmt *ctx) {
     visit(ctx->cond);
     if(!ctx->cond->check("bool",0))
         throw error("Non bool type condition!",ctx->cond);
+    update_constant(ctx->cond);
 
     loop.push_back(ctx);
     top = ctx->space;
@@ -395,14 +516,14 @@ void ASTvisitor::visitBlockStmt(block_stmt *ctx) {
 /* Check all the conditions. */
 void ASTvisitor::visitBranchStmt(branch_stmt *ctx) {
     ctx->space = top;
-    for(auto [__cond,__stmt] : ctx->data) {
+    for(auto &&[__cond,__stmt] : ctx->data) {
         if(__cond) {
             visit(__cond);
             if(!__cond->check("bool",0))
                 throw error("Non bool type condition!",__cond);
+            update_constant(__cond);
         }
 
-        // Enter a new statement.
         top = new scope {.prev = ctx->space};
         visit(__stmt);
     }
@@ -412,7 +533,11 @@ void ASTvisitor::visitBranchStmt(branch_stmt *ctx) {
 /* Simple case : visit all the sub-expressions. */
 void ASTvisitor::visitSimpleStmt(simple_stmt *ctx) {
     ctx->space = top;
-    for(auto __p : ctx->expr) { __p->flag = true; visit(__p); }
+    for(auto &&__p : ctx->expr) {
+        __p->flag = true; 
+        visit(__p);
+        if(update_constant(__p)) warning("Unused constant",ctx);
+    }
 }
 
 
@@ -434,6 +559,7 @@ void ASTvisitor::visitVariable(variable_def *ctx) {
                     ctx->type.data() +
                     "\".",ctx
                 );
+            update_constant(__init);
         }
 
         auto *__var = new variable;

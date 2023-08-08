@@ -54,9 +54,12 @@ void IRbuilder::visitFunctionExpr(AST::function_expr *ctx) {
         __call->args.push_back(result);
     }
 
-    __call->dest = top->create_temporary(get_type(*ctx),"call.");
+    if(__func->type.name() != "void") {
+        __call->dest = top->create_temporary(get_type(*ctx),"call.");
+        result = __call->dest;
+    }
+
     top->emplace_new(__call);
-    result = __call->dest;
 }
 
 
@@ -154,9 +157,7 @@ void IRbuilder::visitConstructExpr(AST::construct_expr *ctx) {
             auto *__call = new call_stmt;
             __call->func = __class->constructor;
             __call->args = { result };
-            __call->dest = top->create_temporary(__type,__class->name() + ".");
             top->emplace_new(__call);
-            result = __call->dest;
         }
     }
 }
@@ -307,9 +308,13 @@ void IRbuilder::visitConditionExpr(AST::condition_expr *ctx) {
     __end->label = __name + "-end";
     __phi->dest  = top->create_temporary(get_type(*ctx) + ctx->flag,"ternary.");
     top->emplace_new(__end);
-    top->emplace_new(__phi);
-
-    result = __phi->dest;
+    
+    if(ctx->type->name == "void") {
+        delete __phi;
+    } else {
+        top->emplace_new(__phi);
+        result = __phi->dest;
+    }
 }
 
 
@@ -446,7 +451,8 @@ void IRbuilder::visitFlowStmt(AST::flow_stmt *ctx) {
         auto *__ret = new return_stmt;
         if(ctx->expr) {
             visit(ctx->expr);
-            __ret->rval = result;
+            if(ctx->expr->type->name != "void")
+                __ret->rval = result;
         }
         __ret->func = function_map[ctx->func];
         top->emplace_new(__ret);
@@ -807,7 +813,7 @@ void IRbuilder::make_basic(scope *__string,scope *__array) {
     builtin_function[18].name = "__string_le__";
     builtin_function[19].name = "__new_array1__";
     builtin_function[20].name = "__new_array4__";
-    builtin_function[21].name = "__new_object__";
+    builtin_function[21].name = "malloc";
 
     auto *__builtin = builtin_function.data();
     function_map[__array->find("size")]             = __builtin + 0;

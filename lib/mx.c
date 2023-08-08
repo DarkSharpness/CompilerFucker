@@ -81,27 +81,27 @@ char *__string_add__(char *lhs,char *rhs) {
     return buf;
 }
 
-char *__string_eq__(char *lhs,char *rhs) {
+char __string_eq__(char *lhs,char *rhs) {
     return strcmp(lhs, rhs) == 0;
 }
 
-char *__string_ne__(char *lhs,char *rhs) {
+char __string_ne__(char *lhs,char *rhs) {
     return strcmp(lhs, rhs) != 0;
 }
 
-char *__string_gt__(char *lhs,char *rhs) {
+char __string_gt__(char *lhs,char *rhs) {
     return strcmp(lhs, rhs) > 0;
 }
 
-char *__string_ge__(char *lhs,char *rhs) {
+char __string_ge__(char *lhs,char *rhs) {
     return strcmp(lhs, rhs) >= 0;
 }
 
-char *__string_lt__(char *lhs,char *rhs) {
+char __string_lt__(char *lhs,char *rhs) {
     return strcmp(lhs, rhs) < 0;
 }
 
-char *__string_le__(char *lhs,char *rhs) {
+char __string_le__(char *lhs,char *rhs) {
     return strcmp(lhs, rhs) <= 0;
 }
 
@@ -119,8 +119,4 @@ void *__new_array1__(int len) {
     int *buf = (int *)malloc(len + 4);
     *buf = len;
     return buf + 1;
-}
-
-void *__new_object__(int size) {
-    return malloc(size);
 }

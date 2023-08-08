@@ -74,8 +74,26 @@ struct string_constant : literal {
     cstring_type   type;
     explicit string_constant(const std::string &__ctx) : context(__ctx),type({__ctx.length()}) {}
     wrapper get_value_type() const override { return wrapper {&type,0}; }
-    std::string  type_data() const override { return string_join("private unnamed_addr constant ",type.name()); }
-    std::string data() const override { return context; }
+    std::string  type_data() const override {
+        return string_join("private unnamed_addr constant ",type.name()); 
+    }
+    std::string data() const override {
+        std::string __ans;
+        __ans.push_back('\"');
+        for(char __p : context) {
+            switch(__p) {
+                case '\n': __ans += "\\0A"; break;
+                case '\"': __ans += "\\22"; break;
+                case '\\': __ans += "\\5C"; break;
+                default: __ans.push_back(__p);
+            }
+        }
+        __ans.push_back('\\');
+        __ans.push_back('0');
+        __ans.push_back('0');
+        __ans.push_back('\"');
+        return __ans;
+    }
     ~string_constant() override = default;
 };
 
@@ -327,7 +345,7 @@ struct call_stmt : statement {
         }
         std::string __prefix;
         if(func->type.name() != "void")
-            __prefix = dest->data() + " = ";
+            __prefix = dest->data() + " = "; 
         return string_join(
             __prefix, "call ",
            func->type.name()," @",func->name,

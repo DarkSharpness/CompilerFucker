@@ -52,7 +52,6 @@ inline auto string_join_array(T __beg,T __end)
 }
 
 
-
 struct scope;
 
 /* Pre declaration part. */
@@ -109,7 +108,33 @@ struct warning {
     warning(std::string __s) {
         std::cerr << "\033[33mWarning: " << __s << "\n\033[0m";
     }
+
+    warning(std::string __s,AST::node *__ptr) {
+        std::cerr << "\033[33mWarning here:\n\"";
+        __ptr->print();
+        std::cerr << "\"\n";
+        std::cerr << "Warning: " << __s << "\n\033[0m";
+    }
 };
+
+
+inline std::string Mx_string_parse(std::string __src) {
+    std::string __dst;
+    if(__src.front() != '\"' || __src.back() != '\"')
+        throw error("Invalid string literal.");
+    __src.pop_back();
+    for(size_t i = 1 ; i < __src.length() ; ++i) {
+        if(__src[i] == '\\') {
+            switch(__src[++i]) {
+                case 'n':  __dst.push_back('\n'); break;
+                case '\"': __dst.push_back('\"'); break;
+                case '\\': __dst.push_back('\\'); break;
+                default: throw error("Invalid escape sequence.");
+            }
+        } else __dst.push_back(__src[i]);
+    } return __dst;
+}
+
 
 
 /**
