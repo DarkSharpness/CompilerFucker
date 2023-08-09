@@ -1,0 +1,10 @@
+.vscode/
+/antlr-4.13.0-complete.jar
+/test
+/Ignore
+/antlr4-cpp-runtime-4.13.0-source
+.antlr
+/src/generated/*
+!/src/generated/CMakeLists.txt
+/build
+/Local
