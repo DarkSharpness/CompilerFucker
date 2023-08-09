@@ -599,9 +599,20 @@ void IRbuilder::visitFunction(AST::function_def *ctx) {
         if(top->stmt.size() && top->stmt.back()->stmt.size())
             __stmt = top->stmt.back()->stmt.back();
         if(!dynamic_cast <return_stmt *> (__stmt)
-        || !dynamic_cast <branch_stmt *> (__stmt)
-        || !dynamic_cast   <jump_stmt *> (__stmt)) {
-            top->emplace_new(new unreachable_stmt);
+        && !dynamic_cast <branch_stmt *> (__stmt)
+        && !dynamic_cast   <jump_stmt *> (__stmt)) {
+            if(ctx->unique_name != "main") {
+                top->emplace_new(new unreachable_stmt);
+            } else {
+                auto *__ret = new return_stmt;
+                __ret->func = top;
+                __ret->rval = __zero__;
+                top->emplace_new(__ret);
+                warning (
+                    "Missing return statement in main function\n"
+                    "\"return 0;\" is added by default!",ctx
+                );
+            }
         }
     }
 }
