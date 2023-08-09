@@ -198,7 +198,7 @@ void ASTvisitor::visitUnaryExpr(unary_expr *ctx) {
             constant_map[ctx] = __constant;
             switch(ctx->op[0]) {
                 case '+': break;
-                case '-': __constant->name = std::to_string(std::stoi(__constant->name)) ; break;
+                case '-': __constant->name = std::to_string(-std::stoi(__constant->name)) ; break;
                 case '!': __constant->name = __constant->name[0] == 't' ? "false" : "true"; break;
                 case '~': __constant->name = std::to_string(~std::stoi(__constant->name)) ; break;
                 throw error("Unknown unary operator!",ctx);
