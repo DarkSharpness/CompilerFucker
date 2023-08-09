@@ -251,22 +251,21 @@ void IRbuilder::visitBinaryExpr(AST::binary_expr *ctx) {
     __br->br[!__is_or]->label = __name + "-end";
 
     /* Name of previous branch */
-    auto *__block = top->stmt.back();
+    auto *__phi = new phi_stmt;
+    __phi->cond.push_back({
+        __is_or ? __false__ : __true__ ,
+        top->stmt.back()
+    });
     top->emplace_new(__br);
     top->emplace_new(__new);
 
     visit(ctx->rval);
 
-    auto *__jump = new jump_stmt;
-    __jump->dest = __end;
-
-    top->emplace_new(__jump);
-    top->emplace_new(__end);
-
-    auto *__phi  = new phi_stmt;
-    __phi->cond.push_back({__is_or ? __true__ : __false__,__block});
-    __phi->cond.push_back({result,__new});
+    __phi->cond.push_back({result,top->stmt.back()});
     __phi->dest = top->create_temporary({&__boolean_class__,0},"phi.");
+
+    create_jump(__end);
+    top->emplace_new(__end);
     top->emplace_new(__phi);
 
     result = __phi->dest;
@@ -292,7 +291,7 @@ void IRbuilder::visitConditionExpr(AST::condition_expr *ctx) {
 
     { /* Branch true. */
         visit(ctx->lval);
-       __phi->cond.push_back({result,__br->br[0]});
+       __phi->cond.push_back({result,top->stmt.back()});
         create_jump(__end);
     }
 
@@ -300,7 +299,7 @@ void IRbuilder::visitConditionExpr(AST::condition_expr *ctx) {
 
     { /* Branch false. */
         visit(ctx->rval);
-        __phi->cond.push_back({result,__br->br[1]});
+        __phi->cond.push_back({result,top->stmt.back()});
         create_jump(__end);
     }
 
@@ -596,7 +595,7 @@ void IRbuilder::visitFunction(AST::function_def *ctx) {
         __ret->func = top;
         top->emplace_new(__ret);
     } else {
-        statement *__stmt;
+        statement *__stmt = nullptr;
         if(top->stmt.size() && top->stmt.back()->stmt.size())
             __stmt = top->stmt.back()->stmt.back();
         if(!dynamic_cast <return_stmt *> (__stmt)
@@ -690,7 +689,7 @@ void IRbuilder::visitGlobalVariable(AST::variable *ctx,AST::literal_constant *li
 void IRbuilder::visitGlobalFunction(AST::function_def *ctx) {
     top = &global_function.emplace_back();
     function_map[ctx] = top;
-    top->name = ctx->unique_name;
+    top->name = function_name_map(ctx->unique_name);
     top->type = get_type(ctx->type);
     top->emplace_new(new block_stmt);
     top->stmt[0]->label = "entry";
@@ -972,7 +971,7 @@ void IRbuilder::visitNewExpr(wrapper __type,std::vector <definition *> __vec) {
         auto *__phi = new phi_stmt;
         __phi->dest = __tmp;
         __phi->cond.push_back({__pre,__last});
-        __phi->cond.push_back({__cur,__body});
+        __phi->cond.push_back({__cur,*(top->stmt.end()-2)});
         top->emplace_new(__phi);
     }
 

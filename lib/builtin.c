@@ -101,7 +101,7 @@ bool __string_le__(char *lhs,char *rhs) {
     return strcmp(lhs, rhs) <= 0;
 }
 
-int __Array_size(void *array) {
+int __Array_size__(void *array) {
     return *(((int *)array) - 1);
 }
 

@@ -183,12 +183,12 @@ struct IRbuilder : AST::ASTvisitorbase {
         /* Special case for built-in functions. */
         if(__name.substr(0,2) == "__")
             return __name[2] >= 'a' && __name[2] <= 'z';
-        
+
         /* This is a special case for strlen */
         if(__name == "strlen") return false;
 
-        auto __n = __name.find(':');
-        /* No ':' or ':' at the beginning. */
+        auto __n = __name.find('.');
+        /* No '.' or '.' at the beginning. */
         return __n == std::string_view::npos || __n == 0;
     }
 
@@ -217,6 +217,17 @@ struct IRbuilder : AST::ASTvisitorbase {
         __jump->dest = __block;
         top->emplace_new(__jump);
     }
+
+    static std::string function_name_map(const std::string &__str) {
+        std::string __ret;
+        __ret.reserve(__str.length());
+        for(size_t i = 0 ; i < __str.length() ; ++i) {
+            if(__str[i] == ':') __ret += '.', ++i;
+            else if(__str[i] == '.') throw error("Unexpected error!");
+            else __ret += __str[i];
+        } return __ret;
+    }
+
 
 };
 
