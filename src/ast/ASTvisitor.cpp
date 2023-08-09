@@ -30,6 +30,8 @@ literal_constant *constant_work(literal_constant *__lhs,
                 case '=': return new literal_constant(lval >= rval,*__bin);
                 case '>': return new literal_constant(lval >> rval,*__bin);
             }
+            case '=': return new literal_constant(lval == rval,*__bin);
+            case '!': return new literal_constant(lval != rval,*__bin);
         }
     } else if(__lhs->type == literal_constant::CSTRING) {
         switch(__bin->op[0]) {

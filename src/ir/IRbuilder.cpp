@@ -252,17 +252,18 @@ void IRbuilder::visitBinaryExpr(AST::binary_expr *ctx) {
 
     /* Name of previous branch */
     auto *__phi = new phi_stmt;
+    __phi->dest = top->create_temporary({&__boolean_class__,0},"phi.");
     __phi->cond.push_back({
-        __is_or ? __false__ : __true__ ,
+        __is_or ? __true__ : __false__ ,
         top->stmt.back()
     });
+
     top->emplace_new(__br);
     top->emplace_new(__new);
 
     visit(ctx->rval);
 
     __phi->cond.push_back({result,top->stmt.back()});
-    __phi->dest = top->create_temporary({&__boolean_class__,0},"phi.");
 
     create_jump(__end);
     top->emplace_new(__end);
@@ -288,6 +289,7 @@ void IRbuilder::visitConditionExpr(AST::condition_expr *ctx) {
 
     auto *__phi = new phi_stmt;
     auto *__end = new block_stmt;
+    __phi->dest = top->create_temporary(get_type(*ctx) + ctx->flag,"ternary.");
 
     { /* Branch true. */
         visit(ctx->lval);
@@ -305,7 +307,6 @@ void IRbuilder::visitConditionExpr(AST::condition_expr *ctx) {
 
     /* If assignable, return the pointer to the data. */
     __end->label = __name + "-end";
-    __phi->dest  = top->create_temporary(get_type(*ctx) + ctx->flag,"ternary.");
     top->emplace_new(__end);
     
     if(ctx->type->name == "void") {
@@ -982,7 +983,7 @@ void IRbuilder::visitNewExpr(wrapper __type,std::vector <definition *> __vec) {
         auto *__phi = new phi_stmt;
         __phi->dest = __tmp;
         __phi->cond.push_back({__pre,__last});
-        __phi->cond.push_back({__cur,*(top->stmt.end()-2)});
+        __phi->cond.push_back({__cur,*(top->stmt.end() - 2)});
         top->emplace_new(__phi);
     }
 
