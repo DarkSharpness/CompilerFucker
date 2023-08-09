@@ -1,4 +1,4 @@
-
+typedef _Bool bool;
 typedef unsigned size_t;
 
 #define __MX_BUFFER_SIZE__ 4096
@@ -81,27 +81,27 @@ char *__string_add__(char *lhs,char *rhs) {
     return buf;
 }
 
-char __string_eq__(char *lhs,char *rhs) {
+bool __string_eq__(char *lhs,char *rhs) {
     return strcmp(lhs, rhs) == 0;
 }
 
-char __string_ne__(char *lhs,char *rhs) {
+bool __string_ne__(char *lhs,char *rhs) {
     return strcmp(lhs, rhs) != 0;
 }
 
-char __string_gt__(char *lhs,char *rhs) {
+bool __string_gt__(char *lhs,char *rhs) {
     return strcmp(lhs, rhs) > 0;
 }
 
-char __string_ge__(char *lhs,char *rhs) {
+bool __string_ge__(char *lhs,char *rhs) {
     return strcmp(lhs, rhs) >= 0;
 }
 
-char __string_lt__(char *lhs,char *rhs) {
+bool __string_lt__(char *lhs,char *rhs) {
     return strcmp(lhs, rhs) < 0;
 }
 
-char __string_le__(char *lhs,char *rhs) {
+bool __string_le__(char *lhs,char *rhs) {
     return strcmp(lhs, rhs) <= 0;
 }
 

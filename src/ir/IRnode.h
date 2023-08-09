@@ -196,6 +196,12 @@ struct function {
         return string_join_array(__tmp.begin(),__tmp.end());
     };
 
+    /* */
+    std::string declare() const {
+
+
+    }
+
     /* Add one statement to the last block. */
     void emplace_new(statement *__stmt)
     { return stmt.back()->emplace_new(__stmt); }
