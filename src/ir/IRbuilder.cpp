@@ -793,7 +793,7 @@ void IRbuilder::make_basic(scope *__string,scope *__array) {
     builtin_function[21].type = __nul;
 
     builtin_function[0].name = "__Array_size__";
-    builtin_function[1].name = "__String_length__";
+    builtin_function[1].name = "strlen";
     builtin_function[2].name = "__String_substring__";
     builtin_function[3].name = "__String_parseInt__";
     builtin_function[4].name = "__String_ord__";
@@ -814,6 +814,36 @@ void IRbuilder::make_basic(scope *__string,scope *__array) {
     builtin_function[19].name = "__new_array1__";
     builtin_function[20].name = "__new_array4__";
     builtin_function[21].name = "malloc";
+
+    auto *__ptr__  = new variable;
+    __ptr__->type  = __nul;
+    auto *__int__  = new variable;
+    __int__->type  = __i32;
+    auto *__bool__ = new variable;
+    __bool__->type = __boo;
+
+    builtin_function[0].args = {__ptr__};
+    builtin_function[1].args = {__ptr__};
+    builtin_function[2].args = {__ptr__,__int__,__int__};
+    builtin_function[3].args = {__ptr__};
+    builtin_function[4].args = {__ptr__,__int__};
+    builtin_function[5].args = {__ptr__};
+    builtin_function[6].args = {__ptr__};
+    builtin_function[7].args = {__int__};
+    builtin_function[8].args = {__int__};
+    builtin_function[9].args = {};
+    builtin_function[10].args = {};
+    builtin_function[11].args = {__int__};
+    builtin_function[12].args = {__ptr__,__ptr__};
+    builtin_function[13].args = {__ptr__,__ptr__};
+    builtin_function[14].args = {__ptr__,__ptr__};
+    builtin_function[15].args = {__ptr__,__ptr__};
+    builtin_function[16].args = {__ptr__,__ptr__};
+    builtin_function[17].args = {__ptr__,__ptr__};
+    builtin_function[18].args = {__ptr__,__ptr__};
+    builtin_function[19].args = {__int__};
+    builtin_function[20].args = {__int__};
+    builtin_function[21].args = {__int__};
 
     auto *__builtin = builtin_function.data();
     function_map[__array->find("size")]             = __builtin + 0;

@@ -175,7 +175,7 @@ struct function {
     /* define <ResultType> @<FunctionName> (...) {...} */
     std::string data() const {
         std::string __arg; /* Arglist. */
-        for(auto __p : args) {
+        for(auto &__p : args) {
             if(__p != args.front())
                 __arg += ',';
             __arg += __p->get_value_type().name();
@@ -196,11 +196,21 @@ struct function {
         return string_join_array(__tmp.begin(),__tmp.end());
     };
 
-    /* */
+    /* Declaration. */
     std::string declare() const {
+        std::string __arg; /* Arglist. */
+        for(auto &__p : args) {
+            if(__p != args.front())
+                __arg += ',';
+            __arg += __p->get_value_type().name();
+        }
 
-
+        return string_join(
+            "declare ",type.name()," @",name,
+            "(",std::move(__arg),")\n"
+        );
     }
+
 
     /* Add one statement to the last block. */
     void emplace_new(statement *__stmt)
@@ -342,7 +352,7 @@ struct call_stmt : statement {
     /* <result> = call <ResultType> @<FunctionName> (<argument>) */
     std::string data() const override {
         std::string __arg; /* Arglist. */
-        for(auto __p : args) {
+        for(auto &__p : args) {
             if(__p != args.front())
                 __arg += ',';
             __arg += __p->get_value_type().name();

@@ -95,6 +95,9 @@ struct IRbuilder : AST::ASTvisitorbase {
             }
         } std::cout << '\n';
 
+        for(auto &__var : builtin_function)
+            std::cout << __var.declare();
+
         for(auto &__var : global_variable)
             std::cout << __var.data() << '\n';
         std::cout << '\n';
@@ -180,6 +183,9 @@ struct IRbuilder : AST::ASTvisitorbase {
         /* Special case for built-in functions. */
         if(__name.substr(0,2) == "__")
             return __name[2] >= 'a' && __name[2] <= 'z';
+        
+        /* This is a special case for strlen */
+        if(__name == "strlen") return false;
 
         auto __n = __name.find(':');
         /* No ':' or ':' at the beginning. */

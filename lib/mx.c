@@ -15,10 +15,6 @@ void *memcpy(void *dest, const void *src, size_t n);
 void *malloc(size_t n);
 
 
-int __String_length__(char *str) {
-    return strlen(str);
-}
-
 char *__String_substring__(char *str,int l,int r) {
     int len = r - l;
     char *buf = malloc(len + 1);
