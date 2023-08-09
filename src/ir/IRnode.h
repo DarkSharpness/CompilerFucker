@@ -499,6 +499,13 @@ struct phi_stmt : statement {
 };
 
 
+struct unreachable_stmt : statement {
+    std::string data() const override {
+        return "unreachable\n";
+    }
+};
+
+
 /* Initialization for global variables. */
 struct initialization {
     variable *dest; /* Destination.      */

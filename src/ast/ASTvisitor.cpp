@@ -204,8 +204,6 @@ void ASTvisitor::visitUnaryExpr(unary_expr *ctx) {
                 throw error("Unknown unary operator!",ctx);
             }
         }
-
-        
     }
 }
 

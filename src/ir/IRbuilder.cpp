@@ -595,6 +595,15 @@ void IRbuilder::visitFunction(AST::function_def *ctx) {
         auto *__ret = new return_stmt;
         __ret->func = top;
         top->emplace_new(__ret);
+    } else {
+        statement *__stmt;
+        if(top->stmt.size() && top->stmt.back()->stmt.size())
+            __stmt = top->stmt.back()->stmt.back();
+        if(!dynamic_cast <return_stmt *> (__stmt)
+        || !dynamic_cast <branch_stmt *> (__stmt)
+        || !dynamic_cast   <jump_stmt *> (__stmt)) {
+            top->emplace_new(new unreachable_stmt);
+        }
     }
 }
 
@@ -916,6 +925,7 @@ void IRbuilder::visitNewExpr(wrapper __type,std::vector <definition *> __vec) {
         __get->dst  = top->create_temporary_no_suffix(__type,__name + ".beg");
         __get->src  = __beg;
         __get->idx  = __len;
+        __get->mem  = get_stmt::NPOS;
         top->emplace_new(__get);
         result      = __get->dst;
     }
