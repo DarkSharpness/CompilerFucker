@@ -62,7 +62,7 @@ struct ASTvisitor : ASTvisitorbase {
     /* Tries to init from ASTbuilder. */
     ASTvisitor(std::vector <definition *>      &__def,
                std::map <std::string,typeinfo> &__map) {
-        std::cerr << "\n\n|---------------Start scanning---------------|\n" << std::endl;
+        std::cerr << "\033[34m\n\n|---------------Start scanning---------------|\033[0m\n\n";
         class_map =    ASTClassScanner::scan(__def,__map);
         global    = ASTFunctionScanner::scan(__def,class_map);
 
@@ -94,7 +94,7 @@ struct ASTvisitor : ASTvisitorbase {
             __p->print();
         }
 
-        std::cerr << "\n\n|----------------End scanning----------------|\n" << std::endl;
+        std::cerr << "\033[34m\n\n|----------------End scanning----------------|\033[0m\n\n";
     }
 
     /* Top scope pointer. */
