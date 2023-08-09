@@ -15,9 +15,9 @@ struct bracket_expr : expression {
     expression *expr = nullptr;
 
     void print() override {
-        std::cout << '(';
+        std::cerr << '(';
         expr->print();
-        std::cout << ')';
+        std::cerr << ')';
     }
 
     void accept(ASTvisitorbase *__p) override { return __p->visitBracketExpr(this); }
@@ -32,9 +32,9 @@ struct subscript_expr : expression {
 
     void print() override {
         for(size_t i = 0 ; i != expr.size() ; ++i) {
-            if(i) std::cout << '[';
+            if(i) std::cerr << '[';
             expr[i]->print();
-            if(i) std::cout << ']';
+            if(i) std::cerr << ']';
         }
     }
 
@@ -51,13 +51,13 @@ struct function_expr : expression {
 
     void print() override {
         body->print();
-        std::cout << '(';
+        std::cerr << '(';
         bool tag = false;
         for(auto __p : args) {
             if(!tag) { tag = true; }
-            else std::cout << ',';
+            else std::cerr << ',';
             __p->print();
-        } std::cout << ')';
+        } std::cerr << ')';
     }
 
     void accept(ASTvisitorbase *__p) override { return __p->visitFunctionExpr(this); }
@@ -76,10 +76,10 @@ struct unary_expr : expression {
     void print() override {
         if(op[2] != 0) {
             expr->print();
-            std::cout << op[0] << op[1];
+            std::cerr << op[0] << op[1];
         } else {
-            std::cout << op[0];
-            if(op[1]) std::cout << op[1];
+            std::cerr << op[0];
+            if(op[1]) std::cerr << op[1];
             expr->print();
         }
     }
@@ -100,7 +100,7 @@ struct member_expr : expression {
 
     void print() override {
         lval->print();
-        std::cout << '.' << rval;
+        std::cerr << '.' << rval;
     }
 };
 
@@ -110,17 +110,17 @@ struct construct_expr : expression {
     expression_list expr;
 
     void print() override {
-        std::cout << "new " << type.type->name;
+        std::cerr << "new " << type.type->name;
 
         size_t i = 0;
         for(; i < expr.size() ; ++i) {
-            std::cout << '[';
+            std::cerr << '[';
             expr[i]->print();
-            std::cout << ']';
+            std::cerr << ']';
         }
 
         for(; i < type.dimension() ; ++i)
-            std::cout << '[' << ']';
+            std::cerr << '[' << ']';
     }
 
     void accept(ASTvisitorbase *__p) override { return __p->visitConstructExpr(this); }
@@ -137,7 +137,7 @@ struct binary_expr : expression {
 
     void print() override {
         lval->print();
-        std::cout << ' ' << op << ' ';
+        std::cerr << ' ' << op << ' ';
         rval->print();
     }
 
@@ -154,9 +154,9 @@ struct condition_expr : expression {
 
     void print() override {
         cond->print();
-        std::cout << " ? ";
+        std::cerr << " ? ";
         lval->print();
-        std::cout << " : ";
+        std::cerr << " : ";
         rval->print();
     }
 
@@ -170,7 +170,7 @@ struct atom_expr : expression {
     std::string name;           /* Name of the atom expression */
     identifier *real = nullptr; /* Pointer to real identifier. */
 
-    void print() override { std::cout << name; }
+    void print() override { std::cerr << name; }
     void accept(ASTvisitorbase *__p) override { return __p->visitAtomExpr(this); }
     ~atom_expr() override = default;
 };
@@ -205,8 +205,8 @@ struct literal_constant : expression {
     }
 
     void print() override {
-        if(type == CSTRING) std::cout << '\"' << name << '\"';
-        else std::cout << name;
+        if(type == CSTRING) std::cerr << '\"' << name << '\"';
+        else std::cerr << name;
     }
 
     void accept(ASTvisitorbase *__p) override { return __p->visitLiteralConstant(this); }
@@ -222,16 +222,16 @@ struct for_stmt : statement , loop_type {
 
     void print() override {
         print_indent();
-        std::cout << "for (";
+        std::cerr << "for (";
         size_t __temp = global_indent;
         global_indent = 0;
         if(init) init->print(); /* Avoid the useless indent. */
         global_indent = __temp;
-        std::cout << ' ';
+        std::cerr << ' ';
         if(cond) cond->print();
-        std::cout << "; ";
+        std::cerr << "; ";
         if(step) step->print();
-        std::cout << ") ";
+        std::cerr << ") ";
         if(stmt) stmt->print();
     }
 
@@ -249,9 +249,9 @@ struct flow_stmt : statement {
 
     void print() override {
         print_indent();
-        std::cout << flow << ' ';
+        std::cerr << flow << ' ';
         if(expr) expr->print();
-        std::cout << ';';
+        std::cerr << ';';
     }
 
     void accept(ASTvisitorbase *__p) override { return __p->visitFlowStmt(this); }
@@ -266,9 +266,9 @@ struct while_stmt : statement , loop_type {
 
     void print() override {
         print_indent();
-        std::cout << "while (";
+        std::cerr << "while (";
         cond->print();
-        std::cout << ") ";
+        std::cerr << ") ";
         stmt->print();
     }
 
@@ -282,17 +282,17 @@ struct block_stmt : statement {
     std::vector <statement *> stmt;
 
     void print() override {
-        if(stmt.empty()) { std::cout << "{}\n"; return; }
-        std::cout << "{\n";
+        if(stmt.empty()) { std::cerr << "{}\n"; return; }
+        std::cerr << "{\n";
         ++global_indent;
 
         for(auto __p : stmt) {
             __p->print();
-            std::cout << '\n';
+            std::cerr << '\n';
         }
         --global_indent;
         print_indent();
-        std::cout << "}";
+        std::cerr << "}";
     }
 
     void accept(ASTvisitorbase *__p) override { return __p->visitBlockStmt(this); }
@@ -312,14 +312,14 @@ struct branch_stmt : statement {
     void print() override {
         for(size_t i = 0 ; i < data.size(); ++i) {
             print_indent();
-            if(i != 0) std::cout << "else ";
+            if(i != 0) std::cerr << "else ";
             if(data[i].cond) {
-                std::cout << "if (";
+                std::cerr << "if (";
                 data[i].cond->print();
-                std::cout << ") ";
+                std::cerr << ") ";
             }
             data[i].stmt->print();
-            std::cout << '\n';
+            std::cerr << '\n';
         }
     }
 
@@ -335,9 +335,9 @@ struct simple_stmt : statement {
     void print() override {
         print_indent();
         for(size_t i = 0 ; i < expr.size() ; ++i) {
-            if(i != 0) std::cout << " , ";
+            if(i != 0) std::cerr << " , ";
             expr[i]->print();
-        } std::cout << ';';
+        } std::cerr << ';';
     }
 
     void accept(ASTvisitorbase *__p) override { return __p->visitSimpleStmt(this); }
@@ -355,16 +355,16 @@ struct variable_def : definition , statement {
 
     void print() override {
         print_indent();
-        std::cout << type.data() << ' ';
+        std::cerr << type.data() << ' ';
         bool flag = false;
         for(auto &&[__name,__p] : init) {
             if(!flag) flag = true;
-            else      std::cout << ',';
-            std::cout << __name;
+            else      std::cerr << ',';
+            std::cerr << __name;
             if(!__p) continue;
-            std::cout << " = ";
+            std::cerr << " = ";
             __p->print();
-        } std::cout << ';';
+        } std::cerr << ';';
     }
 
     void accept(ASTvisitorbase *__p) override { return __p->visitVariable(this); }
@@ -383,18 +383,18 @@ struct function_def : definition , identifier {
 
     void print() override {
         print_indent();
-        std::cout
+        std::cerr
             << type.data() << ' ' << name
             << '(';
         for(size_t i = 0 ; i < args.size() ; ++i) {
-            if(i != 0) std::cout << ',';
-            std::cout
+            if(i != 0) std::cerr << ',';
+            std::cerr
                 << args[i].type.data() << ' '
                 << args[i].name;
         }
-        std::cout << ") ";
+        std::cerr << ") ";
         if(!is_builtin()) body->print();
-        else std::cout << " /* Built-in function. */ ;";
+        else std::cerr << " /* Built-in function. */ ;";
     }
 
     void accept(ASTvisitorbase *__p) override { return __p->visitFunction(this); }
@@ -415,24 +415,24 @@ struct class_def : definition {
 
     void print() override {
         print_indent();
-        std::cout << "class " << name << " {\n";
+        std::cerr << "class " << name << " {\n";
         ++global_indent;
-        // std::cout << "Member Variables:\n";
+        // std::cerr << "Member Variables:\n";
         for(auto __p : member)
             if(dynamic_cast <variable_def *> (__p)) {
                 __p->print();
-                std::cout << '\n';
+                std::cerr << '\n';
             }
 
-        // std::cout << "Member Functions:\n";
+        // std::cerr << "Member Functions:\n";
         for(auto __p : member)
             if(dynamic_cast <function_def *> (__p)) {
                 __p->print();
-                std::cout << '\n';
+                std::cerr << '\n';
             }
 
         --global_indent;
-        std::cout << "};";
+        std::cerr << "};";
     }
 
     void accept(ASTvisitorbase *__p) override { return __p->visitClass(this); }

@@ -71,15 +71,14 @@ struct temporary : non_literal {
 
 struct string_constant : literal {
     std::string  context;
-    cstring_type   type;
+    cstring_type    type;
     explicit string_constant(const std::string &__ctx) : context(__ctx),type({__ctx.length()}) {}
     wrapper get_value_type() const override { return wrapper {&type,0}; }
     std::string  type_data() const override {
         return string_join("private unnamed_addr constant ",type.name()); 
     }
     std::string data() const override {
-        std::string __ans;
-        __ans.push_back('\"');
+        std::string __ans = "c\"";
         for(char __p : context) {
             switch(__p) {
                 case '\n': __ans += "\\0A"; break;
@@ -146,7 +145,7 @@ struct function {
 
     /* Create a temporary and return pointer to it. */
     temporary *create_temporary(wrapper __type) {
-        return create_temporary(__type,"");
+        return create_temporary(__type,"-");
     }
 
     /* Create a temporary with given name and return pointer to __temp. */
@@ -176,7 +175,7 @@ struct function {
     std::string data() const {
         std::string __arg; /* Arglist. */
         for(auto &__p : args) {
-            if(__p != args.front())
+            if(&__p != args.data())
                 __arg += ',';
             __arg += __p->get_value_type().name();
             __arg += ' ';
@@ -200,7 +199,7 @@ struct function {
     std::string declare() const {
         std::string __arg; /* Arglist. */
         for(auto &__p : args) {
-            if(__p != args.front())
+            if(&__p != args.data())
                 __arg += ',';
             __arg += __p->get_value_type().name();
         }
@@ -353,7 +352,7 @@ struct call_stmt : statement {
     std::string data() const override {
         std::string __arg; /* Arglist. */
         for(auto &__p : args) {
-            if(__p != args.front())
+            if(&__p != args.data())
                 __arg += ',';
             __arg += __p->get_value_type().name();
             __arg += ' ';
@@ -450,7 +449,7 @@ struct get_stmt : statement {
     definition *idx;            /* Index of the array. */
     size_t      mem;            /* Index of member. */
 
-    /* <result> = getelementptr <ty> ptr <ptrval> {, <ty> <idx>} */
+    /* <result> = getelementptr <ty>, ptr <ptrval> {, <ty> <idx>} */
     std::string data() const override {
         std::string __suffix;
         if(mem != NPOS) __suffix = ", i32 " + std::to_string(mem);
@@ -460,7 +459,7 @@ struct get_stmt : statement {
         );
         return string_join(
             dst->data()," = getelementptr ",src->get_point_type().name(),
-            " ptr ",src->data(), ", i32 ",idx->data(),__suffix,'\n'
+            ", ptr ",src->data(), ", i32 ",idx->data(),__suffix,'\n'
         );
     }
 };

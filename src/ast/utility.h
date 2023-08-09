@@ -78,7 +78,7 @@ inline size_t global_indent = 0;
 /* 4 space as indent */
 inline void print_indent() {
     for(size_t i = 0 ; i != global_indent ; ++i)
-        std::cout << "    ";
+        std::cerr << "    ";
 }
 
 struct error {
@@ -209,7 +209,7 @@ struct op_type {
 
 inline std::ostream &operator <<(std::ostream &__os,const op_type &__op) {
     for(int i = 0 ; i < 8 && __op[i] ; ++i)
-        std::cout << __op[i];
+        __os << __op[i];
     return __os;
 }
 

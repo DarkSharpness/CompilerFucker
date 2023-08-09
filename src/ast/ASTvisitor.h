@@ -62,7 +62,7 @@ struct ASTvisitor : ASTvisitorbase {
     /* Tries to init from ASTbuilder. */
     ASTvisitor(std::vector <definition *>      &__def,
                std::map <std::string,typeinfo> &__map) {
-        std::cout << "\n\n|---------------Start scanning---------------|\n" << std::endl;
+        std::cerr << "\n\n|---------------Start scanning---------------|\n" << std::endl;
         class_map =    ASTClassScanner::scan(__def,__map);
         global    = ASTFunctionScanner::scan(__def,class_map);
 
@@ -86,15 +86,15 @@ struct ASTvisitor : ASTvisitorbase {
         visit(global_init);
 
         /* Pass the semantic check! */
-        std::cout << "\033[32mNo error is found. Semantic check pass!\n"
+        std::cerr << "\033[32mNo error is found. Semantic check pass!\n"
                      "AST tree as below :\033[0m";
 
         for(auto __p : __def) {
-            std::cout << "\n\n";
+            std::cerr << "\n\n";
             __p->print();
         }
 
-        std::cout << "\n\n|----------------End scanning----------------|\n" << std::endl;
+        std::cerr << "\n\n|----------------End scanning----------------|\n" << std::endl;
     }
 
     /* Top scope pointer. */

@@ -308,7 +308,7 @@ struct ASTFunctionScanner {
             else if (auto *__func = dynamic_cast <function *> (__p); __func) {
                 assert_global(__func,__ans,__map);
                 __func->space       = new scope {__ans};
-                __func->unique_name = "::" + __func->name;
+                __func->unique_name = __func->name;
             }
         }
 
