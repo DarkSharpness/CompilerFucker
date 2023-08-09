@@ -46,8 +46,9 @@ void IRbuilder::visitFunctionExpr(AST::function_expr *ctx) {
     __call->func = function_map[__func];
 
     /* Member function case: Pass 'this' pointer. */
-    if(!is_global_function(__func->unique_name))
+    if(!is_global_function(__call->func->name))
         __call->args.push_back(result);
+
  
     for(auto *__p : ctx->args) {
         visit(__p);
@@ -321,9 +322,9 @@ void IRbuilder::visitConditionExpr(AST::condition_expr *ctx) {
 void IRbuilder::visitAtomExpr(AST::atom_expr *ctx) {
     /* If function, nothing should be done. */
     if(ctx->type->is_function()) {
-        auto __name = ctx->type->func->unique_name;
+        auto __func = function_map[ctx->type->func];
         /* Member function case. */
-        if(!is_global_function(__name))
+        if(!is_global_function(__func->name))
             result = get_this_pointer();
         return;
     }
