@@ -1,0 +1,12 @@
+#!/bin/bash
+
+set -e
+
+# Generate the antlr4 parser
+# TODO
+
+bash build.bash
+
+# Compile program
+cmake -B bin
+cmake --build bin

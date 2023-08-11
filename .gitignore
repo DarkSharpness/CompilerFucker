@@ -8,3 +8,4 @@
 !/src/generated/CMakeLists.txt
 /build
 /Local
+/bin
