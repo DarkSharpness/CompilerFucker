@@ -9,3 +9,6 @@
 /build
 /Local
 /bin
+/ravel
+*.ll
+
