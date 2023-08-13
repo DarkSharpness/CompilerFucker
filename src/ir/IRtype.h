@@ -180,4 +180,98 @@ inline bool operator == (const wrapper &lhs,const wrapper &rhs) {
     }
 }
 
+
+/* A definition can be variable / literal */
+struct definition {
+    virtual wrapper get_value_type() const = 0;
+    virtual std::string       data() const = 0;
+    virtual ~definition() = default;
+    wrapper get_point_type() const { return --get_value_type(); };
+};
+
+/* Non literal type. (Variable / Temporary) */
+struct non_literal : definition {
+    std::string name; /* Unique name.  */
+    wrapper     type; /* Type wrapper. */
+    wrapper get_value_type() const override final { return type; }
+    std::string       data() const override final { return name; }
+};
+
+/* Literal constants. */
+struct literal : definition {
+    /* Special function used in global variable initialization. */
+    virtual std::string type_data() const = 0;
+};
+
+/* Variables are pointers to value. */
+struct variable : non_literal {
+    ~variable() override = default;
+};
+
+/* Temporaries! */
+struct temporary : non_literal {
+    ~temporary() override = default;
+};
+
+
+struct string_constant : literal {
+    std::string  context;
+    cstring_type    type;
+    explicit string_constant(const std::string &__ctx) : context(__ctx),type({__ctx.length()}) {}
+    wrapper get_value_type() const override { return wrapper {&type,0}; }
+    std::string  type_data() const override {
+        return string_join("private unnamed_addr constant ",type.name()); 
+    }
+    std::string data() const override {
+        std::string __ans = "c\"";
+        for(char __p : context) {
+            switch(__p) {
+                case '\n': __ans += "\\0A"; break;
+                case '\"': __ans += "\\22"; break;
+                case '\\': __ans += "\\5C"; break;
+                default: __ans.push_back(__p);
+            }
+        }
+        __ans.push_back('\\');
+        __ans.push_back('0');
+        __ans.push_back('0');
+        __ans.push_back('\"');
+        return __ans;
+    }
+    ~string_constant() override = default;
+};
+
+
+struct pointer_constant : literal {
+    variable *var;
+    explicit pointer_constant(variable *__ptr) : var(__ptr) {}
+    std::string  type_data() const override { return "global ptr"; }
+    wrapper get_value_type() const override { return var ? ++var->type : wrapper {&__null_class__,0}; }
+    std::string  data()      const override { return var ? var->name : "null"; }
+    ~pointer_constant() override = default;
+};
+
+
+struct integer_constant : literal {
+    int value;
+    /* Must initialize with a value. */
+    explicit integer_constant(int __v) : value(__v) {}
+    std::string  type_data() const override { return "global i32"; }
+    wrapper get_value_type() const override { return {&__integer_class__,0}; }
+    std::string  data()      const override { return std::to_string(value); }
+    ~integer_constant() override = default;
+};
+
+
+struct boolean_constant : literal {
+    bool value;
+    explicit boolean_constant(bool __v) : value(__v) {}
+    std::string  type_data() const override { return "global i1"; }
+    wrapper get_value_type() const override { return {&__boolean_class__,0}; }
+    std::string  data()      const override { return value ? "true" : "false"; }
+    ~boolean_constant() override = default;
+};
+
+
+
 }

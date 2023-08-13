@@ -102,7 +102,6 @@ struct IRbuilder : AST::ASTvisitorbase {
             std::cout << __var.data() << '\n';
         std::cout << '\n';
 
-
         for(auto &__func : global_function)
             std::cout << __func.data() << '\n';
 
@@ -227,7 +226,6 @@ struct IRbuilder : AST::ASTvisitorbase {
             else __ret += __str[i];
         } return __ret;
     }
-
 
 };
 
