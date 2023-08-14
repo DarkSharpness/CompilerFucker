@@ -10,8 +10,12 @@ std::string block_stmt::data() const {
     __tmp.push_back(label + ":\n");
     for(auto __p : stmt) __tmp.push_back("    " + __p->data());
     __tmp.push_back("\n");
-
     return string_join_array(__tmp.begin(),__tmp.end());
+}
+
+
+phi_stmt *block_stmt::is_phi_block() const {
+    return dynamic_cast <phi_stmt *> (stmt[0]);
 }
 
 

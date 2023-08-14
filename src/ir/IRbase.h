@@ -1,14 +1,15 @@
 #pragma once
 
 #include <string>
+#include <any>
 
 namespace dark::IR {
 
-struct IRvisitor;
+struct IRvisitorbase;
 
 struct node {
     virtual std::string data() const = 0;
-    virtual void accept(IRvisitor * __v) = 0;
+    virtual void accept(IRvisitorbase * __v) = 0;
     virtual ~node() = default;
 };
 
@@ -30,7 +31,7 @@ struct phi_stmt;
 struct unreachable_stmt;
 
 
-struct IRvisitor {
+struct IRvisitorbase {
     void visit(node * __n) { return __n->accept(this); }
 
     virtual void visitBlock(block_stmt *) = 0;
@@ -50,7 +51,7 @@ struct IRvisitor {
     virtual void visitPhi(phi_stmt *) = 0;
     virtual void visitUnreachable(unreachable_stmt *) = 0;
 
-    virtual ~IRvisitor() = default;
+    virtual ~IRvisitorbase() = default;
 };
 
 

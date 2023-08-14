@@ -10,11 +10,13 @@
 #include "ASTvisitor.h"
 #include "IRnode.h"
 #include "IRbuilder.h"
+#include "IRbase.h"
 
 #include "ASMnode.h"
+#include "ASMbuilder.h"
 
 
-int main(int argc, const char* argv[]) {
+int main(int argc, const char* argv<::>) <%
     try {
         // freopen("test.in","r",stdin);
         MxErrorListener listener;
@@ -43,13 +45,5 @@ int main(int argc, const char* argv[]) {
         std::cerr << "Unknown error!" << std::endl;
         return 3;
     }
-    // ANTLRInputStream input(std::cin);
-    // Python3Lexer lexer(&input);
-    // CommonTokenStream tokens(&lexer);
-    // tokens.fill();
-    // Python3Parser parser(&tokens);
-    // tree::ParseTree* tree=parser.file_input();
-    // EvalVisitor visitor;
-    // visitor.visit(tree);
     return 0;
-}
+%>

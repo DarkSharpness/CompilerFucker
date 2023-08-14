@@ -2,7 +2,7 @@
 
 #include "scope.h"
 #include "IRtype.h"
-#include "IRvisitor.h"
+#include "IRbase.h"
 
 #include <string>
 #include <vector>
@@ -10,11 +10,11 @@
 
 namespace dark::IR {
 
-
-
 /* Abstract middle class. */
+
 struct statement : node {};
 
+struct phi_stmt;
 
 /* Block statement is not a statement! */
 struct block_stmt {
@@ -24,6 +24,7 @@ struct block_stmt {
     /* Simply join all message in it together. */
     std::string data() const;
     auto emplace_new(statement *__stmt) { return stmt.push_back(__stmt); }
+    phi_stmt *is_phi_block() const;
     ~block_stmt() = default;
 };
 
@@ -53,7 +54,8 @@ struct compare_stmt : statement {
 
     /* <result> = icmp <cond> <type> <operand1>, <operand2> */
     std::string data() const override;
-    void accept(IRvisitor *v) override { v->visitCompare(this); }
+    void accept(IRvisitorbase *v) override
+    { return v->visitCompare(this); }
     ~compare_stmt() override = default;
 };
 
@@ -91,7 +93,8 @@ struct binary_stmt : statement {
 
     /* <result> = <operator> <type> <operand1>, <operand2> */
     std::string data() const override;
-    void accept(IRvisitor *v) override { v->visitBinary(this); }
+    void accept(IRvisitorbase *v) override 
+    { return v->visitBinary(this); }
     ~binary_stmt() override = default;
 };
 
@@ -103,7 +106,8 @@ struct jump_stmt : statement {
     /* br label <dest> */
     std::string data() const override
     { return string_join("br label %",dest->label,'\n'); }
-    void accept(IRvisitor *v) override { v->visitJump(this); }
+    void accept(IRvisitorbase *v) override 
+    { return v->visitJump(this); }
     ~jump_stmt() override = default;
 };
 
@@ -115,7 +119,8 @@ struct branch_stmt : statement {
 
     /* br i1 <cond>, label <iftrue>, label <if_false> */
     std::string data() const override;
-    void accept(IRvisitor *v) override { v->visitBranch(this); }
+    void accept(IRvisitorbase *v) override 
+    { return v->visitBranch(this); }
     ~branch_stmt() override = default;
 };
 
@@ -127,7 +132,8 @@ struct call_stmt : statement {
 
     /* <result> = call <ResultType> @<FunctionName> (<argument>) */
     std::string data() const override;
-    void accept(IRvisitor *v) override { v->visitCall(this); }
+    void accept(IRvisitorbase *v) override 
+    { return v->visitCall(this); }
     ~call_stmt() override = default;
 };
 
@@ -138,7 +144,8 @@ struct load_stmt : statement {
 
     /* <result> = load <type>, ptr <pointer>  */
     std::string data() const override;
-    void accept(IRvisitor *v) override { v->visitLoad(this); }
+    void accept(IRvisitorbase *v) override
+    { return v->visitLoad(this); }
     ~load_stmt() = default;
 };
 
@@ -149,7 +156,8 @@ struct store_stmt : statement {
 
     /* store <type> <value>, ptr <pointer>  */
     std::string data() const override;
-    void accept(IRvisitor *v) override { v->visitStore(this); }
+    void accept(IRvisitorbase *v) override
+    { return v->visitStore(this); }
     ~store_stmt() override = default;
 };
 
@@ -159,7 +167,8 @@ struct return_stmt : statement {
     definition *rval = nullptr;
 
     std::string data() const override;
-    void accept(IRvisitor *v) override { v->visitReturn(this); }
+    void accept(IRvisitorbase *v) override
+    { return v->visitReturn(this); }
     ~return_stmt() override = default;
 };
 
@@ -169,7 +178,8 @@ struct allocate_stmt : statement {
 
     /* <result> = alloca <type> */
     std::string data() const override;
-    void accept(IRvisitor *v) override { v->visitAlloc(this); }
+    void accept(IRvisitorbase *v) override
+    { return v->visitAlloc(this); }
     ~allocate_stmt() override = default;
 };
 
@@ -183,7 +193,8 @@ struct get_stmt : statement {
 
     /* <result> = getelementptr <ty>, ptr <ptrval> {, <ty> <idx>} */
     std::string data() const override;
-    void accept(IRvisitor *v) override { v->visitGet(this); }
+    void accept(IRvisitorbase *v) override
+    { return v->visitGet(this); }
     ~get_stmt() override = default;
 };
 
@@ -199,14 +210,16 @@ struct phi_stmt : statement {
 
     /* <result> = phi <ty> [ <value,label> ],...... */
     std::string data() const override;
-    void accept(IRvisitor *v) override { v->visitPhi(this); }
+    void accept(IRvisitorbase *v) override
+    { return v->visitPhi(this); }
     ~phi_stmt() override = default;
 };
 
 
 struct unreachable_stmt : statement {
     std::string data() const override { return "unreachable\n"; }
-    void accept(IRvisitor *v) override { v->visitUnreachable(this); }
+    void accept(IRvisitorbase *v) override
+    { return v->visitUnreachable(this); }
     ~unreachable_stmt() override = default;
 };
 

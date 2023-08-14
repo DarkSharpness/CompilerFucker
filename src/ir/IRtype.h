@@ -181,7 +181,7 @@ inline bool operator == (const wrapper &lhs,const wrapper &rhs) {
 }
 
 
-/* A definition can be variable / literal */
+/* A definition can be variable / literal / temporary. */
 struct definition {
     virtual wrapper get_value_type() const = 0;
     virtual std::string       data() const = 0;
@@ -215,8 +215,8 @@ struct temporary : non_literal {
 
 
 struct string_constant : literal {
-    std::string  context;
-    cstring_type    type;
+    std::string context;
+    cstring_type   type;
     explicit string_constant(const std::string &__ctx) : context(__ctx),type({__ctx.length()}) {}
     wrapper get_value_type() const override { return wrapper {&type,0}; }
     std::string  type_data() const override {
@@ -232,11 +232,7 @@ struct string_constant : literal {
                 default: __ans.push_back(__p);
             }
         }
-        __ans.push_back('\\');
-        __ans.push_back('0');
-        __ans.push_back('0');
-        __ans.push_back('\"');
-        return __ans;
+        return __ans += "\\00\"";
     }
     ~string_constant() override = default;
 };
