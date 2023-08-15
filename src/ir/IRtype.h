@@ -143,7 +143,10 @@ struct class_type : typeinfo {
         return __n;
     }
 
-    std::string data() {
+    /* Specially arranged. */
+    size_t get_bias(size_t __n) const { return __n * MxPTRSIZE; }
+
+    std::string data() const noexcept {
         std::vector <std::string> __view;
         __view.reserve(member.size() << 1 | 1);
         __view.push_back(unique_name + " = type { ");

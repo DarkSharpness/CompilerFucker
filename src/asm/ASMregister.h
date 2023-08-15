@@ -54,52 +54,32 @@ struct value_type {
 };
 
 /**
- * @brief Temporary value.
- * Low immediate or registers.
- * 
- */
-struct temporary : virtual value_type {};
-/**
  * @brief Immediate value.
  * 
  * 
  */
-struct immediate : virtual value_type {};
-
-struct integer_immediate : immediate {
+struct immediate : value_type {
     int value;
+    explicit immediate(int __v) : value(__v) {}
     std::string data() const override final { return std::to_string(value); }
-    ~integer_immediate() override = default;
+    ~immediate() override = default;
 };
+
 /**
  * @brief Register value.
  * Virtual or physical registers.
  * 
  */
-struct register_ : virtual value_type , temporary {};
+struct register_ : value_type {};
 
-
-struct low_immediate    : integer_immediate , temporary {
-    explicit low_immediate(int __v)  { value = __v; }
+/* Symbol of a global variable. */
+struct symbol    : value_type {
+    std::string name;
+    explicit symbol(std::string_view __name) : name(__name) {}
+    std::string data() const override final { return name; }
+    ~symbol() override = default;
 };
 
-struct high_immediate   : integer_immediate , temporary {
-    explicit high_immediate(int __v) { value = (__v >> 12) << 12; }
-};
-
-struct full_immediate   : integer_immediate {
-    explicit full_immediate(int __v) { value = __v; }
-};
-
-struct stack_immediate  : immediate {
-    IR::function *func;
-    IR::variable *var;
-    explicit stack_immediate(IR::function *__f, IR::variable *__v)
-        : func(__f), var(__v) {}
-
-    std::string data() const override final;
-    ~stack_immediate() override = default;
-};
 
 /* Risc-V register. */
 struct physical_register : register_ {
@@ -166,13 +146,11 @@ struct physical_register : register_ {
 
 /* A virtual register. */
 struct virtual_register  : register_ {
-    inline static size_t counter = 0;
     size_t index;
 
-    virtual_register() : index(counter++) {}
+    explicit virtual_register(size_t __n) : index(__n) {}
 
-    std::string data() const override final
-    { return 'v' + std::to_string(index); }
+    std::string data() const override final { return 'v' + std::to_string(index); }
     ~virtual_register() override = default;
 };
 

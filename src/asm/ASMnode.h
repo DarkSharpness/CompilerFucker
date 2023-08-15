@@ -12,11 +12,16 @@ namespace dark::ASM {
 
 struct node;
 
+/* Address type. */
+struct address_type {
+    virtual std::string data() const = 0;
+    virtual ~address_type() = default;
+};
+
+
 struct label_type {
     std::string name;
-    std::string label() const {
-        return string_join("L", name);
-    }
+    std::string label() const { 'L' + name; }
 };
 
 struct block : label_type {
@@ -27,7 +32,18 @@ struct block : label_type {
 
 
 struct function : label_type {
+    size_t max_arg_size = -1;   /* Max argument count of functions called. */
+    size_t virtual_size = 0;    /* Count of virtual variables. */
+    std::map <IR::variable *, size_t> var_map;
+
     std::vector <block *> stmt;
+
+    void update_size(IR::function *__func) {
+        max_arg_size = std::max(max_arg_size, __func->args.size());
+    }
+
+    void emplace_new(block *__b) { stmt.emplace_back(__b); }
+    void emplace_var(IR::variable *__var) { var_map.emplace(__var, var_map.size()); }
 };
 
 
@@ -65,31 +81,20 @@ struct arith_expr : node {
         [XOR]   = {'x','o','r'},
     };
 
-    register_ *lval; /* Left  value. */
-    temporary *rval; /* Right value. */
-    register_ *dest; /* Result register. */
+    value_type  *lval; /* Left  value. */
+    value_type *rval; /* Right value. */
+    register_  *dest; /* Result register. */
 
     explicit arith_expr(decltype (op)    __op,
-                        register_       *__lval,
-                        low_immediate   *__rval,
-                        register_       *__dest)
-        : op(__op), lval(__lval), rval(__rval), dest(__dest) {}
-
-    explicit arith_expr(decltype (op)    __op,
-                        low_immediate   *__lval,
-                        register_       *__rval,
-                        register_       *__dest)
-        : op(__op), lval(__rval), rval(__lval), dest(__dest) {}
-
-    explicit arith_expr(decltype (op)    __op,
-                        register_       *__lval,
-                        register_       *__rval,
+                        value_type      *__lval,
+                        value_type      *__rval,
                         register_       *__dest)
         : op(__op), lval(__lval), rval(__rval), dest(__dest) {}
 
     std::string data() const override {
         std::string buf = str[op];
-        if(dynamic_cast <immediate *> (rval)) buf += "i";
+        if(dynamic_cast <immediate *> (lval)
+        || dynamic_cast <immediate *> (rval)) buf += "i";
         return string_join(buf, ' ', lval->data(),", ", rval->data());
     }
 
@@ -113,32 +118,47 @@ struct branch_expr : node {
         [LT] = {'b','l','t'},
     };
 
-    register_ *lval; /* Left  value. */
-    register_ *rval; /* Right value. */
+    value_type *lval; /* Left  value. */
+    value_type *rval; /* Right value. */
     block     *dest; /* Destination block. */
 
     explicit branch_expr(decltype (op) __op,
-                          register_  *__lval,
-                          register_  *__rval,
-                          block      *__dest)
+                         value_type *__lval,
+                         value_type *__rval,
+                         block      *__dest)
         : op(__op), lval(__lval), rval(__rval), dest(__dest) {}
 
     std::string data() const override {
-        return string_join(str[op],' ', lval->data(),", ", rval->data());
+        return string_join(str[op],' ', lval->data(),", ", rval->data(),", ", dest->label());
     }
 
     ~branch_expr() override = default;
 };
 
 
-struct set_less_expr : node {
-    register_ *lval; /* Left  value. */
-    temporary *rval; /* Right value. */
-    register_ *dest; /* Result register. */
+/* Special expr for bool types.  */
+struct bool_expr   : node {
+    value_type *cond; /* Condition. */
+    block      *dest; /* Destination block. */
 
-    explicit set_less_expr(register_     *__lval,
-                           low_immediate *__rval,
-                            register_     *__dest)
+    explicit bool_expr(value_type *__cond, block *__dest)
+        : cond(__cond), dest(__dest) {}
+
+    std::string data() const override {
+        return string_join("bnez ", cond->data(),", ",dest->label());
+    }
+
+    ~bool_expr() override = default;
+};
+
+struct set_less_expr : node {
+    value_type *lval; /* Left  value. */
+    value_type *rval; /* Right value. */
+    register_  *dest; /* Result register. */
+
+    explicit set_less_expr(value_type *__lval,
+                           immediate  *__rval,
+                           register_  *__dest)
         noexcept : lval(__lval), rval(__rval), dest(__dest) {}
     
     std::string data() const override {
@@ -155,21 +175,21 @@ struct set_less_expr : node {
  * 
  */
 struct not_expr : node {
-    register_ *rval;
-    register_ *dest;
+    value_type *rval;
+    register_  *dest;
 
     explicit not_expr(register_ *__rval, register_ *__dest)
         noexcept : rval(__rval), dest(__dest) {}
 
     std::string data() const override {
-        return string_join("sltu ", dest->data(),", ", rval->data(),", 1");
+        return string_join("sltiu ", dest->data(),", ", rval->data(),", 1");
     }
 
     ~not_expr() override = default;
 };
 
 
-struct load_expr : node {
+struct load_memory : node {
     using c_string = char [8];
     enum : unsigned char {
         BYTE = 0,
@@ -182,39 +202,24 @@ struct load_expr : node {
         [WORD] = {'l','w'},
     };
 
-    immediate   *offset;  /* Offset. */
-    register_     *addr;    /* Address register. */
+    address_type  *addr;    /* Address register. */
     register_     *dest;    /* Result  register. */
 
-    explicit load_expr(decltype (op) __op,
-                       immediate    *__offset,
-                       register_    *__addr,
-                       register_    *__dest)
-        : op(__op), offset(__offset), addr(__addr), dest(__dest) {}
+    explicit load_memory(decltype (op) __op,
+                         address_type *__addr,
+                         register_    *__dest)
+        : op(__op),addr(__addr), dest(__dest) {}
 
     std::string data() const override {
         return string_join(str[op], ' ', dest->data(),", ", addr->data());
     }
 
-    ~load_expr() override = default;
+    ~load_memory() override = default;
 };
 
 
-struct load_address : node {
-    std::string symbol; /* Symbom. */
-    register_    *dest;
-    load_address(std::string_view __symbol, register_ *__dest)
-        : symbol(__symbol), dest(__dest) {}
 
-    std::string data() const override {
-        return string_join("la ", dest->data(),", ", symbol);
-    }
-
-    ~load_address() override = default;
-};
-
-
-struct store_expr : node {
+struct store_memory : node {
     using c_string = char [8];
     enum : unsigned char {
         BYTE = 0,
@@ -227,35 +232,37 @@ struct store_expr : node {
         [WORD] = {'s','w'},
     };
 
-    immediate   *offset;  /* Offset. */
-    register_     *src;     /* Source register. */
-    register_     *addr;    /* Address register. */
+    register_     *from;  /* Source register. */
+    address_type  *addr;  /* Address register. */
 
-    explicit store_expr(decltype (op) __op,
-                        immediate    *__offset,
-                        register_    *__src,
-                        register_    *__addr)
-        : op(__op), offset(__offset), src(__src), addr(__addr) {}
+    explicit store_memory(decltype (op) __op,
+                          register_    *__src,
+                          address_type *__addr)
+        : op(__op), from(__src), addr(__addr) {}
 
     std::string data() const override {
-        return string_join(str[op], ' ', src->data(),", ", addr->data());
+        return string_join(str[op],' ',from->data(),", ",addr->data());
     }
 
-    ~store_expr() override = default;
+    ~store_memory() override = default;
 };
 
 
-struct call_expr : node {
-    function *func; /* Function name. */
+/* Load a symbol's address to register. */
+struct load_symbol : node {
+    register_ *dst; /* Destination register. */
+    symbol    *sym;
+    explicit load_symbol(register_ *__dst, symbol *__sym)
+        : dst(__dst), sym(__sym) {}
 
-    explicit call_expr(function *__func) : func(__func) {}
+    std::string data() const override {
+        return string_join("la ", dst->data(),", ", sym->data());
+    }
 
-    std::string data() const override { return string_join("call ", func->label()); }
-
-    ~call_expr() override = default;
+    ~load_symbol() override = default;
 };
 
-
+/* Load an immediate number. */
 struct load_immediate : node {
     register_ *dst; /* Destination register. */
     immediate *src; /* Source immediate. */
@@ -269,6 +276,16 @@ struct load_immediate : node {
     ~load_immediate() override = default;
 };
 
+
+struct call_expr : node {
+    function *func; /* Function name. */
+
+    explicit call_expr(function *__func) : func(__func) {}
+
+    std::string data() const override { return string_join("call ", func->label()); }
+
+    ~call_expr() override = default;
+};
 
 struct move_expr : node {
     register_ *dst; /* Destination register. */
@@ -304,9 +321,43 @@ struct return_expr : node {
 };
 
 
-std::string stack_immediate::data() const {
-    /* Complete it! */
 
+struct stack_address final : address_type {
+    function    *func; /* Function . */
+    IR::variable *var; /* Variable. */
+
+    explicit stack_address(function *__func, IR::variable *__var)
+        : func(__func), var(__var) {}
+    
+    std::string data() const override {
+        return string_join(var->name, "(", func->label(), ")");
+    }
+    
+    ~stack_address() override = default;
+};
+
+
+struct global_address final : address_type {
+    std::string name; /* Variable name. */
+
+    explicit global_address(std::string_view __name) : name(__name) {}
+
+    std::string data() const override { return name; }
+
+    ~global_address() override = default;
+};
+
+
+struct register_address final : address_type {
+    register_ *reg;    /* Register. */
+    immediate *offset; /* Offset. */
+
+    explicit register_address(register_ *__reg, immediate *__offset)
+        : reg(__reg), offset(__offset) {}
+
+    std::string data() const override { return reg->data(); }
+
+    ~register_address() override = default;
 };
 
 

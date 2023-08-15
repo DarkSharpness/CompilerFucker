@@ -54,8 +54,7 @@ struct compare_stmt : statement {
 
     /* <result> = icmp <cond> <type> <operand1>, <operand2> */
     std::string data() const override;
-    void accept(IRvisitorbase *v) override
-    { return v->visitCompare(this); }
+    void accept(IRvisitorbase *v) override { return v->visitCompare(this); }
     ~compare_stmt() override = default;
 };
 
@@ -93,8 +92,7 @@ struct binary_stmt : statement {
 
     /* <result> = <operator> <type> <operand1>, <operand2> */
     std::string data() const override;
-    void accept(IRvisitorbase *v) override 
-    { return v->visitBinary(this); }
+    void accept(IRvisitorbase *v) override { return v->visitBinary(this); }
     ~binary_stmt() override = default;
 };
 
@@ -106,8 +104,7 @@ struct jump_stmt : statement {
     /* br label <dest> */
     std::string data() const override
     { return string_join("br label %",dest->label,'\n'); }
-    void accept(IRvisitorbase *v) override 
-    { return v->visitJump(this); }
+    void accept(IRvisitorbase *v) override { return v->visitJump(this); }
     ~jump_stmt() override = default;
 };
 
@@ -119,8 +116,7 @@ struct branch_stmt : statement {
 
     /* br i1 <cond>, label <iftrue>, label <if_false> */
     std::string data() const override;
-    void accept(IRvisitorbase *v) override 
-    { return v->visitBranch(this); }
+    void accept(IRvisitorbase *v) override  { return v->visitBranch(this); }
     ~branch_stmt() override = default;
 };
 
@@ -132,8 +128,7 @@ struct call_stmt : statement {
 
     /* <result> = call <ResultType> @<FunctionName> (<argument>) */
     std::string data() const override;
-    void accept(IRvisitorbase *v) override 
-    { return v->visitCall(this); }
+    void accept(IRvisitorbase *v) override  { return v->visitCall(this); }
     ~call_stmt() override = default;
 };
 
@@ -141,11 +136,10 @@ struct call_stmt : statement {
 struct load_stmt : statement {
     non_literal *src;
     temporary   *dst;
-
+ 
     /* <result> = load <type>, ptr <pointer>  */
     std::string data() const override;
-    void accept(IRvisitorbase *v) override
-    { return v->visitLoad(this); }
+    void accept(IRvisitorbase *v) override { return v->visitLoad(this); }
     ~load_stmt() = default;
 };
 
@@ -156,8 +150,7 @@ struct store_stmt : statement {
 
     /* store <type> <value>, ptr <pointer>  */
     std::string data() const override;
-    void accept(IRvisitorbase *v) override
-    { return v->visitStore(this); }
+    void accept(IRvisitorbase *v) override { return v->visitStore(this); }
     ~store_stmt() override = default;
 };
 
@@ -167,8 +160,7 @@ struct return_stmt : statement {
     definition *rval = nullptr;
 
     std::string data() const override;
-    void accept(IRvisitorbase *v) override
-    { return v->visitReturn(this); }
+    void accept(IRvisitorbase *v) override { return v->visitReturn(this); }
     ~return_stmt() override = default;
 };
 
@@ -178,8 +170,7 @@ struct allocate_stmt : statement {
 
     /* <result> = alloca <type> */
     std::string data() const override;
-    void accept(IRvisitorbase *v) override
-    { return v->visitAlloc(this); }
+    void accept(IRvisitorbase *v) override { return v->visitAlloc(this); }
     ~allocate_stmt() override = default;
 };
 
@@ -193,8 +184,7 @@ struct get_stmt : statement {
 
     /* <result> = getelementptr <ty>, ptr <ptrval> {, <ty> <idx>} */
     std::string data() const override;
-    void accept(IRvisitorbase *v) override
-    { return v->visitGet(this); }
+    void accept(IRvisitorbase *v) override { return v->visitGet(this); }
     ~get_stmt() override = default;
 };
 
@@ -210,16 +200,14 @@ struct phi_stmt : statement {
 
     /* <result> = phi <ty> [ <value,label> ],...... */
     std::string data() const override;
-    void accept(IRvisitorbase *v) override
-    { return v->visitPhi(this); }
+    void accept(IRvisitorbase *v) override { return v->visitPhi(this); }
     ~phi_stmt() override = default;
 };
 
 
 struct unreachable_stmt : statement {
     std::string data() const override { return "unreachable\n"; }
-    void accept(IRvisitorbase *v) override
-    { return v->visitUnreachable(this); }
+    void accept(IRvisitorbase *v) override { return v->visitUnreachable(this); }
     ~unreachable_stmt() override = default;
 };
 
