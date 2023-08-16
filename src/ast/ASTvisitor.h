@@ -5,10 +5,6 @@
 
 namespace dark::AST {
 
-literal_constant *constant_work(literal_constant *__lhs,
-                                literal_constant *__rhs,
-                                binary_expr      *__bin);
-
 
 struct ASTvisitor : ASTvisitorbase {
     /* Global scope. */
@@ -19,11 +15,6 @@ struct ASTvisitor : ASTvisitorbase {
     std::map <std::string,typeinfo> class_map;
     /* From a function to its wrapper. */
     std::map <function * ,typeinfo> function_map;
-    /* From a node to a literal constant. */
-    std::map <node *,literal_constant *> constant_map;
-    /* From a node to a new node. */
-    std::map <node *,node *> node_map;
-
 
     function_def *global_init; /* This is the special global init function. */
 
@@ -186,34 +177,6 @@ struct ASTvisitor : ASTvisitorbase {
     void visitFunction(function_def *) override;
     void visitClass(class_def *) override;
 
-    /**
-     * @brief Update the node if it is a constant
-     * @param ctx The node to be updated.
-     * 
-     * @return Pointer to the constant or nullptr.
-    */
-    template <class T>
-    auto update_constant(T *&ctx)
-    -> std::enable_if_t <
-        std::is_base_of_v <node,T> && std::is_base_of_v <T,literal_constant>,
-        literal_constant *
-    > {
-        {
-            auto __iter = node_map.find(ctx);
-            if (__iter != node_map.end()) {
-                delete ctx;
-                ctx = safe_cast <T *> (__iter->second);
-                node_map.erase(__iter);
-                return nullptr;
-            }
-        }
-        auto __iter = constant_map.find(ctx);
-        if(__iter == constant_map.end()) return nullptr;
-        auto *__ptr = __iter->second;
-        constant_map.erase(__iter);
-        ctx = __ptr;
-        return __ptr;
-    }
 
 };
 
