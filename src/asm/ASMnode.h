@@ -10,7 +10,11 @@
 
 namespace dark::ASM {
 
-struct node;
+struct node {
+    virtual std::string data() const = 0;
+    virtual ~node() = default;
+};
+
 
 /* Address type. */
 struct address_type {
@@ -19,39 +23,91 @@ struct address_type {
 };
 
 
-struct label_type {
+struct block {
     std::string name;
-    std::string label() const { return 'L' + name; }
-};
-
-struct block : label_type {
+    std::string label() const { return ".L." + name; }
     std::vector <node  *> expr;
 
     void emplace_new(node *__n) { expr.emplace_back(__n); }
+
+    std::string data() const {
+        std::vector <std::string> buf;
+        buf.reserve(expr.size() * 2 + 2);
+        buf.push_back(label() + ":");
+        for(auto __p : expr) {
+            buf.push_back("\n    ");
+            buf.push_back(__p->data());
+        }
+        buf.push_back("\n");
+        return string_join_array(buf.begin(), buf.end());
+    }
+
 };
 
 
-struct function : label_type {
+struct function {
+    std::string     name;
     size_t max_arg_size = -1;   /* Max argument count of functions called. */
-    size_t virtual_size = 0;    /* Count of virtual variables. */
-    std::map <IR::variable *, size_t> var_map;
+    size_t vir_size     = 0;    /* Count of virtual variables. */
+    size_t stk_size     = 0;    /* Count of stack variables. */
+    size_t var_size     = 0;    /* Count of all variables. */
 
+    std::map <IR::variable *,ssize_t> var_map;
     std::vector <block *> stmt;
 
+    /* Emplace a function argument. */
+    void emplace_arg(const std::vector <IR::variable *> &args) {
+        /* Set the address for the variable. */
+        for(size_t i = 8 ; i < args.size() ; ++i)
+            var_map[args[i]] = (ssize_t)(7 - i);
+    }
+
+    /* Update max function size. */
     void update_size(IR::function *__func) {
         max_arg_size = std::max(max_arg_size, __func->args.size());
     }
 
+    /* Emplace a new node. */
     void emplace_new(block *__b) { stmt.emplace_back(__b); }
-    void emplace_var(IR::variable *__var) { var_map.emplace(__var, var_map.size()); }
+
+    /* Emplace a new variable. */
+    void emplace_var(IR::variable *__var)
+    { var_map.emplace(__var,(ssize_t) (var_size++)); }
+
+    void init_function() {
+        size_t __cnt = (ssize_t)max_arg_size > 9 ? max_arg_size - 9 : 0;
+        stk_size = (vir_size + __cnt + var_size) * 4;
+        /* Aligned to 16. */
+        if(stk_size % 16 != 0)
+            stk_size = (stk_size / 16) * 16 + 16;
+    }
+
+    size_t get_variable_offset(IR::variable *__var) const {
+        return stk_size - (var_map.at(__var) + 1) * 4; 
+    }
+
+    size_t get_temporary_offset(size_t __n) const {
+        size_t __cnt = max_arg_size > 9 ? max_arg_size - 9 : 0;
+        return (__cnt + __n) * 4;
+    }
+
+    std::string data() const {
+        std::vector <std::string> buf;
+        buf.reserve(stmt.size() + 3);
+        buf.push_back(string_join(
+            "    .globl ", name,'\n',
+            name,":\n" 
+        ));
+        if(stk_size)
+            buf.push_back(string_join(
+                "    addi sp, sp, -", std::to_string(stk_size),'\n'
+            ));
+        for(auto __p : stmt)
+            buf.push_back(__p->data());
+        return string_join_array(buf.begin(), buf.end());
+    }
 };
 
-
-
-struct node {
-    virtual std::string data() const = 0;
-    virtual ~node() = default;
-};
 
 
 struct arith_expr : node {
@@ -95,7 +151,7 @@ struct arith_expr : node {
         std::string buf = str[op];
         if(dynamic_cast <immediate *> (lval)
         || dynamic_cast <immediate *> (rval)) buf += "i";
-        return string_join(buf, ' ', lval->data(),", ", rval->data());
+        return string_join(buf,' ',dest->data(),", ", lval->data(),", ", rval->data());
     }
 
     ~arith_expr() override = default;
@@ -136,7 +192,62 @@ struct branch_expr : node {
 };
 
 
-/* Special expr for bool types.  */
+struct slt_expr : node {
+    value_type *lval; /* Left  value. */
+    value_type *rval; /* Right value. */
+    register_  *dest; /* Result register. */
+
+    explicit slt_expr(value_type *__lval,
+                      value_type *__rval,
+                      register_  *__dest)
+        noexcept : lval(__lval), rval(__rval), dest(__dest) {}
+
+    std::string data() const override {
+        std::string buf = "slt";
+        if(dynamic_cast <immediate *> (rval)) buf += 'i';
+        return string_join(buf,' ', dest->data(),", ", lval->data(),", ", rval->data());
+    }
+
+    ~slt_expr() override = default;
+};
+
+
+/* Equal expressions for booleans only. */
+struct eq_expr : node {
+    value_type *rval;
+    register_  *dest;
+
+    explicit eq_expr(value_type *__rval, register_ *__dest)
+        noexcept : rval(__rval), dest(__dest) {}
+    
+    std::string data() const override {
+        return string_join("seqz ", dest->data(),", ", rval->data());
+    }
+
+    ~eq_expr() override = default;
+};
+
+
+/**
+ * @brief Not expression for booleans only. 
+ * 
+ */
+struct not_expr : node {
+    value_type *rval;
+    register_  *dest;
+
+    explicit not_expr(value_type *__rval, register_ *__dest)
+        noexcept : rval(__rval), dest(__dest) {}
+
+    std::string data() const override {
+        return string_join("sltu ", dest->data()," zero, ", rval->data());
+    }
+
+    ~not_expr() override = default;
+};
+
+
+/* Special expr for converting boolean branches.  */
 struct bool_expr   : node {
     value_type *cond; /* Condition. */
     block      *dest; /* Destination block. */
@@ -151,42 +262,6 @@ struct bool_expr   : node {
     ~bool_expr() override = default;
 };
 
-struct set_less_expr : node {
-    value_type *lval; /* Left  value. */
-    value_type *rval; /* Right value. */
-    register_  *dest; /* Result register. */
-
-    explicit set_less_expr(value_type *__lval,
-                           immediate  *__rval,
-                           register_  *__dest)
-        noexcept : lval(__lval), rval(__rval), dest(__dest) {}
-    
-    std::string data() const override {
-        std::string buf = "slt";
-        if(dynamic_cast <immediate *> (rval)) buf += 'i';
-        return string_join(buf,' ', dest->data(),", ", lval->data(),", ", rval->data());
-    }
-
-    ~set_less_expr() override = default;
-};
-
-/**
- * @brief Not expression for booleans only. 
- * 
- */
-struct not_expr : node {
-    value_type *rval;
-    register_  *dest;
-
-    explicit not_expr(register_ *__rval, register_ *__dest)
-        noexcept : rval(__rval), dest(__dest) {}
-
-    std::string data() const override {
-        return string_join("sltiu ", dest->data(),", ", rval->data(),", 1");
-    }
-
-    ~not_expr() override = default;
-};
 
 
 struct load_memory : node {
@@ -282,7 +357,7 @@ struct call_expr : node {
 
     explicit call_expr(function *__func) : func(__func) {}
 
-    std::string data() const override { return string_join("call ", func->label()); }
+    std::string data() const override { return string_join("call ", func->name); }
 
     ~call_expr() override = default;
 };
@@ -317,7 +392,15 @@ struct return_expr : node {
 
     explicit return_expr(function *__func) : func(__func) {}
 
-    std::string data() const override { return string_join("ret"); }
+    std::string data() const override {
+        if(func->stk_size)
+            return string_join(
+                "addi sp, sp, ",
+                std::to_string(func->stk_size),
+                "\n    ret");
+        else
+            return string_join("ret");
+    }
 };
 
 
@@ -328,22 +411,22 @@ struct stack_address final : address_type {
 
     explicit stack_address(function *__func, IR::variable *__var)
         : func(__func), var(__var) {}
-    
+
     std::string data() const override {
-        return string_join(var->name, "(", func->label(), ")");
+        return string_join(
+            std::to_string(func->get_variable_offset(var)),
+            "(sp)"
+        );
     }
-    
+
     ~stack_address() override = default;
 };
 
 
 struct global_address final : address_type {
-    std::string name; /* Variable name. */
-
+    std::string name;
     explicit global_address(std::string_view __name) : name(__name) {}
-
     std::string data() const override { return name; }
-
     ~global_address() override = default;
 };
 
@@ -355,7 +438,9 @@ struct register_address final : address_type {
     explicit register_address(register_ *__reg, immediate *__offset)
         : reg(__reg), offset(__offset) {}
 
-    std::string data() const override { return reg->data(); }
+    std::string data() const override {
+        return string_join(offset->data(), "(", reg->data(), ")");
+    }
 
     ~register_address() override = default;
 };

@@ -759,7 +759,7 @@ void IRbuilder::visitGlobalFunction(AST::function_def *ctx) {
 
 
 store_stmt *IRbuilder::visitFunctionParam(AST::identifier *__p) {
-    auto *__var = new variable;
+    variable *__var = new function_argument;
     __var->name = __p->unique_name;
     __var->type = get_type(__p->type);
     top->args.push_back(__var);

@@ -22,6 +22,39 @@ struct ASMbuilder : IR::IRvisitorbase {
     inline static immediate    *__bool_true__ = create_immediate(0x01);
     inline static physical_register *__zero__ = physical_register::get_register(register_type::zero);
 
+    std::map <IR::variable *, value_type *>   data_map;
+    std::map <IR::variable *, std::string > rodata_map;
+
+    ASMbuilder(std::vector <IR::initialization> &global_variable,
+               std::vector <IR::function   >    &global_function) {
+        for(auto &&__var : global_variable)
+            visitInit(&__var);
+        for(auto &&__func : global_function)
+            visitFunction(&__func);
+        
+        std::cout << "    .section .text\n";
+        for(auto &&__func : global_function) {
+            auto __p = &func_map.at(&__func);
+            __p->init_function();
+            std::cout << __p->data() << '\n';
+        }
+    
+        std::cout << '\n';
+        std::cout << "    .section .data\n";
+        for(auto &&__pair : data_map) {
+            std::cout << "    .globl " << __pair.first->name << '\n';
+            std::cout << __pair.first->name << ":\n";
+            std::cout << "    .word " << __pair.second->data() << '\n';
+        }
+
+        std::cout << '\n';
+        std::cout << "    .section .rodata\n";
+        for(auto &&__pair : rodata_map) {
+            std::cout << "    .globl " << __pair.first->name << '\n';
+            std::cout << __pair.first->name << ":\n";
+            std::cout << "    .asciz " << __pair.second << "\n";
+        }
+    }
 
     void visitBlock(IR::block_stmt*) override;
     void visitFunction(IR::function*) override;
@@ -42,10 +75,12 @@ struct ASMbuilder : IR::IRvisitorbase {
 
     block *get_block(IR::block_stmt *__block) {
         auto *__ans = &block_map[__block];
-        if(__ans->name.empty()) __ans->name = __block->label;
+        if(__ans->name.empty())
+            __ans->name = __block->label.substr(__block->label[0] == '%');
         return __ans;
     }
 
+    /* No renaming is done. */
     function *get_function(IR::function *__func) {
         auto *__ans = &func_map[__func];
         if(__ans->name.empty()) __ans->name = __func->name;
@@ -61,26 +96,40 @@ struct ASMbuilder : IR::IRvisitorbase {
             case '0':
                 return __zero__;
             case '@': /* Constant pointer is a symbol! */
-                return new symbol {
-                    std::string_view {__name.c_str() + 1, __name.size() - 1}
-                };
+                return new symbol {std::move(__name)};
+            case 'c': /* String literals. */
+                throw error("This shouldn't happen!");
         }
         return create_immediate(safe_cast <IR::integer_constant *> (__lit)->value);
     }
 
     value_type *get_variable(IR::variable *__var) {
         if(__var->name[0] == '@') {
-            return new symbol {
-                std::string_view {__var->name.c_str() + 1, __var->name.size() - 1}
-            };
+            return new symbol {__var->name};
+        } else {
+            auto __n = top_func->get_arg_index(__var);
+            if (__n == size_t(-1)) throw dark::error("Local variable cannot get directly!");
+            /* Function argument case. */
+            if (__n < 8) {
+                return physical_register::get_register(
+                    static_cast <register_type> (__n + 10)
+                );
+            } else {
+                auto *__reg = new virtual_register {top_asm->vir_size++};
+                top_block->emplace_new(new load_memory {
+                    load_memory::WORD,
+                    new stack_address { top_asm,__var },
+                    __reg
+                });
+                return __reg;
+            }
         }
-        throw dark::error("Local variable cannot get directly!");
     }
 
     /* Get the virtual register for the temporary. */
-    register_ *get_temporary(IR::temporary *__tmp) {
+    register_ *get_virtual(IR::temporary *__tmp) {
         auto [__iter,__flag] = temp_map.insert({__tmp, virtual_register {0}});
-        if(__flag) __iter->second.index = top_asm->virtual_size++;
+        if(__flag) __iter->second.index = top_asm->vir_size++;
         return &__iter->second;
     }
 
@@ -92,11 +141,11 @@ struct ASMbuilder : IR::IRvisitorbase {
      * If literal(except pointer literal), it will return an immediate/zero.
      * 
     */
-    value_type *get_definition(IR::definition *__def) {
+    value_type *get_value(IR::definition *__def) {
         if(auto __lit = dynamic_cast <IR::literal *> (__def))
             return get_literal(__lit);
         if(auto __tmp = dynamic_cast <IR::temporary *> (__def))
-            return get_temporary(__tmp);
+            return get_virtual(__tmp);
         if(auto __var = dynamic_cast <IR::variable *> (__def))
             return get_variable(__var);
         throw dark::error("Fxxk......this shouldn't happen!");
@@ -108,14 +157,14 @@ struct ASMbuilder : IR::IRvisitorbase {
         if(auto *__var = dynamic_cast <IR::variable *> (__tmp)) {
             if(__tmp->name[0] == '@') {
                 return new global_address {
-                    std::string_view {__tmp->name.c_str() + 1, __tmp->name.size() - 1}
+                    std::string_view {__tmp->name}
                 };
             } else {
                 return new stack_address { top_asm,__var };
             }
         } else { /* Temporary. */
             return new register_address {
-                get_temporary(safe_cast <IR::temporary *> (__tmp)),
+                get_virtual(safe_cast <IR::temporary *> (__tmp)),
                 create_immediate(0)
             };
         }
@@ -134,13 +183,13 @@ struct ASMbuilder : IR::IRvisitorbase {
         if(!__phi) return;
         for(auto [__val,__label] : __phi->cond) {
             if(__label != top_stmt) continue;
-                create_assign(get_temporary(__phi->dest), __val);
+                create_assign(get_virtual(__phi->dest), __val);
         }
     }
 
     /* Save a value into target register. */
     void create_assign(register_ *__reg,IR::definition *__def) {
-        auto *__val = get_definition(__def);
+        auto *__val = get_value(__def);
         if(auto *__sym = dynamic_cast <symbol *> (__val)) {
             top_block->emplace_new(
                 new load_symbol { __reg,__sym }
@@ -158,25 +207,24 @@ struct ASMbuilder : IR::IRvisitorbase {
 
     /* Load a value from target memory address. */
     void create_load(address_type *__add,IR::temporary *__def) {
-        auto *__dst  = get_temporary(__def);
-        auto *__load = new load_memory {
-            __def->get_value_type().size() == 1 ? load_memory::BYTE : load_memory::WORD,
-            __add,__dst
-        };
-        top_block->emplace_new(__load);
+        top_block->emplace_new(new load_memory {
+            __def->get_value_type().size() == 1 ? 
+                load_memory::BYTE : load_memory::WORD,
+            __add, get_virtual(__def)
+        });
     }
 
     /* Save a value into target memory address. */
     void create_store(address_type *__add,IR::definition *__def) {
-        auto *__val = get_definition(__def);
+        auto *__val = get_value(__def);
         register_ *__reg = nullptr;
         if (auto *__sym = dynamic_cast <symbol *> (__val)) {
-            __reg = new virtual_register {top_asm->virtual_size++};
+            __reg = new virtual_register {top_asm->vir_size++};
             top_block->emplace_new(
                 new load_symbol { __reg,__sym }
             );
         } else if(auto *__imm = dynamic_cast <immediate *> (__val)) {
-            __reg = new virtual_register {top_asm->virtual_size++};
+            __reg = new virtual_register {top_asm->vir_size++};
             top_block->emplace_new(
                 new load_immediate { __reg,__imm }
             );

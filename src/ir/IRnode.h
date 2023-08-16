@@ -244,6 +244,14 @@ struct function {
         return __temp;
     }
 
+    /* Return the index of the argument. */
+    size_t get_arg_index(variable *__var) const {
+        for(size_t i = 0 ; i != args.size() ; ++i)
+            if(args[i] == __var) return i;
+        return -1;
+    }
+
+
     /* Create a temporary with given name (no suffix) and return pointer to __temp. */
     temporary *create_temporary_no_suffix(wrapper __type,const std::string &__name) {
         auto *__temp = temp.emplace_back(new temporary);

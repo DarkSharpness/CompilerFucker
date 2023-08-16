@@ -154,7 +154,8 @@ struct class_type : typeinfo {
             __view.push_back(__p.name());
             __view.push_back(", ");
         }
-        __view.back() = " }";
+        if(layout.size()) __view.back() = " }";
+        else              __view.push_back("}");
         return string_join_array(__view.begin(),__view.end());
     }
 
@@ -211,6 +212,10 @@ struct variable : non_literal {
     ~variable() override = default;
 };
 
+struct function_argument : variable {
+    ~function_argument() override = default;
+};
+
 /* Temporaries! */
 struct temporary : non_literal {
     ~temporary() override = default;
@@ -237,6 +242,20 @@ struct string_constant : literal {
         }
         return __ans += "\\00\"";
     }
+
+    std::string ASMdata() const {
+        std::string __ans = "\"";
+        for(char __p : context) {
+            switch(__p) {
+                case '\n': __ans += "\\n"; break;
+                case '\"': __ans += "\\\""; break;
+                case '\\': __ans += "\\\\"; break;
+                default: __ans.push_back(__p);
+            }
+        }
+        return __ans += "\"";
+    }
+
     ~string_constant() override = default;
 };
 

@@ -81,8 +81,8 @@ struct register_ : value_type {};
 /* Symbol of a global variable. */
 struct symbol    : value_type {
     std::string name;
-    explicit symbol(std::string_view __name) : name(__name) {}
-    std::string data() const override final { return name; }
+    explicit symbol(std::string __name) : name(std::move(__name)) {}
+    std::string data() const override { return name; }
     ~symbol() override = default;
 };
 
