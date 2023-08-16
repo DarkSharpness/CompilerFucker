@@ -21,6 +21,8 @@ struct ASTvisitor : ASTvisitorbase {
     std::map <function * ,typeinfo> function_map;
     /* From a node to a literal constant. */
     std::map <node *,literal_constant *> constant_map;
+    /* From a node to a new node. */
+    std::map <node *,node *> node_map;
 
 
     function_def *global_init; /* This is the special global init function. */
@@ -196,6 +198,15 @@ struct ASTvisitor : ASTvisitorbase {
         std::is_base_of_v <node,T> && std::is_base_of_v <T,literal_constant>,
         literal_constant *
     > {
+        {
+            auto __iter = node_map.find(ctx);
+            if (__iter != node_map.end()) {
+                delete ctx;
+                ctx = safe_cast <T *> (__iter->second);
+                node_map.erase(__iter);
+                return nullptr;
+            }
+        }
         auto __iter = constant_map.find(ctx);
         if(__iter == constant_map.end()) return nullptr;
         auto *__ptr = __iter->second;

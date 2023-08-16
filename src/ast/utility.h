@@ -97,8 +97,7 @@ struct error {
     }
 };
 
-
-inline auto runtime_assert(std::string __str) = delete;
+inline auto runtime_assert(std::string __str) { throw error(std::move(__str)); }
 template <class ...T>
 inline auto runtime_assert(std::string __str,T ...__cond)
 -> std::enable_if_t <(std::is_same_v <T,bool> && ...),void>

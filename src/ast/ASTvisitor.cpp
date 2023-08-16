@@ -94,10 +94,11 @@ void ASTvisitor::visitBracketExpr(bracket_expr *ctx) {
     ctx->expr->flag = ctx->flag;
 
     visit(ctx->expr);
-    if(auto *__constant = update_constant(ctx->expr))
-        constant_map[ctx] = __constant;
-
     static_cast <wrapper &> (*ctx) = *ctx->expr;
+    if(auto *__constant = update_constant(ctx->expr)) {
+        constant_map[ctx] = __constant;
+        ctx->expr = nullptr;
+    }
 }
 
 
@@ -191,12 +192,13 @@ void ASTvisitor::visitUnaryExpr(unary_expr *ctx) {
                 + "\".",ctx
             );
         }
-        
+
         /* Of course not assignable. */
         static_cast <wrapper &> (*ctx) = *ctx->expr;
         ctx->flag = false;
 
         if(auto *__constant = update_constant(ctx->expr)) {
+            ctx->expr = nullptr;
             constant_map[ctx] = __constant;
             switch(ctx->op[0]) {
                 case '+': break;
@@ -353,6 +355,36 @@ void ASTvisitor::visitBinaryExpr(binary_expr *ctx) {
     if(__constlhs && __constrhs) {
         constant_map[ctx] = constant_work(__constlhs,__constrhs,ctx);
         delete __constlhs , delete __constrhs;
+    } else if(__constlhs) {
+        if(ctx->op == "&&") {
+            if(__constlhs->type == __constlhs->TRUE) {
+                node_map[ctx] = ctx->rval;
+                ctx->rval     = nullptr;
+            } else {
+                constant_map[ctx] = __constlhs;
+                ctx->lval         = nullptr;
+            }
+        } else if (ctx->op == "||") {
+            if(__constlhs->type == __constlhs->TRUE) {
+                constant_map[ctx] = __constlhs;
+                ctx->lval         = nullptr;
+            } else {
+                node_map[ctx] = ctx->rval;
+                ctx->rval     = nullptr;
+            }
+        }
+    } else if(__constrhs) {
+        if(ctx->op == "&&") {
+            if(__constrhs->type == __constrhs->TRUE) {
+                node_map[ctx] = ctx->lval;
+                ctx->lval     = nullptr;
+            }
+        } else if (ctx->op == "||") {
+            if(__constrhs->type == __constrhs->FALSE) {
+                node_map[ctx] = ctx->lval;
+                ctx->lval     = nullptr;
+            }
+        }
     }
 }
 

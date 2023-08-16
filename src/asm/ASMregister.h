@@ -4,6 +4,7 @@
 #include "IRnode.h"
 
 #include <string>
+#include <set>
 
 namespace dark::ASM {
 
@@ -48,6 +49,7 @@ enum class register_type : unsigned char {
 };
 
 
+/* Immediate or symbol or registers. */
 struct value_type {
     virtual std::string data() const = 0;
     virtual ~value_type() = default;
@@ -59,9 +61,13 @@ struct value_type {
  * 
  */
 struct immediate : value_type {
-    int value;
+    const int value;
     explicit immediate(int __v) : value(__v) {}
     std::string data() const override final { return std::to_string(value); }
+
+    friend bool operator < (const immediate &__a, const immediate &__b)
+    { return __a.value < __b.value; }
+
     ~immediate() override = default;
 };
 
@@ -164,6 +170,11 @@ inline bool is_low_immediate(int __v) {
     return __v >= -2048 && __v <= 2047;
 }
 
+
+inline immediate *create_immediate(int __v) {
+    static std::set <immediate> cache;
+    return const_cast <immediate *> (&*cache.emplace(__v).first);
+}
 
 
 

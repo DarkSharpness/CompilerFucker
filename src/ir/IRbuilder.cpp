@@ -201,9 +201,14 @@ void IRbuilder::visitBinaryExpr(AST::binary_expr *ctx) {
             default : throw error("Unknown operator!");
         }
         visit(ctx->lval);
+        if(dynamic_cast <literal *> (result)) {
+
+        }
         __bin->lvar = result;
         visit(ctx->rval);
         __bin->rvar = result;
+
+
         __bin->dest = top->create_temporary(
             {&__integer_class__,0},
             string_join(binary_stmt::str[__bin->op],'.')

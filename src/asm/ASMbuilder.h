@@ -19,7 +19,7 @@ struct ASMbuilder : IR::IRvisitorbase {
     std::map <IR::block_stmt *,   block > block_map;
     std::map <IR::temporary  *, virtual_register> temp_map;
 
-    inline static immediate     __bool_true__ = immediate(0xff);
+    inline static immediate    *__bool_true__ = create_immediate(0x01);
     inline static physical_register *__zero__ = physical_register::get_register(register_type::zero);
 
 
@@ -55,17 +55,17 @@ struct ASMbuilder : IR::IRvisitorbase {
     value_type *get_literal(IR::literal *__lit) {
         auto __name = __lit->data();
         switch(__name[0]) {
-            case 't': return &__bool_true__;
+            case 't': return __bool_true__;
             case 'f':
             case 'n':
             case '0':
                 return __zero__;
-            case '@': /* Constant pointer. */
+            case '@': /* Constant pointer is a symbol! */
                 return new symbol {
                     std::string_view {__name.c_str() + 1, __name.size() - 1}
                 };
         }
-        return new immediate {safe_cast <IR::integer_constant *> (__lit)->value};
+        return create_immediate(safe_cast <IR::integer_constant *> (__lit)->value);
     }
 
     value_type *get_variable(IR::variable *__var) {
@@ -73,9 +73,8 @@ struct ASMbuilder : IR::IRvisitorbase {
             return new symbol {
                 std::string_view {__var->name.c_str() + 1, __var->name.size() - 1}
             };
-        } else {
-            runtime_assert("Local variable cannot get directly!",false);
         }
+        throw dark::error("Local variable cannot get directly!");
     }
 
     /* Get the virtual register for the temporary. */
@@ -100,7 +99,7 @@ struct ASMbuilder : IR::IRvisitorbase {
             return get_temporary(__tmp);
         if(auto __var = dynamic_cast <IR::variable *> (__def))
             return get_variable(__var);
-        runtime_assert("Fxxk......this shouldn't happen!",false);
+        throw dark::error("Fxxk......this shouldn't happen!");
     }
 
     /* Load store only. */
@@ -117,7 +116,7 @@ struct ASMbuilder : IR::IRvisitorbase {
         } else { /* Temporary. */
             return new register_address {
                 get_temporary(safe_cast <IR::temporary *> (__tmp)),
-                new immediate {0}
+                create_immediate(0)
             };
         }
     }
@@ -126,7 +125,7 @@ struct ASMbuilder : IR::IRvisitorbase {
     address_type *get_stack_arg(size_t __bias) {
         return new register_address {
             physical_register::get_register(register_type::sp),
-            new immediate {__bias * 4}
+            create_immediate (__bias * 4)
         };
     }
 
@@ -186,7 +185,8 @@ struct ASMbuilder : IR::IRvisitorbase {
         }
 
         auto *__store = new store_memory {
-            store_memory::WORD , __reg , __add
+            __def->get_value_type().size() == 1 ? store_memory::BYTE : store_memory::WORD,
+            __reg , __add
         };
         top_block->emplace_new(__store);
     }

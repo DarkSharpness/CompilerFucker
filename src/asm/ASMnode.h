@@ -21,7 +21,7 @@ struct address_type {
 
 struct label_type {
     std::string name;
-    std::string label() const { 'L' + name; }
+    std::string label() const { return 'L' + name; }
 };
 
 struct block : label_type {

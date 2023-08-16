@@ -17,7 +17,9 @@ void ASMbuilder::visitFunction(IR::function *ctx) {
     for(auto __p : ctx->stmt) visitBlock(__p);
 }
 
+/* Visit the initialization. */
 void ASMbuilder::visitInit(IR::initialization *ctx) {
+    runtime_assert("Not implemented yet.");
 }
 
 void ASMbuilder::visitCompare(IR::compare_stmt *ctx) {
@@ -26,8 +28,12 @@ void ASMbuilder::visitCompare(IR::compare_stmt *ctx) {
 
 
 void ASMbuilder::visitBinary(IR::binary_stmt *ctx) {
-    
-
+    top_block->emplace_new(new arith_expr {
+        static_cast <decltype(arith_expr::ADD)> (ctx->op),
+        get_definition(ctx->lvar),
+        get_definition(ctx->rvar),
+        get_temporary(ctx->dest)
+    });
 }
 
 
@@ -105,7 +111,7 @@ void ASMbuilder::visitGet(IR::get_stmt *ctx) {
             top_block->emplace_new(__get);
         } else { /* size == 4 */
             auto *__sll = new arith_expr {
-                arith_expr::SLL,__ind,new immediate {2},__tmp
+                arith_expr::SLL,__ind,create_immediate(2),__tmp
             };
             top_block->emplace_new(__sll);
             auto *__get = new arith_expr {
@@ -122,7 +128,7 @@ void ASMbuilder::visitGet(IR::get_stmt *ctx) {
     }
 
     auto *__get = new arith_expr {
-        arith_expr::ADD,__var,new immediate {__n},__tmp
+        arith_expr::ADD,__var,create_immediate(__n),__tmp
     };
     top_block->emplace_new(__get);
 
@@ -140,6 +146,7 @@ void ASMbuilder::visitReturn(IR::return_stmt *ctx) {
 void ASMbuilder::visitUnreachable(IR::unreachable_stmt *ctx) {
     top_block->emplace_new(new return_expr {top_asm});
 }
+
 
 
 
