@@ -9,11 +9,11 @@ namespace dark::IR {
 struct IRbuilder : AST::ASTvisitorbase {
     /* Global null constant shared by all members. */
     inline static auto *__null__ = new pointer_constant {nullptr};
-    inline static auto *__neg1__ = new integer_constant {-1};   /* Literal -1.  */
-    inline static auto *__zero__ = new integer_constant {0};    /* Literal 0.   */
-    inline static auto *__one1__ = new integer_constant {1};    /* Literal 1.   */
-    inline static auto *__true__ = new boolean_constant {true}; /* Literal true. */
-    inline static auto *__false__= new boolean_constant {false};/* Literal false. */
+    inline static auto *__neg1__ = create_integer(-1);   /* Literal -1.  */
+    inline static auto *__zero__ = create_integer(0);    /* Literal 0.   */
+    inline static auto *__one1__ = create_integer(1);    /* Literal 1.   */
+    inline static auto *__true__ = create_boolean(true) ; /* Literal true. */
+    inline static auto *__false__= create_boolean(false);/* Literal false. */
 
     struct flow_type {
         block_stmt *bk; /* Break. */
@@ -27,6 +27,7 @@ struct IRbuilder : AST::ASTvisitorbase {
     std::map <std::string      ,IR::typeinfo *>    class_map;
     std::map <AST::identifier *,IR::function *> function_map;
     std::map <AST::identifier *,IR::variable *> variable_map;
+    std::map <IR::variable    *,std::string   >   string_map;
 
     std::vector <initialization> global_variable;
     std::vector <  function   >  global_function;
@@ -205,7 +206,8 @@ struct IRbuilder : AST::ASTvisitorbase {
         __var->name = "@str." + std::to_string(__cnt++);
         __var->type = {class_map["string"],1};
 
-        __iter->second = __var;
+        __iter->second    = __var;
+        string_map[__var] = __name;
         global_variable.push_back({__var,__str});
         return __var;
     }

@@ -2,7 +2,7 @@
 
 #include "utility.h"
 #include <string>
-#include <vector>
+#include <set>
 
 namespace dark::IR {
 
@@ -252,7 +252,7 @@ struct pointer_constant : literal {
 
 
 struct integer_constant : literal {
-    int value;
+    const int value;
     /* Must initialize with a value. */
     explicit integer_constant(int __v) : value(__v) {}
     std::string  type_data() const override { return "global i32"; }
@@ -262,8 +262,9 @@ struct integer_constant : literal {
 };
 
 
+
 struct boolean_constant : literal {
-    bool value;
+    const bool value;
     explicit boolean_constant(bool __v) : value(__v) {}
     std::string  type_data() const override { return "global i1"; }
     wrapper get_value_type() const override { return {&__boolean_class__,0}; }
@@ -271,6 +272,21 @@ struct boolean_constant : literal {
     ~boolean_constant() override = default;
 };
 
+inline bool operator < (const integer_constant &lhs,
+                        const integer_constant &rhs) {
+    return lhs.value < rhs.value;
+}
+
+
+inline integer_constant *create_integer(int __n) {
+    static std::set <integer_constant> __pool;
+    return const_cast <integer_constant *> (&*__pool.emplace(__n).first);
+}
+
+inline boolean_constant *create_boolean(bool __n) {
+    static boolean_constant __pool[2] = {boolean_constant {false},boolean_constant {true}};
+    return __pool + __n;
+}
 
 
 }

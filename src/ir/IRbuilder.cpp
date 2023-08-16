@@ -1,5 +1,5 @@
 #include "IRbuilder.h"
-
+#include "IRconst.h"
 
 namespace dark::IR {
 
@@ -88,7 +88,10 @@ void IRbuilder::visitUnaryExpr(AST::unary_expr *ctx) {
         /* If op[2](suffix case), take loaded value. Else take operated value.  */
         if(!ctx->assignable()) result = ctx->op[2] ? __tmp : __bin->dest;
     } else {
+        auto *__tmp = dynamic_cast <literal *> (result);
+        if((__tmp = const_folder(ctx->op)(__tmp))) return void(result = __tmp); 
         if(ctx->op[0] == '+') return;
+
         auto *__bin = new binary_stmt;
         __bin->op   = ctx->op[0] == '-' ? binary_stmt::SUB : binary_stmt::XOR;
         __bin->dest = top->create_temporary(
@@ -145,7 +148,7 @@ void IRbuilder::visitConstructExpr(AST::construct_expr *ctx) {
         {
             auto *__call = new call_stmt;
             __call->func = get_new_object();
-            __call->args = { new integer_constant {(int) (--__type).size()} };
+            __call->args = { create_integer ((int) (--__type).size()) };
             __call->dest = top->create_temporary(__type,"new.");
             top->emplace_new(__call);
             result = __call->dest;
@@ -201,13 +204,13 @@ void IRbuilder::visitBinaryExpr(AST::binary_expr *ctx) {
             default : throw error("Unknown operator!");
         }
         visit(ctx->lval);
-        if(dynamic_cast <literal *> (result)) {
-
-        }
         __bin->lvar = result;
         visit(ctx->rval);
         __bin->rvar = result;
 
+        auto *__lhs = dynamic_cast <integer_constant *> (__bin->lvar);
+        auto *__rhs = dynamic_cast <integer_constant *> (__bin->rvar);
+        if((result = const_folder(__bin->op)(__lhs,__rhs))) { delete __bin; return; }
 
         __bin->dest = top->create_temporary(
             {&__integer_class__,0},
@@ -220,7 +223,7 @@ void IRbuilder::visitBinaryExpr(AST::binary_expr *ctx) {
         return;
     }
 
-    /* Noraml logical case. */
+    /* Noraml logical comparasion case. */
     if(ctx->op[0] != '&' && ctx->op[0] != '|') {
         auto *__cmp = new compare_stmt;
         __cmp->op = 
@@ -235,18 +238,26 @@ void IRbuilder::visitBinaryExpr(AST::binary_expr *ctx) {
         __cmp->lvar = result;
         visit(ctx->rval);
         __cmp->rvar = result;
-        __cmp->dest = top->create_temporary({&__boolean_class__,0},"cmp.");
 
+        auto *__lhs = dynamic_cast <boolean_constant *> (__cmp->lvar);
+        auto *__rhs = dynamic_cast <boolean_constant *> (__cmp->rvar);
+        if((result = const_folder(__cmp->op)(__lhs,__rhs))) { delete __cmp; return; }
+    
+        __cmp->dest = top->create_temporary({&__boolean_class__,0},"cmp.");
         top->emplace_new(__cmp);
         result = __cmp->dest;
         return;
     }
 
     /* Short-circuit logic case. */
-    std::string __name = top->create_label("logic");
-    bool __is_or = ctx->op[0] == '|';
+    bool __is_or = bool(ctx->op[0] == '|');
 
     visit(ctx->lval);
+    auto *__lhs = dynamic_cast <boolean_constant *> (result);
+    if(__lhs) return (__is_or == __lhs->value) ?
+        void() : visit(ctx->rval);
+
+    std::string __name = top->create_label("logic");
     auto *__br  = new branch_stmt;
     auto *__end = new block_stmt;
     auto *__new = new block_stmt;
@@ -365,7 +376,7 @@ void IRbuilder::visitAtomExpr(AST::atom_expr *ctx) {
 void IRbuilder::visitLiteralConstant(AST::literal_constant *ctx) {
     switch(ctx->type) {
         case AST::literal_constant::NUMBER:
-            result = new integer_constant{std::stoi(ctx->name)};
+            result = create_integer(std::stoi(ctx->name));
             break;
         case AST::literal_constant::CSTRING:
             result = create_string(ctx->name);
@@ -690,9 +701,9 @@ void IRbuilder::visitGlobalVariable(AST::variable *ctx,AST::literal_constant *li
     literal *__lit; /* Literal constant. */
     auto __type = (--__var->type).name();
     if(__type == "i1") {
-        __lit = new boolean_constant { lit && lit->name[0] == 't'};
+        __lit = create_boolean (lit && lit->name[0] == 't');
     } else if(__type == "i32") {
-        __lit = lit ? new integer_constant {std::stoi(lit->name)} : __zero__;
+        __lit = lit ? create_integer (std::stoi(lit->name)) : __zero__;
     } else if(!lit || lit->type == lit->NULL_) {
         __lit = __null__;
     } else {
@@ -894,8 +905,7 @@ void IRbuilder::visitStringBinary(AST::binary_expr *ctx) {
     if(ctx->op == "+") {
         __call->func = get_string_add();
     } else {
-        decltype(compare_stmt::op)
-        __op = 
+        decltype (compare_stmt::op) __op =
             ctx->op == "==" ? compare_stmt::EQ :
             ctx->op == "!=" ? compare_stmt::NE :
             ctx->op == ">"  ? compare_stmt::GT :
