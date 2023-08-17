@@ -32,11 +32,11 @@ struct move_expr;
 struct jump_expr;
 struct return_expr;
 
+struct register_address;
+
 
 struct ASMvisitorbase {
-
     void visit(node *__n) { __n->accept(this); }
-
     virtual void visitArithExpr(arith_expr *) = 0;
     virtual void visitBranchExpr(branch_expr *) = 0;
     virtual void visitSltExpr(slt_expr *) = 0;
@@ -55,6 +55,15 @@ struct ASMvisitorbase {
     virtual ~ASMvisitorbase() = default;
 };
 
+
+struct register_allocator {
+    /* Return the relative position. */
+    virtual size_t allocate(virtual_register *__reg) = 0;
+    /* Retrieve one register. */
+    virtual void deallocate(virtual_register *__reg) = 0;
+    virtual size_t max_size() = 0;
+    virtual ~register_allocator() = default;
+};
 
 
 /* Address type. */
@@ -92,12 +101,12 @@ struct block {
 
 struct function {
     std::string name; /* Name of the function. */
-    ssize_t max_arg_size = -1;   /* Max argument count of functions called. */
-    size_t  vir_size     = 0;    /* Count of virtual variables(Meaningless counter.). */
+    ssize_t max_arg_size = -1;  /* Max argument count of functions called. */
+    size_t  vir_size     = 0;   /* Count of virtual variables (Meaningless counter.). */
+    size_t  var_size     = 0;   /* Count of all variables. */
+    size_t  stk_size     = 0;   /* Count of stack variables. */
 
-    size_t  arg_size     = 0;    /* Count of arguments in stack.(ra included.) */
-    size_t  var_size     = 0;    /* Count of all variables. */
-    size_t  stk_size     = 0;    /* Count of stack variables. */
+    register_allocator *__alloc = nullptr;
 
     /* Mapping of an IR::variable to its address in stack. */
     std::map <IR::variable *,ssize_t> var_map;
@@ -115,6 +124,11 @@ struct function {
         max_arg_size = std::max(max_arg_size,(ssize_t)__func->args.size());
     }
 
+    /* Whether calling other functions. */
+    bool is_calling() const { return max_arg_size != size_t(-1); }
+    /* Max stack space reserved for arguments. */
+    size_t arg_size() const { return (ssize_t)max_arg_size > 8 ? max_arg_size - 8 : 0; }
+
     /* Emplace a new node. */
     void emplace_new(block *__b) { stmt.emplace_back(__b); }
 
@@ -122,23 +136,27 @@ struct function {
     void emplace_var(IR::variable *__var)
     { var_map.emplace(__var,(ssize_t) (var_size++)); }
 
+    /* Calculate the stack space. */
     void init_function() {
-        arg_size = (ssize_t)max_arg_size > 8 ? max_arg_size - 8 : 0;
-        if(max_arg_size != size_t(-1)) ++arg_size;
-        stk_size = (vir_size + arg_size + var_size) * 4;
-        /* Aligned to 16. */
-        if(stk_size % 16 != 0)
-            stk_size = (stk_size / 16) * 16 + 16;
+        stk_size = (
+            arg_size() +            /* Function arguments for function called. */
+            __alloc->max_size() +   /* Temporay values.  */
+            var_size +              /* Local variables */
+            is_calling()            /* Return address. */
+        ) * 4;
+
+        /* Aligned to 16 byte. */
+        if(stk_size % 16 != 0) stk_size = (stk_size / 16) * 16 + 16;
     }
+
+    /* Allocate a space for virtual register. */
+    register_address *allocate(virtual_register *__reg);
+    void deallocate(virtual_register *__reg);
+
 
     /* Local variable. */
     size_t get_variable_offset(IR::variable *__var) const {
-        return stk_size - (var_map.at(__var) + 1) * 4; 
-    }
-
-    /* Temporaries. */
-    size_t get_temporary_offset(size_t __n) const {
-        return (arg_size + __n) * 4;
+        return stk_size - (var_map.at(__var) + 1 + is_calling()) * 4; 
     }
 
     std::string data() const {
@@ -148,15 +166,14 @@ struct function {
             "    .globl ", name,'\n',
             name,":\n" 
         ));
+
+        if(is_calling()) {
+            buf.push_back("sw ra, -4(sp)\n    ");
+        }
         if(stk_size)
             buf.push_back(string_join(
                 "    addi sp, sp, -", std::to_string(stk_size),'\n'
             ));
-        if(max_arg_size != size_t(-1)) {
-            buf.push_back(string_join(
-                "    sw ra, ", std::to_string((arg_size - 1) * 4),"(sp)\n"
-            ));
-        }
 
         for(auto __p : stmt)
             buf.push_back(__p->data());
@@ -481,18 +498,14 @@ struct return_expr : node {
 
     std::string data() const override {
         std::vector <std::string> buf;
-        if(func->max_arg_size != size_t(-1))
-            buf.push_back(
-                string_join(
-                    "lw ra, ", std::to_string((func->arg_size - 1) * 4),"(sp)\n    "
-                )
-            );
         if(func->stk_size)
             buf.push_back(
                 string_join(
                     "addi sp, sp, ", std::to_string(func->stk_size),"\n    "
                 )
             );
+        if(func->is_calling())
+            buf.push_back("lw ra, -4(sp)\n    ");
         buf.push_back("ret");
         return string_join_array(buf.begin(), buf.end());
     }
@@ -577,6 +590,19 @@ struct global_information {
         }
     }
 } ;
+
+
+inline register_address *function::allocate(virtual_register *__reg)  {
+    size_t __n = __alloc->allocate(__reg);
+    return new register_address {
+        get_register(register_type::sp),
+        create_immediate((arg_size() + __n) * 4)
+    };
+}
+
+inline void function::deallocate(virtual_register *__reg) {
+    __alloc->deallocate(__reg);
+}
 
 
 

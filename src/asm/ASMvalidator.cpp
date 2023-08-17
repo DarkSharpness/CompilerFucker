@@ -17,6 +17,7 @@ void ASMvalidator::visitBlock(block *ctx) {
     block_list.push_back(ctx);
 }
 
+/* Todo: optimize all useless arith_expr out. */
 void ASMvalidator::visitArithExpr(arith_expr *ctx) {
     auto __limm = dynamic_cast <immediate *> (ctx->lval);
     auto __rimm = dynamic_cast <immediate *> (ctx->rval);

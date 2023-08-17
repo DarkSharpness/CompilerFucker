@@ -137,10 +137,12 @@ struct class_type : typeinfo {
             if(member[i] == __view) return i;
         throw dark::error("This should never happen! No such Member!");
     }
+
+    /* Now it is 4-byte aligned. */
     size_t size() const override {
-        size_t __n = 0;
-        for(auto &&__p : layout) __n += __p.size();
-        return __n;
+        // size_t __n = 0;
+        // for(auto &&__p : layout) __n += __p.size();
+        return layout.size() * MxPTRSIZE;
     }
 
     /* Specially arranged. */
