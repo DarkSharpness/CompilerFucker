@@ -10,10 +10,51 @@
 
 namespace dark::ASM {
 
+struct ASMvisitorbase;
+
 struct node {
     virtual std::string data() const = 0;
+    virtual void accept(struct ASMvisitorbase* __v) = 0;
     virtual ~node() = default;
 };
+struct arith_expr;
+struct branch_expr;
+struct slt_expr;
+struct eq_expr;
+struct not_expr;
+struct bool_expr;
+struct load_memory;
+struct store_memory;
+struct load_symbol;
+struct load_immediate;
+struct call_expr;
+struct move_expr;
+struct jump_expr;
+struct return_expr;
+
+
+struct ASMvisitorbase {
+
+    void visit(node *__n) { __n->accept(this); }
+
+    virtual void visitArithExpr(arith_expr *) = 0;
+    virtual void visitBranchExpr(branch_expr *) = 0;
+    virtual void visitSltExpr(slt_expr *) = 0;
+    virtual void visitEqExpr(eq_expr *) = 0;
+    virtual void visitNotExpr(not_expr *) = 0;
+    virtual void visitBoolExpr(bool_expr *) = 0;
+    virtual void visitLoadMemory(load_memory *) = 0;
+    virtual void visitStoreMemory(store_memory *) = 0;
+    virtual void visitLoadSymbol(load_symbol *) = 0;
+    virtual void visitLoadImmediate(load_immediate *) = 0;
+    virtual void visitCallExpr(call_expr *) = 0;
+    virtual void visitMoveExpr(move_expr *) = 0;
+    virtual void visitJumpExpr(jump_expr *) = 0;
+    virtual void visitReturnExpr(return_expr *) = 0;
+
+    virtual ~ASMvisitorbase() = default;
+};
+
 
 
 /* Address type. */
@@ -24,7 +65,11 @@ struct address_type {
 
 
 struct block {
+    inline static size_t label_count = 0;
     std::string name;
+    explicit block (std::string __str) :
+        name(std::to_string(label_count++) + '.' + __str) {}
+
     std::string label() const { return ".L." + name; }
     std::vector <node  *> expr;
 
@@ -46,12 +91,15 @@ struct block {
 
 
 struct function {
-    std::string     name;
-    size_t max_arg_size = -1;   /* Max argument count of functions called. */
-    size_t vir_size     = 0;    /* Count of virtual variables. */
-    size_t stk_size     = 0;    /* Count of stack variables. */
-    size_t var_size     = 0;    /* Count of all variables. */
+    std::string name; /* Name of the function. */
+    ssize_t max_arg_size = -1;   /* Max argument count of functions called. */
+    size_t  vir_size     = 0;    /* Count of virtual variables(Meaningless counter.). */
 
+    size_t  arg_size     = 0;    /* Count of arguments in stack.(ra included.) */
+    size_t  var_size     = 0;    /* Count of all variables. */
+    size_t  stk_size     = 0;    /* Count of stack variables. */
+
+    /* Mapping of an IR::variable to its address in stack. */
     std::map <IR::variable *,ssize_t> var_map;
     std::vector <block *> stmt;
 
@@ -64,7 +112,7 @@ struct function {
 
     /* Update max function size. */
     void update_size(IR::function *__func) {
-        max_arg_size = std::max(max_arg_size, __func->args.size());
+        max_arg_size = std::max(max_arg_size,(ssize_t)__func->args.size());
     }
 
     /* Emplace a new node. */
@@ -75,25 +123,27 @@ struct function {
     { var_map.emplace(__var,(ssize_t) (var_size++)); }
 
     void init_function() {
-        size_t __cnt = (ssize_t)max_arg_size > 9 ? max_arg_size - 9 : 0;
-        stk_size = (vir_size + __cnt + var_size) * 4;
+        arg_size = (ssize_t)max_arg_size > 8 ? max_arg_size - 8 : 0;
+        if(max_arg_size != size_t(-1)) ++arg_size;
+        stk_size = (vir_size + arg_size + var_size) * 4;
         /* Aligned to 16. */
         if(stk_size % 16 != 0)
             stk_size = (stk_size / 16) * 16 + 16;
     }
 
+    /* Local variable. */
     size_t get_variable_offset(IR::variable *__var) const {
         return stk_size - (var_map.at(__var) + 1) * 4; 
     }
 
+    /* Temporaries. */
     size_t get_temporary_offset(size_t __n) const {
-        size_t __cnt = max_arg_size > 9 ? max_arg_size - 9 : 0;
-        return (__cnt + __n) * 4;
+        return (arg_size + __n) * 4;
     }
 
     std::string data() const {
         std::vector <std::string> buf;
-        buf.reserve(stmt.size() + 3);
+        buf.reserve(stmt.size() + 5);
         buf.push_back(string_join(
             "    .globl ", name,'\n',
             name,":\n" 
@@ -102,12 +152,18 @@ struct function {
             buf.push_back(string_join(
                 "    addi sp, sp, -", std::to_string(stk_size),'\n'
             ));
+        if(max_arg_size != size_t(-1)) {
+            buf.push_back(string_join(
+                "    sw ra, ", std::to_string((arg_size - 1) * 4),"(sp)\n"
+            ));
+        }
+
         for(auto __p : stmt)
             buf.push_back(__p->data());
+
         return string_join_array(buf.begin(), buf.end());
     }
 };
-
 
 
 struct arith_expr : node {
@@ -138,8 +194,8 @@ struct arith_expr : node {
     };
 
     value_type  *lval; /* Left  value. */
-    value_type *rval; /* Right value. */
-    register_  *dest; /* Result register. */
+    value_type  *rval; /* Right value. */
+    register_   *dest; /* Result register. */
 
     explicit arith_expr(decltype (op)    __op,
                         value_type      *__lval,
@@ -153,6 +209,8 @@ struct arith_expr : node {
         || dynamic_cast <immediate *> (rval)) buf += "i";
         return string_join(buf,' ',dest->data(),", ", lval->data(),", ", rval->data());
     }
+
+    void accept(ASMvisitorbase *__v) override { __v->visitArithExpr(this); }
 
     ~arith_expr() override = default;
 };
@@ -188,6 +246,8 @@ struct branch_expr : node {
         return string_join(str[op],' ', lval->data(),", ", rval->data(),", ", dest->label());
     }
 
+    void accept(ASMvisitorbase *__v) override { __v->visitBranchExpr(this); }
+
     ~branch_expr() override = default;
 };
 
@@ -208,6 +268,8 @@ struct slt_expr : node {
         return string_join(buf,' ', dest->data(),", ", lval->data(),", ", rval->data());
     }
 
+    void accept(ASMvisitorbase *__v) override { __v->visitSltExpr(this); }
+
     ~slt_expr() override = default;
 };
 
@@ -221,8 +283,10 @@ struct eq_expr : node {
         noexcept : rval(__rval), dest(__dest) {}
     
     std::string data() const override {
-        return string_join("seqz ", dest->data(),", ", rval->data());
+        return string_join("sltu ", dest->data()," zero, ", rval->data());
     }
+
+    void accept(ASMvisitorbase *__v) override { __v->visitEqExpr(this); }
 
     ~eq_expr() override = default;
 };
@@ -240,8 +304,10 @@ struct not_expr : node {
         noexcept : rval(__rval), dest(__dest) {}
 
     std::string data() const override {
-        return string_join("sltu ", dest->data()," zero, ", rval->data());
+        return string_join("seqz ", dest->data(),", ", rval->data());
     }
+
+    void accept(ASMvisitorbase *__v) override { __v->visitNotExpr(this); }
 
     ~not_expr() override = default;
 };
@@ -259,9 +325,10 @@ struct bool_expr   : node {
         return string_join("bnez ", cond->data(),", ",dest->label());
     }
 
+    void accept(ASMvisitorbase *__v) override { __v->visitBoolExpr(this); }
+
     ~bool_expr() override = default;
 };
-
 
 
 struct load_memory : node {
@@ -289,9 +356,10 @@ struct load_memory : node {
         return string_join(str[op], ' ', dest->data(),", ", addr->data());
     }
 
+    void accept(ASMvisitorbase *__v) override { __v->visitLoadMemory(this); }
+
     ~load_memory() override = default;
 };
-
 
 
 struct store_memory : node {
@@ -307,17 +375,22 @@ struct store_memory : node {
         [WORD] = {'s','w'},
     };
 
-    register_     *from;  /* Source register. */
+    register_     *from;  /* Source register.  */
     address_type  *addr;  /* Address register. */
+    register_     *temp;  /* Temporary register. */
 
     explicit store_memory(decltype (op) __op,
                           register_    *__src,
                           address_type *__addr)
-        : op(__op), from(__src), addr(__addr) {}
+        : op(__op), from(__src), addr(__addr),temp(nullptr) {}
 
     std::string data() const override {
-        return string_join(str[op],' ',from->data(),", ",addr->data());
+        std::string __suffix;
+        if(temp) __suffix = ", " + temp->data();
+        return string_join(str[op],' ',from->data(),", ",addr->data(),__suffix);
     }
+
+    void accept(ASMvisitorbase *__v) override { __v->visitStoreMemory(this); }
 
     ~store_memory() override = default;
 };
@@ -334,8 +407,11 @@ struct load_symbol : node {
         return string_join("la ", dst->data(),", ", sym->data());
     }
 
+    void accept(ASMvisitorbase *__v) override { __v->visitLoadSymbol(this); }
+
     ~load_symbol() override = default;
 };
+
 
 /* Load an immediate number. */
 struct load_immediate : node {
@@ -348,6 +424,9 @@ struct load_immediate : node {
     std::string data() const override {
         return string_join("li ", dst->data(),", ", src->data());
     }
+
+    void accept(ASMvisitorbase *__v) override { __v->visitLoadImmediate(this); }
+
     ~load_immediate() override = default;
 };
 
@@ -359,8 +438,11 @@ struct call_expr : node {
 
     std::string data() const override { return string_join("call ", func->name); }
 
+    void accept(ASMvisitorbase *__v) override { __v->visitCallExpr(this); }
+
     ~call_expr() override = default;
 };
+
 
 struct move_expr : node {
     register_ *dst; /* Destination register. */
@@ -372,6 +454,9 @@ struct move_expr : node {
     std::string data() const override {
         return string_join("mv ", dst->data(),", ", src->data());
     }
+
+    void accept(ASMvisitorbase *__v) override { __v->visitMoveExpr(this); }
+
     ~move_expr() override = default;
 };
 
@@ -383,6 +468,8 @@ struct jump_expr : node {
 
     std::string data() const override { return string_join("j ", label->label()); }
 
+    void accept(ASMvisitorbase *__v) override { __v->visitJumpExpr(this); }
+
     ~jump_expr() override = default;
 };
 
@@ -393,14 +480,26 @@ struct return_expr : node {
     explicit return_expr(function *__func) : func(__func) {}
 
     std::string data() const override {
+        std::vector <std::string> buf;
+        if(func->max_arg_size != size_t(-1))
+            buf.push_back(
+                string_join(
+                    "lw ra, ", std::to_string((func->arg_size - 1) * 4),"(sp)\n    "
+                )
+            );
         if(func->stk_size)
-            return string_join(
-                "addi sp, sp, ",
-                std::to_string(func->stk_size),
-                "\n    ret");
-        else
-            return string_join("ret");
+            buf.push_back(
+                string_join(
+                    "addi sp, sp, ", std::to_string(func->stk_size),"\n    "
+                )
+            );
+        buf.push_back("ret");
+        return string_join_array(buf.begin(), buf.end());
     }
+
+    void accept(ASMvisitorbase *__v) override { __v->visitReturnExpr(this); }
+
+    ~return_expr() override = default;
 };
 
 
@@ -444,6 +543,41 @@ struct register_address final : address_type {
 
     ~register_address() override = default;
 };
+
+
+struct global_information {
+    std::vector <IR::initialization> rodata_list;
+    std::vector <IR::initialization>   data_list;
+    std::vector <ASM::function *>  function_list;
+    std::map    <virtual_register *,size_t> reg_cnt;
+
+    void print(std::ostream &os) const {
+        os << "    .section .text\n";
+        for(auto __p : function_list) {
+            __p->init_function();
+            os << __p->data() << '\n';
+        }
+
+        os << '\n';
+        os << "    .section .data\n";
+        for(auto [__var,__lit] : data_list) {
+            os << "    .globl " << __var->name << '\n';
+            os << __var->name << ":\n";
+            os << "    .word " << __lit->data() << '\n';
+        }
+
+        os << '\n';
+        os << "    .section .rodata\n";
+        for(auto [__var,__lit] : rodata_list) {
+            os << "    .globl " << __var->name << '\n';
+            os << __var->name << ":\n";
+            os 
+                << "    .asciz " 
+                << safe_cast <IR::string_constant *> (__lit)->ASMdata() << "\n";
+        }
+    }
+} ;
+
 
 
 }

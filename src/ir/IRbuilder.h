@@ -92,19 +92,19 @@ struct IRbuilder : AST::ASTvisitorbase {
 
         for(auto &&__class : class_map) {
             if(auto *__ptr = dynamic_cast <class_type *> (__class.second)) {
-                std::cout << __ptr->data() << '\n';
+                std::cerr << __ptr->data() << '\n';
             }
-        } std::cout << '\n';
+        } std::cerr << '\n';
 
         for(auto &__var : builtin_function)
-            std::cout << __var.declare();
+            std::cerr << __var.declare();
 
         for(auto &__var : global_variable)
-            std::cout << __var.data() << '\n';
-        std::cout << '\n';
+            std::cerr << __var.data() << '\n';
+        std::cerr << '\n';
 
         for(auto &__func : global_function)
-            std::cout << __func.data() << '\n';
+            std::cerr << __func.data() << '\n';
 
     }
 

@@ -20,10 +20,9 @@ struct ASMbuilder : IR::IRvisitorbase {
     std::map <IR::temporary  *, virtual_register> temp_map;
 
     inline static immediate    *__bool_true__ = create_immediate(0x01);
-    inline static physical_register *__zero__ = physical_register::get_register(register_type::zero);
+    inline static physical_register *__zero__ = get_register(register_type::zero);
 
-    std::map <IR::variable *, value_type *>   data_map;
-    std::map <IR::variable *, std::string > rodata_map;
+    global_information global_info;
 
     ASMbuilder(std::vector <IR::initialization> &global_variable,
                std::vector <IR::function   >    &global_function) {
@@ -31,29 +30,11 @@ struct ASMbuilder : IR::IRvisitorbase {
             visitInit(&__var);
         for(auto &&__func : global_function)
             visitFunction(&__func);
-        
-        std::cout << "    .section .text\n";
-        for(auto &&__func : global_function) {
-            auto __p = &func_map.at(&__func);
-            __p->init_function();
-            std::cout << __p->data() << '\n';
-        }
-    
-        std::cout << '\n';
-        std::cout << "    .section .data\n";
-        for(auto &&__pair : data_map) {
-            std::cout << "    .globl " << __pair.first->name << '\n';
-            std::cout << __pair.first->name << ":\n";
-            std::cout << "    .word " << __pair.second->data() << '\n';
-        }
 
-        std::cout << '\n';
-        std::cout << "    .section .rodata\n";
-        for(auto &&__pair : rodata_map) {
-            std::cout << "    .globl " << __pair.first->name << '\n';
-            std::cout << __pair.first->name << ":\n";
-            std::cout << "    .asciz " << __pair.second << "\n";
-        }
+        for(auto &&__func : global_function)
+            global_info.function_list.push_back(&func_map.at(&__func));
+
+        // global_info.print(std::cout);
     }
 
     void visitBlock(IR::block_stmt*) override;
@@ -74,10 +55,7 @@ struct ASMbuilder : IR::IRvisitorbase {
     void visitUnreachable(IR::unreachable_stmt *) override;
 
     block *get_block(IR::block_stmt *__block) {
-        auto *__ans = &block_map[__block];
-        if(__ans->name.empty())
-            __ans->name = __block->label.substr(__block->label[0] == '%');
-        return __ans;
+        return &block_map.try_emplace(__block,__block->label).first->second;
     }
 
     /* No renaming is done. */
@@ -111,7 +89,7 @@ struct ASMbuilder : IR::IRvisitorbase {
             if (__n == size_t(-1)) throw dark::error("Local variable cannot get directly!");
             /* Function argument case. */
             if (__n < 8) {
-                return physical_register::get_register(
+                return get_register (
                     static_cast <register_type> (__n + 10)
                 );
             } else {
@@ -173,7 +151,7 @@ struct ASMbuilder : IR::IRvisitorbase {
     /* Get the stack argument position. */
     address_type *get_stack_arg(size_t __bias) {
         return new register_address {
-            physical_register::get_register(register_type::sp),
+            get_register(register_type::sp),
             create_immediate (__bias * 4)
         };
     }

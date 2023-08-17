@@ -22,9 +22,10 @@ void ASMbuilder::visitFunction(IR::function *ctx) {
 void ASMbuilder::visitInit(IR::initialization *ctx) {
     auto *__var = ctx->dest;
     auto *__lit = ctx->lite;
-    if(auto __str = dynamic_cast <IR::string_constant *> (__lit))
-        rodata_map[__var] = __str->ASMdata();
-    else data_map[__var] = get_value(__lit);
+    if (auto __str = dynamic_cast <IR::string_constant *> (__lit))
+        global_info.rodata_list.push_back(*ctx);
+    else
+        global_info.data_list.push_back(*ctx);
 }
 
 /* Visit the comparison. */
@@ -43,9 +44,10 @@ void ASMbuilder::visitCompare(IR::compare_stmt *ctx) {
         }); return;
     }
 
-    auto *__limm = dynamic_cast <IR::integer_constant *> (__lhs);
-    auto *__rimm = dynamic_cast <IR::integer_constant *> (__rhs);
+    auto *__limm = dynamic_cast <immediate *> (__lhs);
+    auto *__rimm = dynamic_cast <immediate *> (__rhs);
     bool  __flag = false;
+    if(__limm && __rimm) throw error("Cannot compare two constants!");
 
     switch(ctx->op) {
         case IR::compare_stmt::EQ:
@@ -54,9 +56,9 @@ void ASMbuilder::visitCompare(IR::compare_stmt *ctx) {
                 arith_expr::XOR,__lhs,__rhs,__reg
             });
             if(ctx->op == IR::compare_stmt::NE)
-                top_block->emplace_new(new not_expr {__reg,__reg});
+                top_block->emplace_new(new eq_expr {__reg,__reg});
             else
-                top_block->emplace_new(new eq_expr  {__reg,__reg});
+                top_block->emplace_new(new not_expr {__reg,__reg});
             return;
 
         case IR::compare_stmt::GT: std::swap(__lhs,__rhs); std::swap(__limm,__rimm);
@@ -106,8 +108,9 @@ void ASMbuilder::visitBranch(IR::branch_stmt *ctx) {
     auto *__false   = get_block(ctx->br[1]);
     auto *__branch  = new bool_expr {__cond, __true};
 
+    block *__tmp = nullptr;
     if(auto *__phi  = ctx->br[0]->is_phi_block()) {
-        block *__tmp = new block {.name = __true->name + ".qwq"};
+        __tmp = new block {__true->name + ".qwq"};
         std::swap(top_block,__tmp);
         check_phi(__phi);
         create_jump(__true);
@@ -118,6 +121,7 @@ void ASMbuilder::visitBranch(IR::branch_stmt *ctx) {
     top_block->emplace_new(__branch);
     check_phi(ctx->br[1]->is_phi_block());
     create_jump(__false);
+    if(__tmp) top_asm->emplace_new(__tmp);
 }
 
 void ASMbuilder::visitCall(IR::call_stmt *ctx) {
@@ -212,6 +216,7 @@ void ASMbuilder::visitReturn(IR::return_stmt *ctx) {
 }
 
 void ASMbuilder::visitUnreachable(IR::unreachable_stmt *ctx) {
+    /* Nothing is done. */
     top_block->emplace_new(new return_expr {top_asm});
 }
 

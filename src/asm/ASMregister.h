@@ -149,6 +149,10 @@ struct physical_register : register_ {
     inline static physical_register *reg[32] = {};
 };
 
+inline auto *get_register(register_type type) {
+    return physical_register::get_register(type);
+}
+
 
 /* A virtual register. */
 struct virtual_register  : register_ {

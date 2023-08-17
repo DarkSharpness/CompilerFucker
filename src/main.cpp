@@ -14,6 +14,8 @@
 
 #include "ASMnode.h"
 #include "ASMbuilder.h"
+#include "ASMvalidator.h"
+#include "ASMallocator.h"
 
 
 int main(int argc, const char* argv<::>) <%
@@ -37,6 +39,7 @@ int main(int argc, const char* argv<::>) <%
         dark::AST::ASTvisitor Conless(Wankupi.global,Wankupi.mapping);
         dark::IR::IRbuilder Hastin(Conless.global,Conless.class_map,Wankupi.global);
         dark::ASM::ASMbuilder AbelCat(Hastin.global_variable,Hastin.global_function);
+        dark::ASM::ASMvalidator Latte(AbelCat.global_info);
     } catch(dark::error &err) {
         return 1;
     } catch(std::exception &err) {
