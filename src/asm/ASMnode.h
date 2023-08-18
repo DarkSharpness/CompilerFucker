@@ -615,8 +615,8 @@ struct global_information {
             os << "    .globl " << __var->name << '\n';
             os << __var->name << ":\n";
             auto __name = __lit->data();
-            if(__name == "null") __name = "0";
-            os << "    .word " << __lit->data() << '\n';
+            if(__name == "null") __name = "0    # 0x00";
+            os << "    .word " << __name << '\n';
         }
 
         os << '\n';
