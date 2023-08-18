@@ -33,7 +33,15 @@ void ASMvalidator::visitArithExpr(arith_expr *ctx) {
             break;
 
         case arith_expr::SUB:
-            if(__rimm) ctx->rval = create_immediate(-__rimm->value);
+            if(__rimm) {
+                /**
+                 * sub rd,rs,imm -->
+                 * 
+                 * add rd,rs,-imm
+                */
+                ctx->op   = arith_expr::ADD;
+                ctx->rval = create_immediate(-__rimm->value);
+            }
             else if(__limm) {
                 /**
                  * sub rd,imm,rs -->
@@ -70,14 +78,8 @@ void ASMvalidator::visitArithExpr(arith_expr *ctx) {
 }
 
 void ASMvalidator::visitBranchExpr(branch_expr *ctx) {
-    switch(ctx->op) {
-        case branch_expr::EQ: 
-        case branch_expr::NE:
-        case branch_expr::LT:
-        case branch_expr::GE:
-            throw("This will only be used in optimization!");
-    }
-    node_list.push_back(ctx);
+    throw error("This will only be used in optimization!");
+    // node_list.push_back(ctx);
 }
 
 void ASMvalidator::visitSltExpr(slt_expr *ctx) {

@@ -16,6 +16,8 @@
 #include "ASMbuilder.h"
 #include "ASMvalidator.h"
 #include "ASMallocator.h"
+#include "ASMcounter.h"
+#include "ASMvisitor.h"
 
 
 int main(int argc, const char* argv<::>) <%
@@ -40,6 +42,8 @@ int main(int argc, const char* argv<::>) <%
         dark::IR::IRbuilder Hastin(Conless.global,Conless.class_map,Wankupi.global);
         dark::ASM::ASMbuilder AbelCat(Hastin.global_variable,Hastin.global_function);
         dark::ASM::ASMvalidator Latte(AbelCat.global_info);
+        dark::ASM::ASMcounter SmartHeHe(AbelCat.global_info);
+        dark::ASM::ASMvisitor Chayso(AbelCat.global_info);
     } catch(dark::error &err) {
         return 1;
     } catch(std::exception &err) {

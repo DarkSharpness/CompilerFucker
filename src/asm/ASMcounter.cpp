@@ -40,10 +40,14 @@ void ASMcounter::visitBoolExpr(bool_expr *ctx) {
 }
 void ASMcounter::visitLoadMemory(load_memory *ctx) {
     update(ctx->dest);
+    if(auto *__addr = dynamic_cast <register_address *> (ctx->addr))
+        update(__addr->reg);
 }
 void ASMcounter::visitStoreMemory(store_memory *ctx) {
     update(ctx->from);
     update(ctx->temp);
+    if(auto *__addr = dynamic_cast <register_address *> (ctx->addr))
+        update(__addr->reg);
 }
 void ASMcounter::visitLoadSymbol(load_symbol *ctx) {
     update(ctx->dst);

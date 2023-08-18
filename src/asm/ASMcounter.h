@@ -15,8 +15,8 @@ struct ASMcounter : ASMvisitorbase {
             visitFunction(__p);
     }
 
-    void update(value_type *__reg) {
-        auto *__reg = dynamic_cast <virtual_register *> (__reg);
+    void update(value_type *__val) {
+        auto *__reg = dynamic_cast <virtual_register *> (__val);
         if(__reg != nullptr) ++counter[__reg];
     }
 

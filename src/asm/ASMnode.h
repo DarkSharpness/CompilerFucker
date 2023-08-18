@@ -536,7 +536,7 @@ struct return_expr : node {
 };
 
 
-
+/* Address of a local variable. */
 struct stack_address final : address_type {
     function    *func; /* Function . */
     IR::variable *var; /* Variable. */
@@ -555,6 +555,7 @@ struct stack_address final : address_type {
 };
 
 
+/* Address of a global variable. */
 struct global_address final : address_type {
     std::string name;
     explicit global_address(std::string_view __name) : name(__name) {}
@@ -563,6 +564,7 @@ struct global_address final : address_type {
 };
 
 
+/* Address of a given register. */
 struct register_address final : address_type {
     register_ *reg;    /* Register. */
     immediate *offset; /* Offset. */
@@ -575,6 +577,22 @@ struct register_address final : address_type {
     }
 
     ~register_address() override = default;
+};
+
+
+/* Address of temporaries. */
+struct temporary_address final : address_type {
+    function *func; /* Function. */
+    size_t     pos; /* Position. */
+    explicit temporary_address(function *__func, size_t __pos)
+        : func(__func), pos(__pos) {}
+    
+    std::string data() const override {
+        return string_join(
+            std::to_string((func->arg_size() + pos) * 4),
+            "(sp)"
+        );
+    }
 };
 
 
@@ -596,7 +614,10 @@ struct global_information {
         for(auto [__var,__lit] : data_list) {
             os << "    .globl " << __var->name << '\n';
             os << __var->name << ":\n";
-            os << "    .word " << __lit->data() << '\n';
+            if(dynamic_cast <IR::pointer_constant *> (__lit))
+                os << "    .word 0\n";
+            else
+                os << "    .word " << __lit->data() << '\n';
         }
 
         os << '\n';

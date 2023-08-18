@@ -33,13 +33,14 @@ ASMallocator::load_info ASMallocator::access(virtual_register *__reg) {
     size_t __load = NPOS;
     if(__iter != status_map.end()) {
         if(__iter->second.is_in_stack())
-            __load = __iter->second.index,
-            idx_pool.push_back(__load);
+            __load = __iter->second.index;
         else /* Return the immediate register.  */
             return {.reg = __iter->second.reg};
     }
 
     auto [__new,__idx] = get_new_register();
+    if(__load != NPOS) idx_pool.push_back(__load);
+
     reg_list.push_back({__new,__reg});
     status_map[__reg] = {.st = register_status::REGISTER, .reg = __new};
     return {.reg = __new,.lpos = __load,.spos = __idx};
@@ -54,8 +55,7 @@ std::vector <ASMallocator::store_info> ASMallocator::call() {
 
 void ASMallocator::deallocate(virtual_register *__reg) {
     auto __iter = status_map.find(__reg);
-    if (__iter == status_map.end())
-        throw error("ASMallocator::deallocate: register not found");
+    if (__iter == status_map.end()) return;
     if(__iter->second.is_in_stack())
         idx_pool.push_back(__iter->second.index);
     else {

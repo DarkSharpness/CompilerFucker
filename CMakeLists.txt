@@ -17,7 +17,7 @@ add_executable(mxc ${sources})
 
 target_link_libraries(mxc PUBLIC antlr4-runtime)
 
-set(TestRootPath "${PROJECT_SOURCE_DIR}/Local/testcases/sema")
+set(TestRootPath "${PROJECT_SOURCE_DIR}/Local/testcases/codegen")
 file(GLOB_RECURSE test_files RELATIVE ${TestRootPath} ${TestRootPath}/**.mx)
 foreach (test_file ${test_files})
     if (${test_file} MATCHES ".*lambda.*")
@@ -32,4 +32,4 @@ foreach (test_file ${test_files})
         set_tests_properties(${test_file} PROPERTIES WILL_FAIL true)
     endif ()
 endforeach ()
-enable_testing()
+
