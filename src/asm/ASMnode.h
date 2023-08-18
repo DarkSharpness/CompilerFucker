@@ -614,10 +614,9 @@ struct global_information {
         for(auto [__var,__lit] : data_list) {
             os << "    .globl " << __var->name << '\n';
             os << __var->name << ":\n";
-            if(dynamic_cast <IR::pointer_constant *> (__lit))
-                os << "    .word 0\n";
-            else
-                os << "    .word " << __lit->data() << '\n';
+            auto __name = __lit->data();
+            if(__name == "null") __name = "0";
+            os << "    .word " << __lit->data() << '\n';
         }
 
         os << '\n';
