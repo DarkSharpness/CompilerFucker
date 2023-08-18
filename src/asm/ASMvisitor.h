@@ -1,37 +1,21 @@
 #pragma once
 #include "ASMnode.h"
+#include "ASMallocator.h"
 
 
 namespace dark::ASM {
 
-
-/* Help to convert invalid immediate into valid command. */
-struct ASMvalidator : ASMvisitorbase {
-
+/* Help to convert registers into physical ones. */
+struct ASMvisitor : ASMvisitorbase {
     std::vector <block *> block_list;
     std::vector <node  *> node_list;
 
-    std::map <IR::temporary  *, virtual_register> temp_map;
-
     function *top;
 
-    /* Just create one virtual register. */
-    virtual_register *create_virtual() {
-        return new virtual_register(top->vir_size++);
-    }
-
     /* Global information updator/ */
-    ASMvalidator(global_information &__info) {
+    ASMvisitor(global_information &__info) {
         for(auto __p : __info.function_list)
             visitFunction(__p);
-        // __info.print(std::cout);
-    }
-
-    /* Load an immediate. */
-    void force_load(value_type *&__ptr,immediate *__imm) {
-        auto *__reg = create_virtual();
-        __ptr = __reg;
-        node_list.push_back(new load_immediate(__reg,__imm));
     }
 
     void visitFunction(function *);

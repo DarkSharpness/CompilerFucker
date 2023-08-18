@@ -112,6 +112,7 @@ void ASMvalidator::visitStoreMemory(store_memory *ctx) {
     if(__add) ctx->temp = create_virtual();
     node_list.push_back(ctx);
 }
+
 void ASMvalidator::visitLoadSymbol(load_symbol *ctx) {
     /* Do nothing. */
     node_list.push_back(ctx);

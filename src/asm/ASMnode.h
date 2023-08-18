@@ -57,11 +57,34 @@ struct ASMvisitorbase {
 
 
 struct register_allocator {
-    /* Return the relative position. */
-    virtual size_t allocate(virtual_register *__reg) = 0;
+    /* Position information. */
+    inline constexpr static size_t NPOS = size_t(-1);
+
+    struct store_info {
+        physical_register *reg; /* Physical register. */
+        size_t      pos = NPOS; /* Store position. */
+        bool is_store() const noexcept { return pos != NPOS; }
+    };
+
+    struct load_info {
+        physical_register *reg; /* Physical register. */
+        size_t     lpos = NPOS; /* Load position */
+        size_t     spos = NPOS; /* Store position */
+
+        bool is_load()  const noexcept { return lpos != NPOS; }
+        bool is_store() const noexcept { return spos != NPOS; }
+    };
+
+    /* Return the register with given position to store. */
+    virtual store_info allocate(virtual_register *) = 0;
+    /* Return the register with given position to store and load. */
+    virtual std::vector <load_info> access(std::vector <virtual_register *>) = 0;
+    /* Return the registers with given position to store.  */
+    virtual std::vector <store_info> call() = 0;
+
     /* Retrieve one register. */
-    virtual void deallocate(virtual_register *__reg) = 0;
-    virtual size_t max_size() = 0;
+    virtual void  deallocate(virtual_register *__reg) = 0;
+    virtual size_t max_size() const = 0;
     virtual ~register_allocator() = default;
 };
 
@@ -106,6 +129,7 @@ struct function {
     size_t  var_size     = 0;   /* Count of all variables. */
     size_t  stk_size     = 0;   /* Count of stack variables. */
 
+    /* Virtual register allocator. */
     register_allocator *__alloc = nullptr;
 
     /* Mapping of an IR::variable to its address in stack. */
@@ -148,11 +172,6 @@ struct function {
         /* Aligned to 16 byte. */
         if(stk_size % 16 != 0) stk_size = (stk_size / 16) * 16 + 16;
     }
-
-    /* Allocate a space for virtual register. */
-    register_address *allocate(virtual_register *__reg);
-    void deallocate(virtual_register *__reg);
-
 
     /* Local variable. */
     size_t get_variable_offset(IR::variable *__var) const {
@@ -251,7 +270,7 @@ struct branch_expr : node {
 
     value_type *lval; /* Left  value. */
     value_type *rval; /* Right value. */
-    block     *dest; /* Destination block. */
+    block      *dest; /* Destination block. */
 
     explicit branch_expr(decltype (op) __op,
                          value_type *__lval,
@@ -262,6 +281,7 @@ struct branch_expr : node {
     std::string data() const override {
         return string_join(str[op],' ', lval->data(),", ", rval->data(),", ", dest->label());
     }
+
 
     void accept(ASMvisitorbase *__v) override { __v->visitBranchExpr(this); }
 
@@ -592,17 +612,6 @@ struct global_information {
 } ;
 
 
-inline register_address *function::allocate(virtual_register *__reg)  {
-    size_t __n = __alloc->allocate(__reg);
-    return new register_address {
-        get_register(register_type::sp),
-        create_immediate((arg_size() + __n) * 4)
-    };
-}
-
-inline void function::deallocate(virtual_register *__reg) {
-    __alloc->deallocate(__reg);
-}
 
 
 
