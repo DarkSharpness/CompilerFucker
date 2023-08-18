@@ -19,54 +19,12 @@ struct ASMvisitor : ASMvisitorbase {
         __info.print(std::cout);
     }
 
-    void update_rvalue(value_type *&lval,value_type *&rval) {
-        std::vector <virtual_register *> __list;
-        __list.reserve(2);
-        if(auto __reg = dynamic_cast <virtual_register *> (lval))
-            __list.push_back(__reg);
-        if(auto __reg = dynamic_cast <virtual_register *> (rval))
-            __list.push_back(__reg);
-        if(__list.empty()) return;
-
-        auto __load = top->__alloc->access(std::move(__list));
-        for(auto __p : __load) {
-            if(__p.is_store()) {
-                node_list.push_back(new store_memory {
-                    store_memory::WORD,
-                    __p.reg,
-                    new temporary_address {top,__p.spos}
-                });
-            }
-            if(__p.is_load()) {
-                node_list.push_back(new load_memory {
-                    load_memory::WORD,
-                    new temporary_address {top,__p.lpos},
-                    __p.reg
-                });
-            }
-        }
-
-        bool i = false;
-        if(dynamic_cast <virtual_register *> (lval))
-            lval = __load[0].reg , i = true;
-        if(dynamic_cast <virtual_register *> (rval))
-            rval = __load[i].reg;
-    }
-
-    void update_rvalue(value_type *&lval) {
-        std::vector <virtual_register *> __list;
-        if(auto __reg = dynamic_cast <virtual_register *> (lval))
-            __list.push_back(__reg);
-        if(__list.empty()) return;
-
-        auto __p = top->__alloc->access(std::move(__list))[0];
-        if(__p.is_store()) {
-            node_list.push_back(new store_memory {
-                store_memory::WORD,
-                __p.reg,
-                new temporary_address {top,__p.spos}
-            });
-        }
+    template <class T>
+    auto update_rvalue(T *&__reg)
+    -> std::enable_if_t <std::is_base_of_v <value_type,T>,bool> {
+        auto __vir = dynamic_cast <virtual_register *> (__reg);
+        if(!__vir) return false;
+        auto __p = top->__alloc->access({__vir})[0];
         if(__p.is_load()) {
             node_list.push_back(new load_memory {
                 load_memory::WORD,
@@ -74,12 +32,14 @@ struct ASMvisitor : ASMvisitorbase {
                 __p.reg
             });
         }
-        lval = __p.reg;
+
+        __reg = __p.reg;
+        return true;
     }
 
-    void update_lvalue(register_ *&__reg) {
+    bool update_lvalue(register_ *&__reg) {
         auto __vir = dynamic_cast <virtual_register *> (__reg);
-        if(!__vir) return;
+        if(!__vir) return false;
         auto __p = top->__alloc->allocate(__vir);
         if(__p.is_store()) {
             node_list.push_back(new store_memory {
@@ -88,7 +48,9 @@ struct ASMvisitor : ASMvisitorbase {
                 new temporary_address {top,__p.pos}
             });
         }
+
         __reg = __p.reg;
+        return true;
     }
 
     void visitFunction(function *);

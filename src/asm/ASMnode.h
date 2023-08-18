@@ -164,7 +164,7 @@ struct function {
     void init_function() {
         stk_size = (
             arg_size() +            /* Function arguments for function called. */
-            __alloc->max_size() +   /* Temporay values.  */
+            (__alloc ? __alloc->max_size() : 0) +   /* Temporay values.  */
             var_size +              /* Local variables */
             is_calling()            /* Return address. */
         ) * 4;
@@ -187,11 +187,11 @@ struct function {
         ));
 
         if(is_calling()) {
-            buf.push_back("sw ra, -4(sp)\n    ");
+            buf.push_back("    sw ra, -4(sp)\n    ");
         }
         if(stk_size)
             buf.push_back(string_join(
-                "    addi sp, sp, -", std::to_string(stk_size),'\n'
+                "addi sp, sp, -", std::to_string(stk_size),'\n'
             ));
 
         for(auto __p : stmt)

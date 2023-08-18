@@ -8,7 +8,7 @@ void ASMcounter::visitFunction(function *ctx) {
         for(auto __node : __stmt->expr)
             visit(__node);
         auto *__alloc = new ASMallocator;
-        std::swap(__alloc->counter, counter);
+        // std::swap(__alloc->counter, counter);
         ctx ->__alloc = __alloc;
     }
 }

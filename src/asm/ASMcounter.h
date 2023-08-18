@@ -13,6 +13,7 @@ struct ASMcounter : ASMvisitorbase {
     ASMcounter(global_information &__info) {
         for(auto __p : __info.function_list)
             visitFunction(__p);
+        __info.print(std::cerr);
     }
 
     void update(value_type *__val) {

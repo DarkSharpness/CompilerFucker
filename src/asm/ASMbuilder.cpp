@@ -70,6 +70,7 @@ void ASMbuilder::visitCompare(IR::compare_stmt *ctx) {
                 });
                 __flag = true;
             }
+            break;
 
         case IR::compare_stmt::LE: std::swap(__lhs,__rhs); std::swap(__limm,__rimm);
         case IR::compare_stmt::GE:
