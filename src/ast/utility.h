@@ -6,6 +6,7 @@
 
 namespace dark {
 
+
 inline constexpr size_t __string_length(std::string_view __view)
 { return __view.size(); }
 inline constexpr size_t __string_length(const char *__str) {
