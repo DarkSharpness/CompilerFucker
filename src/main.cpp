@@ -19,6 +19,8 @@
 #include "ASMcounter.h"
 #include "ASMvisitor.h"
 
+#include "mem2reg.h"
+
 
 int main(int argc, const char* argv<::>) <%
     try {

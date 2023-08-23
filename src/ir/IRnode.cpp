@@ -21,9 +21,10 @@ phi_stmt *block_stmt::is_phi_block() const {
 
 std::string function::data() const {
     std::string __arg; /* Arglist. */
-    for(auto &__p : args) {
-        if(&__p != args.data())
-            __arg += ',';
+    bool __first = true;
+    for(auto *__p : args) {
+        if (!__first) __arg += ','; 
+        else          __first = false;
         __arg += __p->get_value_type().name();
         __arg += ' ';
         __arg += __p->data();
@@ -44,9 +45,10 @@ std::string function::data() const {
 
 std::string function::declare() const {
     std::string __arg; /* Arglist. */
-    for(auto &__p : args) {
-        if(&__p != args.data())
-            __arg += ',';
+    bool __first = true;
+    for(auto *__p : args) {
+        if(!__first) __arg += ','; 
+        else        __first = false;
         __arg += __p->get_value_type().name();
     }
 
@@ -100,9 +102,10 @@ std::string branch_stmt::data() const {
 
 std::string call_stmt::data() const {
     std::string __arg; /* Arglist. */
-    for(auto &__p : args) {
-        if(&__p != args.data())
-            __arg += ',';
+    bool __first = true;
+    for(auto *__p : args) {
+        if (!__first) __arg += ','; 
+        else          __first = false;
         __arg += __p->get_value_type().name();
         __arg += ' ';
         __arg += __p->data();

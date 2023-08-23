@@ -144,7 +144,7 @@ struct IRbuilder : AST::ASTvisitorbase {
         // return top->front_temporary();
 
         /* If non pre-loaded, loaded it now! */
-        result = safe_cast <allocate_stmt *> (top->stmt[0]->stmt[0])->dest;
+        result = safe_cast <allocate_stmt *> (top->stmt.front()->stmt.front())->dest;
         return safe_load_variable();
     }
 

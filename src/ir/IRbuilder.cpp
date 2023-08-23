@@ -721,7 +721,7 @@ void IRbuilder::visitGlobalFunction(AST::function_def *ctx) {
     top->name = function_name_map(ctx->unique_name);
     top->type = get_type(ctx->type);
     top->emplace_new(new block_stmt);
-    top->stmt[0]->label = "entry";
+    top->stmt.front()->label = "entry";
 
     std::vector <store_stmt *> __store;
     __store.reserve(ctx->args.size() + 1);
@@ -999,7 +999,7 @@ void IRbuilder::visitNewExpr(wrapper __type,std::vector <definition *> __vec) {
         auto *__phi = new phi_stmt;
         __phi->dest = __tmp;
         __phi->cond.push_back({__pre,__last});
-        __phi->cond.push_back({__cur,*(top->stmt.end() - 2)});
+        __phi->cond.push_back({__cur,*(++top->stmt.rbegin())});
         top->emplace_new(__phi);
     }
 
