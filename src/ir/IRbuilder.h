@@ -90,6 +90,10 @@ struct IRbuilder : AST::ASTvisitorbase {
         /* Visit it! Right now! */
         for(auto __p : __def) { top = nullptr; visit(__p); }
 
+        // debug_print();
+    }
+
+    void debug_print() {
         for(auto &&__class : class_map) {
             if(auto *__ptr = dynamic_cast <class_type *> (__class.second)) {
                 std::cerr << __ptr->data() << '\n';
@@ -105,7 +109,6 @@ struct IRbuilder : AST::ASTvisitorbase {
 
         for(auto &__func : global_function)
             std::cerr << __func.data() << '\n';
-
     }
 
     void make_basic(scope *__string,scope *__array);

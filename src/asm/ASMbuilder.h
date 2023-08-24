@@ -34,7 +34,6 @@ struct ASMbuilder : IR::IRvisitorbase {
         for(auto &&__func : global_function)
             global_info.function_list.push_back(&func_map.at(&__func));
 
-        // global_info.print(std::cerr);
     }
 
     void visitBlock(IR::block_stmt*) override;
