@@ -4,6 +4,7 @@
 #include <iterator>
 #include <queue>
 
+/* Dominate maker */
 namespace dark::MEM {
 
 
@@ -32,7 +33,12 @@ dominate_maker::dominate_maker(node *__entry) {
 
     /* Spread the extra definition made by phi. */
     spread_phi();
+    
+    /* Complete renaming. */
+    node_set.clear();
+    for(auto __node : node_rpo) rename(__node);
 }
+
 
 void dominate_maker::spread_def(node *__node,std::set <IR::variable *> &__set) {
     for(auto __next : __node->fro) {
@@ -73,7 +79,7 @@ void dominate_maker::spread_phi() {
     }
 }
 
-/* Boring iteration~ */
+
 void dominate_maker::iterate(node *__entry) {
     for(auto __node : node_rpo)
         if(__node != __entry)
@@ -102,6 +108,8 @@ void dominate_maker::dfs(node *__node) {
 void dominate_maker::update(node *__node) {
     runtime_assert("Invalid node!",__node->prev.size() > 0);
     std::set <node *> __dom = __node->prev[0]->dom;
+
+    /* Set intersection operation for all nodes. */
     for(size_t i = 1 ; i < __node->prev.size() ; ++i) {
         auto &__set = __node->prev[i]->dom;
         std::set <node *> __tmp;
@@ -113,6 +121,7 @@ void dominate_maker::update(node *__node) {
         __dom = std::move(__tmp);
     }
     __dom.insert(__node);
+
     if(__dom != __node->dom) {
         __node->dom = std::move(__dom);
         update_tag  = true;
@@ -120,18 +129,65 @@ void dominate_maker::update(node *__node) {
 }
 
 
+void dominate_maker::rename(node *__node) {
+    /* Already in the set. */
+    if(node_set.insert(__node).second == false) return;
+    auto &__map = node_phi[__node];
+
+    /* Rename the phi_stmt and build up the dest. */
+    for(auto [__var,__phi] : __map) {
+        __phi->dest = new IR::temporary;
+        __phi->dest->name = string_join(__var->name,".mem2reg",std::to_string(phi_count++));
+        __phi->dest->type = --__var->type;
+        var_map[__var].push_back(__phi->dest);
+    }
+
+    /* Now the block informations are collected */
+    collect_block(__node);
+
+    /* Set the branch for the phi_stmt. */
+    for(auto __next : __node->next) update_branch(__node,__next);
+
+    /* Recover the var_map. */
+    for(auto [__var,___] : __map) var_map[__var].pop_back();
+
+    /* Now the block is really updated! */
+    update_block(__node);
+}
+
+
+void dominate_maker::collect_block(node *__node) {
+    /* Complete all the operation. */
+    block_collector __collector (var_map,use_map,__node);
+}
+
+
+void dominate_maker::update_block(node *__node) {
+    /* Complete all the operation. */
+    block_updater __updater (var_map,use_map,__node);
+}
+
+
+void dominate_maker::update_branch(node *__node,node *__next) {
+    
+}
+
+}
+
+
+/* Graph builder. */
+namespace dark::MEM {
+
 void graph_builder::visitFunction(IR::function *ctx) {
     for(auto __block : ctx->stmt) visitBlock(__block);
 }
+
 
 void graph_builder::visitBlock(IR::block_stmt *ctx) {
     top = create_node(ctx);
     for(auto __stmt : ctx->stmt) visit(__stmt);
 }
 
-void graph_builder::visitInit(IR::initialization *ctx) {}
-void graph_builder::visitCompare(IR::compare_stmt *ctx) {}
-void graph_builder::visitBinary(IR::binary_stmt *ctx) {}
 
 void graph_builder::visitJump(IR::jump_stmt *ctx) {
     link(top, create_node(ctx->dest));
@@ -142,34 +198,17 @@ void graph_builder::visitBranch(IR::branch_stmt *ctx) {
     link(top, create_node(ctx->br[1]));
 }
 
+void graph_builder::visitInit(IR::initialization *ctx) {}
+void graph_builder::visitCompare(IR::compare_stmt *ctx) {}
+void graph_builder::visitBinary(IR::binary_stmt *ctx) {}
 void graph_builder::visitCall(IR::call_stmt *ctx) {}
-
 void graph_builder::visitLoad(IR::load_stmt *ctx) {}
-
-void graph_builder::visitStore(IR::store_stmt *ctx) {
-
-}
-
-void graph_builder::visitReturn(IR::return_stmt *ctx) {
-
-}
-
-void graph_builder::visitAlloc(IR::allocate_stmt *ctx) {
-
-}
-
-void graph_builder::visitGet(IR::get_stmt *ctx) {
-
-}
-
-void graph_builder::visitPhi(IR::phi_stmt *ctx) {
-
-}
-
-void graph_builder::visitUnreachable(IR::unreachable_stmt *ctx) {
-
-}
-
+void graph_builder::visitStore(IR::store_stmt *ctx) {}
+void graph_builder::visitReturn(IR::return_stmt *ctx) {}
+void graph_builder::visitAlloc(IR::allocate_stmt *ctx) {}
+void graph_builder::visitGet(IR::get_stmt *ctx) {}
+void graph_builder::visitPhi(IR::phi_stmt *ctx) {}
+void graph_builder::visitUnreachable(IR::unreachable_stmt *ctx) {}
 
 
 }
