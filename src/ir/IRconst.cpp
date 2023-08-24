@@ -28,8 +28,18 @@ literal *const_folder::operator()
             case ADD: return create_integer(__lhs->value +  __rhs->value);
             case SUB: return create_integer(__lhs->value -  __rhs->value);
             case MUL: return create_integer(__lhs->value *  __rhs->value);
-            case DIV: return create_integer(__lhs->value /  __rhs->value);
-            case REM: return create_integer(__lhs->value %  __rhs->value);
+            case DIV:
+                if(__rhs->value == 0) {
+                    warning("Undefined behavior: division by zero!");
+                    return create_integer(0);
+                }
+                return create_integer(__lhs->value /  __rhs->value);
+            case REM:
+                if(__lhs->value == 0) {
+                    warning("Undefined behavior: division by zero!");
+                    return create_integer(0);
+                }
+                return create_integer(__lhs->value %  __rhs->value);
             case AND: return create_integer(__lhs->value &  __rhs->value);
             case OR : return create_integer(__lhs->value |  __rhs->value);
             case XOR: return create_integer(__lhs->value ^  __rhs->value);

@@ -12,12 +12,19 @@ struct info_collector {
         std::set <IR::variable *> __set;
         for(auto __stmt : __block->stmt)
             if(auto __store = dynamic_cast <IR::store_stmt *> (__stmt))
-                if(auto __var = dynamic_cast <IR::variable *> (__store->dst))
-                    if(!dynamic_cast <IR::function_argument *> (__var))
-                        __set.insert(__var);
+                if(auto __var = dynamic_cast <IR::local_variable *> (__store->dst))
+                    __set.insert(__var);
         return __set;
     }
-    static std::set <IR::variable *> collect_use(IR::block_stmt *);
+
+    static void collect_use(IR::block_stmt *__block,
+        std::map <IR::definition *,std::vector <IR::node *>> &__map)  {
+        for(auto __stmt : __block->stmt) {
+            auto __vec = __stmt->get_use();
+            for(auto __use : __vec)
+                __map[__use].push_back(__stmt);
+        }
+    }
 };
 
 /* Iterative dominate algorithm */
@@ -33,12 +40,15 @@ struct dominate_maker {
 
     /* Mapping from a node to all its newly inserted variable-phi pair. */
     std::map <node *,std::map <IR::variable *,IR::phi_stmt *>> node_phi;
-    
+
     /* Mapping from a variable to its definition. */
     std::map <IR::variable *,std::vector <IR::definition *>> var_map;
 
     /* Mapping from a old temporary (loaded) to new definition. */
     std::map <IR::definition *,IR::definition *> use_map;
+
+    /* Mapping from a old temporary to all nodes that use it. */
+    std::map <IR::definition *,std::vector <IR::node *>> stmt_map;
 
     bool update_tag = false;
 
@@ -68,40 +78,46 @@ struct dominate_maker {
     /* Update var_map for the node and build up use_map */
     void collect_block(node *);
 
-    /* Reset var_map for the node and complete renaming. */
-    void update_block (node *);
-
     /* Debug use only */
     void debug_print(std::ostream &os) {
         for(auto __p : node_rpo) {
-            os << __p->name() << " :";
+            os << __p->name() << ":";
             for(auto __q : __p->fro)
                 os << ' ' << __q->name();
             os << '\n';
         }
+        os << '\n';
     }
+
 };
 
 
 struct graph_builder : IR::IRvisitorbase {
     std::map <IR::block_stmt *,node> node_map;
     node *top;
+    size_t end_tag = 0;
 
     node *create_node(IR::block_stmt *__block) {
         return &node_map.try_emplace(__block,__block).first->second;
     }
 
     graph_builder
-        (std::vector <IR::initialization> &global_variable,
-         std::vector <IR::function   >    &global_function) {
-        for(auto __func : global_function)
+        (std::vector <IR::initialization> &global_variables,
+         std::vector <IR::function   >    &global_functions) {
+        for(auto __func : global_functions)
             visitFunction(&__func);
-        for(auto __func : global_function)
-            debug_print(&__func);
-        for(auto __func : global_function) {
-            dominate_maker __maker(create_node(__func.stmt.front()));
-        }
 
+        // for(auto __func : global_functions)
+            // debug_print(&__func);
+        
+        for(auto __func : global_functions)
+            std::cerr << __func.data() << '\n';
+
+        for(auto __func : global_functions)
+            dominate_maker __maker(create_node(__func.stmt.front()));
+        
+        for(auto __func : global_functions)
+            std::cerr << __func.data() << '\n';
     }
 
     void visitBlock(IR::block_stmt*) override;

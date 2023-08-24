@@ -29,8 +29,8 @@ struct IRbuilder : AST::ASTvisitorbase {
     std::map <AST::identifier *,IR::variable *> variable_map;
     std::map <IR::variable    *,std::string   >   string_map;
 
-    std::vector <initialization> global_variable;
-    std::vector <  function   >  global_function;
+    std::vector <initialization> global_variables;
+    std::vector <  function   >  global_functions;
     std::vector <  function   >  builtin_function;
     std::vector <  flow_type  >  loop_flow; /* Flow position. */
 
@@ -62,7 +62,7 @@ struct IRbuilder : AST::ASTvisitorbase {
         }
 
         /* This is used to avoid allocation! */
-        global_function.reserve(function_cnt);
+        global_functions.reserve(function_cnt);
 
         /* Collect all member function and global functions. */
         for(auto __p : __def) {
@@ -77,7 +77,7 @@ struct IRbuilder : AST::ASTvisitorbase {
             auto *__func = safe_cast <AST::function_def *> (__def.back());
             if(__func->body->stmt.empty()) {
                 delete __func;
-                global_function.pop_back();
+                global_functions.pop_back();
                 __def.pop_back();
             } else { /* Add call statement to global init. */
                 auto *__call = new call_stmt;
@@ -103,11 +103,11 @@ struct IRbuilder : AST::ASTvisitorbase {
         for(auto &__var : builtin_function)
             std::cerr << __var.declare();
 
-        for(auto &__var : global_variable)
+        for(auto &__var : global_variables)
             std::cerr << __var.data() << '\n';
         std::cerr << '\n';
 
-        for(auto &__func : global_function)
+        for(auto &__func : global_functions)
             std::cerr << __func.data() << '\n';
     }
 
@@ -205,13 +205,13 @@ struct IRbuilder : AST::ASTvisitorbase {
         auto *__str = new string_constant {__name};
 
         /* This is a special variable! */
-        auto *__var = new variable;
+        auto *__var = new global_variable;
         __var->name = "@str." + std::to_string(__cnt++);
         __var->type = {class_map["string"],1};
 
         __iter->second    = __var;
         string_map[__var] = __name;
-        global_variable.push_back({__var,__str});
+        global_variables.push_back({__var,__str});
         return __var;
     }
 

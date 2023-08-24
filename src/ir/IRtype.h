@@ -214,6 +214,15 @@ struct variable : non_literal {
     ~variable() override = default;
 };
 
+/* Variables are pointers to value. */
+struct local_variable : variable {
+    ~local_variable() override = default;
+};
+
+struct global_variable : variable {
+    ~global_variable() override = default;
+};
+
 struct function_argument : variable {
     ~function_argument() override = default;
 };

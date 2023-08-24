@@ -669,18 +669,19 @@ void IRbuilder::visitGlobalClass(AST::class_def *ctx) {
             visitGlobalFunction(__func);
             /* Constructor function (not empty). */
             if(__func->name == "" && !__func->body->stmt.empty()) {
-                __class->constructor = &global_function.back();
+                __class->constructor = &global_functions.back();
                 __class->constructor->name += ctx->name;
             }
         } else {
             auto *__var = safe_cast <AST::variable_def *> (__p);
             auto __info = get_type(__var->type);
+
             /* Make the member variables. */
             for(auto &&[__name,__init] : __var->init) {
                 __class->layout.push_back(__info);
                 __class->member.push_back(__name);
                 auto *__p   = ctx->space->find(__name);
-                auto *__var = new variable;
+                auto *__var = new local_variable;
                 __var->name = __p->unique_name;
                 __var->type = ++__info;
                 variable_map[__p] = __var;
@@ -693,7 +694,7 @@ void IRbuilder::visitGlobalClass(AST::class_def *ctx) {
 /* This will be called globally to create a global variable with no initialization. */
 void IRbuilder::visitGlobalVariable(AST::variable *ctx,AST::literal_constant *lit) {
     /* Make the global variables. */
-    auto *__var = new variable;
+    auto *__var = new global_variable;
     __var->name = ctx->unique_name;
     __var->type = ++get_type(ctx->type);
     variable_map[ctx] = __var;
@@ -710,13 +711,13 @@ void IRbuilder::visitGlobalVariable(AST::variable *ctx,AST::literal_constant *li
         __lit = new pointer_constant {create_string(lit->name)};
     }
 
-    global_variable.push_back({__var,__lit});
+    global_variables.push_back({__var,__lit});
 }
 
 
 /* This will be called globally to create a global or member function. */
 void IRbuilder::visitGlobalFunction(AST::function_def *ctx) {
-    top = &global_function.emplace_back();
+    top = &global_functions.emplace_back();
     function_map[ctx] = top;
     top->name = function_name_map(ctx->unique_name);
     top->type = get_type(ctx->type);
@@ -740,7 +741,7 @@ void IRbuilder::visitGlobalFunction(AST::function_def *ctx) {
 
     /* All the local variables used. */
     for(auto *__p : ctx->unique_mapping) {
-        auto *__var = new variable;
+        auto *__var = new local_variable;
         __var->name = __p->unique_name;
         __var->type = ++get_type(__p->type);
         variable_map[__p] = __var;
@@ -768,7 +769,7 @@ store_stmt *IRbuilder::visitFunctionParam(AST::identifier *__p) {
     __store->src  = __var; /* Variable in the param */
 
     auto *__alloc = new allocate_stmt;
-    __alloc->dest = __var = new variable;
+    __alloc->dest = __var = new local_variable;
     __store->dst  = __var;
     top->emplace_new(__alloc);
 
@@ -852,11 +853,11 @@ void IRbuilder::make_basic(scope *__string,scope *__array) {
     builtin_function[20].name = "__new_array4__";
     builtin_function[21].name = "malloc";
 
-    auto *__ptr__  = new variable;
+    auto *__ptr__  = new local_variable;
     __ptr__->type  = __nul;
-    auto *__int__  = new variable;
+    auto *__int__  = new local_variable;
     __int__->type  = __i32;
-    auto *__bool__ = new variable;
+    auto *__bool__ = new local_variable;
     __bool__->type = __boo;
 
     builtin_function[0].args = {__ptr__};

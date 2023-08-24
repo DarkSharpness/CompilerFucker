@@ -24,14 +24,14 @@ struct ASMbuilder : IR::IRvisitorbase {
 
     global_information global_info;
 
-    ASMbuilder(std::vector <IR::initialization> &global_variable,
-               std::vector <IR::function   >    &global_function) {
-        for(auto &&__var : global_variable)
+    ASMbuilder(std::vector <IR::initialization> &global_variables,
+               std::vector <IR::function   >    &global_functions) {
+        for(auto &&__var : global_variables)
             visitInit(&__var);
-        for(auto &&__func : global_function)
+        for(auto &&__func : global_functions)
             visitFunction(&__func);
 
-        for(auto &&__func : global_function)
+        for(auto &&__func : global_functions)
             global_info.function_list.push_back(&func_map.at(&__func));
 
     }
@@ -81,9 +81,9 @@ struct ASMbuilder : IR::IRvisitorbase {
     }
 
     value_type *get_variable(IR::variable *__var) {
-        if(__var->name[0] == '@') {
+        if(dynamic_cast <IR::global_variable *> (__var)) {
             return new symbol {__var->name};
-        } else {
+        } else { /* Local variable / function argument. */
             auto __n = top_func->get_arg_index(__var);
             if (__n == size_t(-1)) throw dark::error("Local variable cannot get directly!");
             /* Function argument case. */
@@ -132,7 +132,7 @@ struct ASMbuilder : IR::IRvisitorbase {
     address_type *get_address(IR::non_literal *__tmp) {
         /* Global variable. */
         if(auto *__var = dynamic_cast <IR::variable *> (__tmp)) {
-            if(__tmp->name[0] == '@') {
+            if(dynamic_cast <IR::global_variable *> (__var)) {
                 return new global_address {
                     std::string_view {__tmp->name}
                 };

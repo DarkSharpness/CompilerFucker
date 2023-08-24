@@ -20,23 +20,42 @@ dominate_maker::dominate_maker(node *__entry) {
     for(auto __node : node_rpo)
         for(auto __prev : __node->prev)
             for(auto __temp : __prev->dom)
-                if(!__node->dom.count(__temp))
+                if(!__node->dom.count(__temp) || __node == __temp)
                     __temp->fro.insert(__node);
-    // debug_print(std::cerr);
+    debug_print(std::cerr);
+
 
     /* Collect the defs first and spread the defs. */
     for(auto __node : node_rpo) {
-        auto __iter = node_def.try_emplace(__node,
-            info_collector::collect_def(__node->block)).first;
-        spread_def(__node,__iter->second);
+        auto __set = info_collector::collect_def(__node->block);
+        spread_def(__node,__set);
     }
 
     /* Spread the extra definition made by phi. */
     spread_phi();
-    
+
+    for(auto __node : node_rpo)
+        info_collector::collect_use(__node->block,stmt_map);
+
     /* Complete renaming. */
     node_set.clear();
-    for(auto __node : node_rpo) rename(__node);
+    rename(__entry);
+
+    /* A funny wrapper ~ */
+    struct my_iterator : decltype(node_phi[nullptr].begin()) { 
+        using base = decltype(node_phi[nullptr].begin());
+        my_iterator(base __base) : base(__base) {}
+        IR::statement *operator * () { return (base::operator * ()).second; }
+    };
+
+    for(auto __node : node_rpo) {
+        auto &__map = node_phi[__node];
+        __node->block->stmt.insert (
+            __node->block->stmt.begin(),
+            my_iterator {__map.begin()},
+            my_iterator {__map.end()}
+        );
+    }
 }
 
 
@@ -132,12 +151,13 @@ void dominate_maker::update(node *__node) {
 void dominate_maker::rename(node *__node) {
     /* Already in the set. */
     if(node_set.insert(__node).second == false) return;
+    auto *__tmp = new auto(var_map);
     auto &__map = node_phi[__node];
 
     /* Rename the phi_stmt and build up the dest. */
     for(auto [__var,__phi] : __map) {
         __phi->dest = new IR::temporary;
-        __phi->dest->name = string_join(__var->name,".mem2reg",std::to_string(phi_count++));
+        __phi->dest->name = string_join(__var->name,".mem2reg.",std::to_string(phi_count++));
         __phi->dest->type = --__var->type;
         var_map[__var].push_back(__phi->dest);
     }
@@ -146,30 +166,62 @@ void dominate_maker::rename(node *__node) {
     collect_block(__node);
 
     /* Set the branch for the phi_stmt. */
-    for(auto __next : __node->next) update_branch(__node,__next);
+    for(auto __next : __node->next) {
+        update_branch(__node,__next);
+        rename(__next);
+    }
 
-    /* Recover the var_map. */
-    for(auto [__var,___] : __map) var_map[__var].pop_back();
-
-    /* Now the block is really updated! */
-    update_block(__node);
+    var_map = std::move(*__tmp); delete __tmp;
 }
 
 
 void dominate_maker::collect_block(node *__node) {
-    /* Complete all the operation. */
-    block_collector __collector (var_map,use_map,__node);
+    std::vector <IR::statement *> __vec;
+    for(auto __p : __node->block->stmt) {
+        /* Store case. */
+        if(auto __store = dynamic_cast <IR::store_stmt *> (__p)) {
+            if(auto __var = dynamic_cast <IR::local_variable *> (__store->dst)) {
+                var_map[__var].push_back(__store->src);
+                continue;
+            }
+        }
+
+        /* Load case. */
+        else if(auto __load = dynamic_cast <IR::load_stmt *> (__p)) {
+            if (auto *__var = dynamic_cast <IR::local_variable *> (__load->src)) {
+                auto &__vec = var_map[__var];
+                if(__vec.empty()) {
+                    warning("Undefined behavior! Load from an uninitialized variable!");
+                    break;
+                }
+
+                /* Current node. */
+                auto *__cur = __vec.back();
+                /* Replace the old loaded result with data in stack. */
+                for(auto __p : stmt_map[__load->dst])
+                    __p->update(__load->dst,__cur);
+                continue;
+            }
+        }
+
+        /* Normal case. */
+        __vec.push_back(__p);
+    }
+
+    __node->block->stmt = std::move(__vec);
 }
-
-
-void dominate_maker::update_block(node *__node) {
-    /* Complete all the operation. */
-    block_updater __updater (var_map,use_map,__node);
-}
-
 
 void dominate_maker::update_branch(node *__node,node *__next) {
-    
+    /* Just update the phi statement. */
+    for(auto [__var,__phi] : node_phi[__next]) {
+        auto &__vec = var_map[__var];
+        if(__vec.empty()) {
+            warning("Undefined behavior in phi! Load from an uninitialized variable!");
+            /* This node will never init from this direction. */
+            continue;
+        }
+        __phi->cond.push_back({__vec.back(),__node->block});
+    }
 }
 
 }
@@ -185,17 +237,28 @@ void graph_builder::visitFunction(IR::function *ctx) {
 
 void graph_builder::visitBlock(IR::block_stmt *ctx) {
     top = create_node(ctx);
-    for(auto __stmt : ctx->stmt) visit(__stmt);
+    end_tag = 0;
+    auto __beg = ctx->stmt.begin();
+    auto __end = ctx->stmt.end();
+    while(__beg != __end) {
+        visit(*__beg++);
+        /* Remove unreachable code. */
+        if(end_tag) return ctx->stmt.resize(__beg - ctx->stmt.begin());
+    }
+    runtime_assert("Undefined behavior! No terminator in the block!");
 }
 
 
 void graph_builder::visitJump(IR::jump_stmt *ctx) {
     link(top, create_node(ctx->dest));
+    end_tag = 1;
 }
+
 
 void graph_builder::visitBranch(IR::branch_stmt *ctx) {
     link(top, create_node(ctx->br[0]));
     link(top, create_node(ctx->br[1]));
+    end_tag = 1;
 }
 
 void graph_builder::visitInit(IR::initialization *ctx) {}
@@ -204,11 +267,16 @@ void graph_builder::visitBinary(IR::binary_stmt *ctx) {}
 void graph_builder::visitCall(IR::call_stmt *ctx) {}
 void graph_builder::visitLoad(IR::load_stmt *ctx) {}
 void graph_builder::visitStore(IR::store_stmt *ctx) {}
-void graph_builder::visitReturn(IR::return_stmt *ctx) {}
+void graph_builder::visitReturn(IR::return_stmt *ctx) {
+    end_tag = 1;
+}
 void graph_builder::visitAlloc(IR::allocate_stmt *ctx) {}
 void graph_builder::visitGet(IR::get_stmt *ctx) {}
 void graph_builder::visitPhi(IR::phi_stmt *ctx) {}
-void graph_builder::visitUnreachable(IR::unreachable_stmt *ctx) {}
+
+void graph_builder::visitUnreachable(IR::unreachable_stmt *ctx) {
+    end_tag = 2;
+}
 
 
 }
