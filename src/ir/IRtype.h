@@ -272,7 +272,7 @@ struct string_constant : literal {
 
 
 struct pointer_constant : literal {
-    variable *var;
+    const variable *var;
     explicit pointer_constant(variable *__ptr) : var(__ptr) {}
     std::string  type_data() const override { return "global ptr"; }
     wrapper get_value_type() const override { return var ? ++var->type : wrapper {&__null_class__,0}; }
@@ -307,6 +307,11 @@ inline bool operator < (const integer_constant &lhs,
     return lhs.value < rhs.value;
 }
 
+inline bool operator < (const pointer_constant &lhs,
+                        const pointer_constant &rhs) {
+    return lhs.var < rhs.var;
+}
+
 
 inline integer_constant *create_integer(int __n) {
     static std::set <integer_constant> __pool;
@@ -318,5 +323,9 @@ inline boolean_constant *create_boolean(bool __n) {
     return __pool + __n;
 }
 
+inline pointer_constant *create_pointer(variable *__ptr) {
+    static std::set <pointer_constant> __pool;
+    return const_cast <pointer_constant *> (&*__pool.emplace(__ptr).first);
+}
 
 }

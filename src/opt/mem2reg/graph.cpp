@@ -1,8 +1,9 @@
 #include "mem2reg.h"
 
+#include <queue>
 #include <algorithm>
 #include <iterator>
-#include <queue>
+#include <unordered_map>
 
 /* Dominate maker */
 namespace dark::MEM {
@@ -22,7 +23,6 @@ dominate_maker::dominate_maker(node *__entry) {
             for(auto __temp : __prev->dom)
                 if(!__node->dom.count(__temp) || __node == __temp)
                     __temp->fro.insert(__node);
-    debug_print(std::cerr);
 
 
     /* Collect the defs first and spread the defs. */
@@ -215,12 +215,19 @@ void dominate_maker::update_branch(node *__node,node *__next) {
     /* Just update the phi statement. */
     for(auto [__var,__phi] : node_phi[__next]) {
         auto &__vec = var_map[__var];
+        IR::definition *__def = nullptr;
         if(__vec.empty()) {
             warning("Undefined behavior in phi! Load from an uninitialized variable!");
             /* This node will never init from this direction. */
-            continue;
+            auto __name = __var->get_point_type().name();
+            if     (__name == "ptr") __def = IR::create_pointer(nullptr);
+            else if(__name == "i32") __def = IR::create_integer(0);
+            else if(__name == "i1")  __def = IR::create_boolean(false);
+            else runtime_assert("Undefined behavior! Unknown type!");
+        } else {
+            __def = __vec.back();
         }
-        __phi->cond.push_back({__vec.back(),__node->block});
+        __phi->cond.push_back({__def,__node->block});
     }
 }
 

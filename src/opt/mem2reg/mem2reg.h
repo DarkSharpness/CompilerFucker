@@ -2,6 +2,7 @@
 #include "IRbase.h"
 #include "memnode.h"
 
+#include <queue>
 
 /* Optimize only. */
 namespace dark::MEM {
@@ -88,7 +89,6 @@ struct dominate_maker {
         }
         os << '\n';
     }
-
 };
 
 
@@ -108,16 +108,10 @@ struct graph_builder : IR::IRvisitorbase {
             visitFunction(&__func);
 
         // for(auto __func : global_functions)
-            // debug_print(&__func);
-        
-        for(auto __func : global_functions)
-            std::cerr << __func.data() << '\n';
+        //      debug_print(&__func);
 
         for(auto __func : global_functions)
             dominate_maker __maker(create_node(__func.stmt.front()));
-        
-        for(auto __func : global_functions)
-            std::cerr << __func.data() << '\n';
     }
 
     void visitBlock(IR::block_stmt*) override;
@@ -150,81 +144,6 @@ struct graph_builder : IR::IRvisitorbase {
     }
 
     virtual ~graph_builder() = default;
-};
-
-
-/* It will only collect the info and build up */
-struct block_collector : IR::IRvisitorbase {
-    /* Mapping from a variable to its definition. */
-    std::map <IR::variable *,std::vector <IR::definition *>> &var_map;
-    
-    /* Mapping from a old temporary (loaded) to new definition. */
-    std::map <IR::definition *,IR::definition *> &use_map;
-
-    node *top;
-
-    block_collector(
-        std::map <IR::variable *,std::vector <IR::definition *>> &__var,
-        std::map <IR::definition *,IR::definition *> &__use, node *__cur
-    ) : var_map(__var) , use_map(__use) , top(__cur) {
-
-    }
-
-    void visitBlock(IR::block_stmt *) override;
-    void visitFunction(IR::function *) override;
-    void visitInit(IR::initialization *) override;
-
-    void visitCompare(IR::compare_stmt *) override;
-    void visitBinary(IR::binary_stmt *) override;
-    void visitJump(IR::jump_stmt *) override;
-    void visitBranch(IR::branch_stmt *) override;
-    void visitCall(IR::call_stmt *) override;
-    void visitLoad(IR::load_stmt *) override;
-    void visitStore(IR::store_stmt *) override;
-    void visitReturn(IR::return_stmt *) override;
-    void visitAlloc(IR::allocate_stmt *) override;
-    void visitGet(IR::get_stmt *) override;
-    void visitPhi(IR::phi_stmt *) override;
-    void visitUnreachable(IR::unreachable_stmt *) override;
-
-    ~block_collector() override = default;
-};
-
-
-struct block_updater : IR::IRvisitorbase {
-    /* Mapping from a variable to its definition. */
-    std::map <IR::variable *,std::vector <IR::definition *>> &var_map;
-    
-    /* Mapping from a old temporary (loaded) to new definition. */
-    std::map <IR::definition *,IR::definition *> &use_map;
-
-    node *top;
-
-    block_updater(
-        std::map <IR::variable *,std::vector <IR::definition *>> &__var,
-        std::map <IR::definition *,IR::definition *> &__use, node *__cur
-    ) : var_map(__var) , use_map(__use) , top(__cur) {
-        
-    }
-
-    void visitBlock(IR::block_stmt *) override;
-    void visitFunction(IR::function *) override;
-    void visitInit(IR::initialization *) override;
-
-    void visitCompare(IR::compare_stmt *) override;
-    void visitBinary(IR::binary_stmt *) override;
-    void visitJump(IR::jump_stmt *) override;
-    void visitBranch(IR::branch_stmt *) override;
-    void visitCall(IR::call_stmt *) override;
-    void visitLoad(IR::load_stmt *) override;
-    void visitStore(IR::store_stmt *) override;
-    void visitReturn(IR::return_stmt *) override;
-    void visitAlloc(IR::allocate_stmt *) override;
-    void visitGet(IR::get_stmt *) override;
-    void visitPhi(IR::phi_stmt *) override;
-    void visitUnreachable(IR::unreachable_stmt *) override;
-
-    ~block_updater() override = default;
 };
 
 

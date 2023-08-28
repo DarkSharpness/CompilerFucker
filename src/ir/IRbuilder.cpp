@@ -708,7 +708,7 @@ void IRbuilder::visitGlobalVariable(AST::variable *ctx,AST::literal_constant *li
     } else if(!lit || lit->type == lit->NULL_) {
         __lit = __null__;
     } else {
-        __lit = new pointer_constant {create_string(lit->name)};
+        __lit = create_pointer(create_string(lit->name));
     }
 
     global_variables.push_back({__var,__lit});

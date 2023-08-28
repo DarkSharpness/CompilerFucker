@@ -8,7 +8,7 @@ namespace dark::IR {
 
 struct IRbuilder : AST::ASTvisitorbase {
     /* Global null constant shared by all members. */
-    inline static auto *__null__ = new pointer_constant {nullptr};
+    inline static auto *__null__ = create_pointer(nullptr);
     inline static auto *__neg1__ = create_integer(-1);   /* Literal -1.  */
     inline static auto *__zero__ = create_integer(0);    /* Literal 0.   */
     inline static auto *__one1__ = create_integer(1);    /* Literal 1.   */
@@ -93,22 +93,21 @@ struct IRbuilder : AST::ASTvisitorbase {
         // debug_print();
     }
 
-    void debug_print() {
+    void debug_print(std::ostream &os) {
         for(auto &&__class : class_map) {
             if(auto *__ptr = dynamic_cast <class_type *> (__class.second)) {
-                std::cerr << __ptr->data() << '\n';
+                os << __ptr->data() << '\n';
             }
-        } std::cerr << '\n';
-
+        } os << '\n';
         for(auto &__var : builtin_function)
-            std::cerr << __var.declare();
+            os << __var.declare();
 
         for(auto &__var : global_variables)
-            std::cerr << __var.data() << '\n';
-        std::cerr << '\n';
+            os << __var.data() << '\n';
+        os << '\n';
 
         for(auto &__func : global_functions)
-            std::cerr << __func.data() << '\n';
+            os << __func.data() << '\n';
     }
 
     void make_basic(scope *__string,scope *__array);

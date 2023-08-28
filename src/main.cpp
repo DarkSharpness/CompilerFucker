@@ -42,11 +42,14 @@ int main(int argc, const char* argv<::>) <%
         dark::ASTbuilder Wankupi (tree);
         dark::AST::ASTvisitor Conless (Wankupi.global,Wankupi.mapping);
         dark::IR::IRbuilder Hastin (Conless.global,Conless.class_map,Wankupi.global);
-        dark::ASM::ASMbuilder AbelCat (Hastin.global_variables,Hastin.global_functions);
         dark::MEM::graph_builder (Hastin.global_variables,Hastin.global_functions);
-        dark::ASM::ASMvalidator Latte   (AbelCat.global_info);
-        dark::ASM::ASMcounter SmartHeHe (AbelCat.global_info);
-        dark::ASM::ASMvisitor Chayso    (AbelCat.global_info);
+
+        Hastin.debug_print(std::cout);
+
+        // dark::ASM::ASMbuilder AbelCat   (Hastin.global_variables,Hastin.global_functions);
+        // dark::ASM::ASMvalidator Latte   (AbelCat.global_info);
+        // dark::ASM::ASMcounter SmartHeHe (AbelCat.global_info);
+        // dark::ASM::ASMvisitor Chayso    (AbelCat.global_info);
     } catch(dark::error &err) {
         return 1;
     } catch(std::exception &err) {
