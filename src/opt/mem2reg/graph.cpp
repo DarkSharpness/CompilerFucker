@@ -21,9 +21,15 @@ dominate_maker::dominate_maker(node *__entry) {
     for(auto __node : node_rpo)
         for(auto __prev : __node->prev)
             for(auto __temp : __prev->dom)
-                if(!__node->dom.count(__temp) || __node == __temp)
-                    __temp->fro.insert(__node);
+                if(__node == __temp || std::binary_search(
+                    __temp->dom.begin(), __temp->dom.end(), __node
+                )) __node->fro.push_back(__prev);
 
+    for(auto __node : node_rpo) {
+        std::sort(__node->fro.begin(), __node->fro.end());
+        auto __iter = std::unique(__node->fro.begin(), __node->fro.end());
+        __node->fro.resize(__iter - __node->fro.begin());
+    }
 
     /* Collect the defs first and spread the defs. */
     for(auto __node : node_rpo) {
@@ -98,11 +104,10 @@ void dominate_maker::spread_phi() {
     }
 }
 
-
 void dominate_maker::iterate(node *__entry) {
     for(auto __node : node_rpo)
         if(__node != __entry)
-            __node->dom = node_set;
+            __node->dom.assign(node_set.begin(),node_set.end());
     __entry->dom = {__entry};
     do {
         update_tag = false;
@@ -126,20 +131,26 @@ void dominate_maker::dfs(node *__node) {
 
 void dominate_maker::update(node *__node) {
     runtime_assert("Invalid node!",__node->prev.size() > 0);
-    std::set <node *> __dom = __node->prev[0]->dom;
+
+    std::vector <node *> __dom = __node->prev[0]->dom;
+    std::vector <node *> __tmp;
 
     /* Set intersection operation for all nodes. */
     for(size_t i = 1 ; i < __node->prev.size() ; ++i) {
+        /* Use vector instead of set to improve overall performance. */
         auto &__set = __node->prev[i]->dom;
-        std::set <node *> __tmp;
         std::set_intersection (
             __dom.begin(), __dom.end(),
             __set.begin(), __set.end(),
-            std::insert_iterator(__tmp, __tmp.begin())
+            std::back_inserter(__tmp)
         );
-        __dom = std::move(__tmp);
+        /* Swap 2 containers. */
+        __dom.swap(__tmp); __tmp.clear();
     }
-    __dom.insert(__node);
+
+    auto __iter = std::lower_bound(__dom.begin(),__dom.end(),__node);
+    if(__iter == __dom.end() || *__iter != __node)
+        __dom.insert(__iter,__node);
 
     if(__dom != __node->dom) {
         __node->dom = std::move(__dom);

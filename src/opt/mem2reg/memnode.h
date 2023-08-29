@@ -15,8 +15,8 @@ struct node {
 
     const std::string &name() const noexcept { return block->label; }
 
-    std::set <node *> dom; /* Dominated dots. */
-    std::set <node *> fro; /* Dominated Frontier. */
+    std::vector <node *> dom; /* Dominated dots. */
+    std::vector <node *> fro; /* Dominated Frontier. */
 
     /* A set of all the variables defined in the block. */
     std::set <IR::variable *> var_set;
