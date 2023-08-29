@@ -18,9 +18,6 @@ struct node {
     std::vector <node *> dom; /* Dominated dots. */
     std::vector <node *> fro; /* Dominated Frontier. */
 
-    /* A set of all the variables defined in the block. */
-    std::set <IR::variable *> var_set;
-
     bool is_entry() const noexcept { return prev.empty(); }
     bool is_exit()  const noexcept { return next.empty(); }
 

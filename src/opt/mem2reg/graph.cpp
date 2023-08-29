@@ -3,7 +3,6 @@
 #include <queue>
 #include <algorithm>
 #include <iterator>
-#include <unordered_map>
 
 /* Dominate maker */
 namespace dark::MEM {
@@ -21,13 +20,14 @@ dominate_maker::dominate_maker(node *__entry) {
     for(auto __node : node_rpo)
         for(auto __prev : __node->prev)
             for(auto __temp : __prev->dom)
-                if(__node == __temp || std::binary_search(
-                    __temp->dom.begin(), __temp->dom.end(), __node
-                )) __node->fro.push_back(__prev);
+                if(__node == __temp || !std::binary_search(
+                    __node->dom.begin(),__node->dom.end(),__temp))
+                    __temp->fro.push_back(__node);
 
     for(auto __node : node_rpo) {
-        std::sort(__node->fro.begin(), __node->fro.end());
-        auto __iter = std::unique(__node->fro.begin(), __node->fro.end());
+        if(__node == __entry) continue;
+        std::sort(__node->fro.begin(),__node->fro.end());
+        auto __iter = std::unique(__node->fro.begin(),__node->fro.end());
         __node->fro.resize(__iter - __node->fro.begin());
     }
 
@@ -104,10 +104,17 @@ void dominate_maker::spread_phi() {
     }
 }
 
+
 void dominate_maker::iterate(node *__entry) {
+    std::vector <node *> __vec;
     for(auto __node : node_rpo)
-        if(__node != __entry)
-            __node->dom.assign(node_set.begin(),node_set.end());
+        if(__node != __entry) {
+            if(__vec.empty()) {
+                __vec.assign(node_set.begin(),node_set.end());
+                std::sort(__vec.begin(),__vec.end());
+            }
+            __node->dom = __vec;
+        }
     __entry->dom = {__entry};
     do {
         update_tag = false;
@@ -131,25 +138,23 @@ void dominate_maker::dfs(node *__node) {
 
 void dominate_maker::update(node *__node) {
     runtime_assert("Invalid node!",__node->prev.size() > 0);
-
     std::vector <node *> __dom = __node->prev[0]->dom;
     std::vector <node *> __tmp;
 
     /* Set intersection operation for all nodes. */
     for(size_t i = 1 ; i < __node->prev.size() ; ++i) {
-        /* Use vector instead of set to improve overall performance. */
         auto &__set = __node->prev[i]->dom;
         std::set_intersection (
             __dom.begin(), __dom.end(),
             __set.begin(), __set.end(),
             std::back_inserter(__tmp)
         );
-        /* Swap 2 containers. */
-        __dom.swap(__tmp); __tmp.clear();
+        std::swap(__tmp,__dom); __tmp.clear();
     }
 
+    /* Add node to current set. */
     auto __iter = std::lower_bound(__dom.begin(),__dom.end(),__node);
-    if(__iter == __dom.end() || *__iter != __node)
+    if (__iter == __dom.end() || *__iter != __node)
         __dom.insert(__iter,__node);
 
     if(__dom != __node->dom) {
