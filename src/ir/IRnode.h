@@ -252,11 +252,18 @@ struct phi_stmt : statement {
 
 
 struct unreachable_stmt : statement {
+    unreachable_stmt(unreachable_stmt *) {}
     std::string data() const override { return "unreachable\n"; }
     void accept(IRvisitorbase *v) override { return v->visitUnreachable(this); }
     std::vector <definition *> get_use() const override { return {}; }
     void update(definition *__old, definition *__new) override {}
     ~unreachable_stmt() override = default;
+
+    /* Return the only object of this class. */
+    static unreachable_stmt *new_unreachable () {
+        static unreachable_stmt __unreachable(nullptr);
+        return &__unreachable;
+    }
 };
 
 

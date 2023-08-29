@@ -89,7 +89,7 @@ void IRbuilder::visitUnaryExpr(AST::unary_expr *ctx) {
         if(!ctx->assignable()) result = ctx->op[2] ? __tmp : __bin->dest;
     } else {
         auto *__tmp = dynamic_cast <literal *> (result);
-        if((__tmp = const_folder(ctx->op)(__tmp))) return void(result = __tmp); 
+        if (( __tmp = const_folder(ctx->op)(__tmp))) return void(result = __tmp); 
         if(ctx->op[0] == '+') return;
 
         auto *__bin = new binary_stmt;
@@ -210,7 +210,13 @@ void IRbuilder::visitBinaryExpr(AST::binary_expr *ctx) {
 
         auto *__lhs = dynamic_cast <integer_constant *> (__bin->lvar);
         auto *__rhs = dynamic_cast <integer_constant *> (__bin->rvar);
-        if((result = const_folder(__bin->op)(__lhs,__rhs))) { delete __bin; return; }
+        if ((result = const_folder(__bin->op)(__lhs,__rhs))) {
+            if (result == &__INTEGER_DIVIDE_BY_ZERO__) {
+                /* Possible warning! */
+                warning("Undefined behavior: division by zero!");
+                top->emplace_new(unreachable_stmt::new_unreachable());
+            } delete __bin; return;
+        }
 
         __bin->dest = top->create_temporary(
             {&__integer_class__,0},
@@ -241,7 +247,7 @@ void IRbuilder::visitBinaryExpr(AST::binary_expr *ctx) {
 
         auto *__lhs = dynamic_cast <boolean_constant *> (__cmp->lvar);
         auto *__rhs = dynamic_cast <boolean_constant *> (__cmp->rvar);
-        if((result = const_folder(__cmp->op)(__lhs,__rhs))) { delete __cmp; return; }
+        if ((result = const_folder(__cmp->op)(__lhs,__rhs))) { delete __cmp; return; }
     
         __cmp->dest = top->create_temporary({&__boolean_class__,0},"cmp.");
         top->emplace_new(__cmp);
@@ -620,7 +626,7 @@ void IRbuilder::visitFunction(AST::function_def *ctx) {
         && !dynamic_cast <branch_stmt *> (__stmt)
         && !dynamic_cast   <jump_stmt *> (__stmt)) {
             if(ctx->unique_name != "main") {
-                top->emplace_new(new unreachable_stmt);
+                top->emplace_new(unreachable_stmt::new_unreachable());
             } else {
                 auto *__ret = new return_stmt;
                 __ret->func = top;

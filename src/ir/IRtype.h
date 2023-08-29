@@ -291,7 +291,8 @@ struct integer_constant : literal {
     ~integer_constant() override = default;
 };
 
-
+/* It is just a meaningless marker. */
+inline integer_constant __INTEGER_DIVIDE_BY_ZERO__(0);
 
 struct boolean_constant : literal {
     const bool value;
