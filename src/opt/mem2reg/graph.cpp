@@ -5,7 +5,7 @@
 #include <iterator>
 
 /* Dominate maker */
-namespace dark::MEM {
+namespace dark::OPT {
 
 
 dominate_maker::dominate_maker(node *__entry) {
@@ -33,7 +33,8 @@ dominate_maker::dominate_maker(node *__entry) {
 
     /* Collect the defs first and spread the defs. */
     for(auto __node : node_rpo) {
-        auto __set = info_collector::collect_def(__node->block);
+        std::set <IR::variable *> __set;
+        info_collector::collect_def(__node->block,__set);
         spread_def(__node,__set);
     }
 
@@ -41,7 +42,7 @@ dominate_maker::dominate_maker(node *__entry) {
     spread_phi();
 
     for(auto __node : node_rpo)
-        info_collector::collect_use(__node->block,stmt_map);
+        info_collector::collect_use(__node->block,use_map);
 
     /* Complete renaming. */
     node_set.clear();
@@ -51,7 +52,7 @@ dominate_maker::dominate_maker(node *__entry) {
     struct my_iterator : decltype(node_phi[nullptr].begin()) { 
         using base = decltype(node_phi[nullptr].begin());
         my_iterator(base __base) : base(__base) {}
-        IR::statement *operator * () { return (base::operator * ()).second; }
+        IR::statement *operator *() { return (base::operator * ()).second; }
     };
 
     for(auto __node : node_rpo) {
@@ -192,7 +193,7 @@ void dominate_maker::rename(node *__node) {
 
 
 void dominate_maker::collect_block(node *__node) {
-    std::vector <IR::statement *> __vec;
+    std::vector <IR::statement *> __ans;
     for(auto __p : __node->block->stmt) {
         /* Store case. */
         if(auto __store = dynamic_cast <IR::store_stmt *> (__p)) {
@@ -208,23 +209,30 @@ void dominate_maker::collect_block(node *__node) {
                 auto &__vec = var_map[__var];
                 if(__vec.empty()) {
                     warning("Undefined behavior! Load from an uninitialized variable!");
+                    __ans = { IR::unreachable_stmt::new_unreachable() };
                     break;
                 }
 
                 /* Current node. */
                 auto *__cur = __vec.back();
                 /* Replace the old loaded result with data in stack. */
-                for(auto __p : stmt_map[__load->dst])
+                auto __iter = use_map.find(__load->dst);
+                runtime_assert("WTF is that?",__iter != use_map.end());
+                for(auto __p : __iter->second)
                     __p->update(__load->dst,__cur);
-                continue;
+                /* Now it will be no longer be used. */
+                use_map.erase(__iter); continue;
             }
         }
 
+        /* Remove all allocas. */
+        else if (dynamic_cast <IR::allocate_stmt *> (__p)) continue;
+
         /* Normal case. */
-        __vec.push_back(__p);
+        __ans.push_back(__p);
     }
 
-    __node->block->stmt = std::move(__vec);
+    __node->block->stmt = std::move(__ans);
 }
 
 void dominate_maker::update_branch(node *__node,node *__next) {
@@ -234,6 +242,9 @@ void dominate_maker::update_branch(node *__node,node *__next) {
         IR::definition *__def = nullptr;
         if(__vec.empty()) {
             warning("Undefined behavior in phi! Load from an uninitialized variable!");
+            /* If optimization enabled, it will directly skip this step. */
+            continue;;
+
             /* This node will never init from this direction. */
             auto __name = __var->get_point_type().name();
             if     (__name == "ptr") __def = IR::create_pointer(nullptr);
@@ -251,14 +262,14 @@ void dominate_maker::update_branch(node *__node,node *__next) {
 
 
 /* Graph builder. */
-namespace dark::MEM {
+namespace dark::OPT {
 
-void graph_builder::visitFunction(IR::function *ctx) {
+void SSAbuilder::visitFunction(IR::function *ctx) {
     for(auto __block : ctx->stmt) visitBlock(__block);
 }
 
 
-void graph_builder::visitBlock(IR::block_stmt *ctx) {
+void SSAbuilder::visitBlock(IR::block_stmt *ctx) {
     top = create_node(ctx);
     end_tag = 0;
     auto __beg = ctx->stmt.begin();
@@ -266,38 +277,45 @@ void graph_builder::visitBlock(IR::block_stmt *ctx) {
     while(__beg != __end) {
         visit(*__beg++);
         /* Remove unreachable code. */
-        if(end_tag) return ctx->stmt.resize(__beg - ctx->stmt.begin());
+        switch(end_tag) {
+            case 1:
+                ctx->stmt.resize(__beg - ctx->stmt.begin());
+                return;
+            case 2:
+                ctx->stmt = { IR::unreachable_stmt::new_unreachable() };
+                return;
+        }
     }
     runtime_assert("Undefined behavior! No terminator in the block!");
 }
 
 
-void graph_builder::visitJump(IR::jump_stmt *ctx) {
+void SSAbuilder::visitJump(IR::jump_stmt *ctx) {
     link(top, create_node(ctx->dest));
     end_tag = 1;
 }
 
 
-void graph_builder::visitBranch(IR::branch_stmt *ctx) {
+void SSAbuilder::visitBranch(IR::branch_stmt *ctx) {
     link(top, create_node(ctx->br[0]));
     link(top, create_node(ctx->br[1]));
     end_tag = 1;
 }
 
-void graph_builder::visitInit(IR::initialization *ctx) {}
-void graph_builder::visitCompare(IR::compare_stmt *ctx) {}
-void graph_builder::visitBinary(IR::binary_stmt *ctx) {}
-void graph_builder::visitCall(IR::call_stmt *ctx) {}
-void graph_builder::visitLoad(IR::load_stmt *ctx) {}
-void graph_builder::visitStore(IR::store_stmt *ctx) {}
-void graph_builder::visitReturn(IR::return_stmt *ctx) {
+void SSAbuilder::visitInit(IR::initialization *ctx) {}
+void SSAbuilder::visitCompare(IR::compare_stmt *ctx) {}
+void SSAbuilder::visitBinary(IR::binary_stmt *ctx) {}
+void SSAbuilder::visitCall(IR::call_stmt *ctx) {}
+void SSAbuilder::visitLoad(IR::load_stmt *ctx) {}
+void SSAbuilder::visitStore(IR::store_stmt *ctx) {}
+void SSAbuilder::visitReturn(IR::return_stmt *ctx) {
     end_tag = 1;
 }
-void graph_builder::visitAlloc(IR::allocate_stmt *ctx) {}
-void graph_builder::visitGet(IR::get_stmt *ctx) {}
-void graph_builder::visitPhi(IR::phi_stmt *ctx) {}
+void SSAbuilder::visitAlloc(IR::allocate_stmt *ctx) {}
+void SSAbuilder::visitGet(IR::get_stmt *ctx) {}
+void SSAbuilder::visitPhi(IR::phi_stmt *ctx) {}
 
-void graph_builder::visitUnreachable(IR::unreachable_stmt *ctx) {
+void SSAbuilder::visitUnreachable(IR::unreachable_stmt *ctx) {
     end_tag = 2;
 }
 
