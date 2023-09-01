@@ -15,12 +15,8 @@ struct ASTbuilder : public MxParserVisitor {
     std::map <std::string,AST::typeinfo> mapping;
 
     ASTbuilder(MxParser::File_InputContext *ctx) {
-        std::cerr << "\033[34m\n\n|---------------Start building---------------|\033[0m\n\n";
         visitFile_Input(ctx);
-        std::cerr << "\033[32mNo error is found. AST_tree building success!";
-        std::cerr << "\033[34m\n\n|----------------End building----------------|\033[0m\n\n";
     }
-
 
     /* Return the typeinfo from given string. */
     AST::typeinfo *get_typeinfo(std::string str) {
