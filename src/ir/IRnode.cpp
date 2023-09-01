@@ -18,6 +18,10 @@ phi_stmt *block_stmt::is_phi_block() const {
     return dynamic_cast <phi_stmt *> (stmt[0]);
 }
 
+bool block_stmt::is_unreachable() const {
+    return dynamic_cast <unreachable_stmt *> (stmt.front());
+}
+
 
 std::string function::data() const {
     std::string __arg; /* Arglist. */

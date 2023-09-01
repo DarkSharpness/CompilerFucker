@@ -11,7 +11,10 @@ include_directories(src/generated/)
 include_directories(src/ast/)
 include_directories(src/asm/)
 include_directories(src/ir/)
+include_directories(src/opt/)
 include_directories(src/opt/mem2reg)
+include_directories(src/opt/dce)
+include_directories(src/opt/ssa)
 
 
 file(GLOB_RECURSE sources src/*.cpp)

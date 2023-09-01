@@ -1,9 +1,11 @@
+#pragma once
 #include "IRnode.h"
 
 #include <set>
 #include <vector>
 
-namespace dark::MEM {
+/* Optimizations. */
+namespace dark::OPT {
 
 struct node {
     IR::block_stmt *block;
@@ -31,6 +33,27 @@ struct node {
     }
 };
 
+
+/* An interesting helper class. */
+struct info_collector {
+    static void collect_def(IR::block_stmt *__block,
+        std::set <IR::variable *> &__set) {
+        for(auto __stmt : __block->stmt)
+            if(auto __store = dynamic_cast <IR::store_stmt *> (__stmt))
+                if(auto __var = dynamic_cast <IR::local_variable *> (__store->dst))
+                    __set.insert(__var);
+    }
+
+    static void collect_use(IR::block_stmt *__block,
+        std::map <IR::definition *,std::vector <IR::node *>> &__map)  {
+        for(auto __stmt : __block->stmt) {
+            auto __vec = __stmt->get_use();
+            for(auto __use : __vec)
+                if(dynamic_cast <IR::non_literal *> (__use))
+                    __map[__use].push_back(__stmt);
+        }
+    }
+};
     
 
 }

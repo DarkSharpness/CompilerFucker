@@ -26,6 +26,8 @@ struct block_stmt {
     std::string data() const;
     auto emplace_new(statement *__stmt) { return stmt.push_back(__stmt); }
     phi_stmt *is_phi_block() const;
+    /* Whether this block is unreachable. */
+    bool is_unreachable() const;
     ~block_stmt() = default;
 };
 
