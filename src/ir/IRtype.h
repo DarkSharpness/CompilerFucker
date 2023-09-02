@@ -195,6 +195,22 @@ struct definition {
     wrapper get_point_type() const { return --get_value_type(); };
 };
 
+/* A special type whose value is undefined.  */
+struct undefined : definition {
+    wrapper type;
+    undefined(wrapper __type) : type(__type) {}
+    wrapper get_value_type() const override final { return type; }
+    std::string       data() const override final {
+        std::string __name = type.name();
+        if(__name == "ptr") return "null";
+        if(__name == "i1")  return "false";
+        if(__name == "i32") return "0";
+        throw error("Unknown type.");
+    }
+    ~undefined() override = default;
+};
+
+
 /* Non literal type. (Variable / Temporary) */
 struct non_literal : definition {
     std::string name; /* Unique name.  */
@@ -320,7 +336,10 @@ inline integer_constant *create_integer(int __n) {
 }
 
 inline boolean_constant *create_boolean(bool __n) {
-    static boolean_constant __pool[2] = {boolean_constant {false},boolean_constant {true}};
+    static boolean_constant __pool[2] = {
+        boolean_constant {false},
+        boolean_constant {true}
+    };
     return __pool + __n;
 }
 
@@ -328,5 +347,17 @@ inline pointer_constant *create_pointer(variable *__ptr) {
     static std::set <pointer_constant> __pool;
     return const_cast <pointer_constant *> (&*__pool.emplace(__ptr).first);
 }
+
+inline undefined *create_undefined(wrapper type) {
+    static undefined __ptr {{&__null_class__,0}};
+    static undefined __int {{&__integer_class__,0}};
+    static undefined __bool{{&__boolean_class__,0}};
+    auto __name = type.name();
+    if(__name == "ptr") return &__ptr;
+    if(__name == "i32") return &__int;
+    if(__name == "i1")  return &__bool;
+    throw error("Unknown type.");
+}
+
 
 }
