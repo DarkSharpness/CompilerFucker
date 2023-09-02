@@ -8,7 +8,7 @@ deadcode_eliminator::deadcode_eliminator
     /**
      * Firstly, collect all the usage information. (First def, then use)
      * 
-     * For those "def"less variables outside phi, the block will be unreachable.
+     * For those "def"less variables outside phi, it will be replaced with 0.
      * For those "def"less variables in phi, we will remove them.
      * For those undefined branch value in phi, we will set them as below.
      * (
@@ -33,6 +33,7 @@ deadcode_eliminator::deadcode_eliminator
      * 
      * 
      * Next, mark all variables with potential-side-effect.(Store/Call).
+     * 
      * These potential-side-effect may also spread to other variables.
      * Specially, for branch statement, we should find out whether it
      * may bring side-effects (like jump to a side-effective block.),
@@ -52,7 +53,23 @@ deadcode_eliminator::deadcode_eliminator
      * Now, all dead code have been eliminated. And we can further optimize
      * the IR using other methods like constant propagation.
     */
+
+    for(auto __block : __func->stmt) {
+        /* We won't visit unreachable blocks! */
+        if(__block->is_unreachable()) continue;
+        for(auto __stmt : __block->stmt) {
+            auto __uses = __stmt->get_use();
+            info_holder * __info = create_info(__stmt);
+            std::vector <info_holder *> __vec;
+            __vec.reserve(__uses.size());
+            for(auto *__use : __uses)
+                if(auto __temp = dynamic_cast <IR::temporary *> (__use))
+                    __vec.push_back(get_info(__temp));
+            __info->init(__stmt,__vec);
+        }
+    }
     
+
 }
 
 }

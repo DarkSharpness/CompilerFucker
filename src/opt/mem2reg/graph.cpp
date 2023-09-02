@@ -1,4 +1,5 @@
 #include "mem2reg.h"
+#include "dominate.h"
 
 #include <queue>
 #include <algorithm>
@@ -254,7 +255,7 @@ void dominate_maker::update_branch(node *__node,node *__next) {
 }
 
 
-/* Graph builder. */
+/* SSA graph builder. */
 namespace dark::OPT {
 
 void SSAbuilder::visitFunction(IR::function *ctx) {

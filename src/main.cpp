@@ -21,6 +21,7 @@
 
 #include "mem2reg.h"
 #include "deadcode.h"
+#include "cfg.h"
 
 int main(int argc, const char* argv<::>) <%
     try {
@@ -39,10 +40,10 @@ int main(int argc, const char* argv<::>) <%
         parser.addErrorListener(&listener);
 
         auto *tree = parser.file_Input();
-        dark::ASTbuilder Wankupi (tree);
-        dark::AST::ASTvisitor Conless (Wankupi.global,Wankupi.mapping);
-        dark::IR::IRbuilder Hastin (Conless.global,Conless.class_map,Wankupi.global);
-        dark::OPT::SSAbuilder (Hastin.global_variables,Hastin.global_functions);
+        dark::ASTbuilder Wankupi {tree};
+        dark::AST::ASTvisitor Conless {Wankupi.global,Wankupi.mapping};
+        dark::IR::IRbuilder Hastin {Conless.global,Conless.class_map,Wankupi.global};
+        dark::OPT::SSAbuilder {Hastin.global_variables,Hastin.global_functions};
 
         Hastin.debug_print(std::cout);
 
