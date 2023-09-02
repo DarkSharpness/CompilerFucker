@@ -13,7 +13,7 @@ namespace dark::IR {
 
 /* Abstract middle class. */
 
-struct statement : node {};
+using statement = node;
 
 struct phi_stmt;
 
@@ -58,6 +58,7 @@ struct compare_stmt : statement {
     /* <result> = icmp <cond> <type> <operand1>, <operand2> */
     std::string data() const override;
     void accept(IRvisitorbase *v) override { return v->visitCompare(this); }
+    temporary *get_def() const override { return dest; }
     std::vector <definition *> get_use() const override { return {lvar,rvar}; }
     void update(definition *__old, definition *__new) override {
         if(lvar == __old) lvar = __new;
@@ -101,6 +102,7 @@ struct binary_stmt : statement {
     /* <result> = <operator> <type> <operand1>, <operand2> */
     std::string data() const override;
     void accept(IRvisitorbase *v) override { return v->visitBinary(this); }
+    temporary *get_def() const override { return dest; }
     std::vector <definition *> get_use() const override { return {lvar,rvar}; }
     void update(definition *__old, definition *__new) override {
         if(lvar == __old) lvar = __new;
@@ -118,6 +120,7 @@ struct jump_stmt : statement {
     std::string data() const override
     { return string_join("br label %",dest->label,'\n'); }
     void accept(IRvisitorbase *v) override { return v->visitJump(this); }
+    temporary *get_def() const override { return nullptr; }
     std::vector <definition *> get_use() const override { return {}; }
     void update(definition *__old, definition *__new) override {}
     ~jump_stmt() override = default;
@@ -132,8 +135,11 @@ struct branch_stmt : statement {
     /* br i1 <cond>, label <iftrue>, label <if_false> */
     std::string data() const override;
     void accept(IRvisitorbase *v) override { return v->visitBranch(this); }
-    std::vector <definition *> get_use() const override { return {}; }
-    void update(definition *__old, definition *__new) override {}
+    temporary *get_def() const override { return nullptr; }
+    std::vector <definition *> get_use() const override { return {cond}; }
+    void update(definition *__old, definition *__new) override {
+        if(cond == __old) cond = __new;
+    }
     ~branch_stmt() override = default;
 };
 
@@ -146,6 +152,7 @@ struct call_stmt : statement {
     /* <result> = call <ResultType> @<FunctionName> (<argument>) */
     std::string data() const override;
     void accept(IRvisitorbase *v) override { return v->visitCall(this); }
+    temporary *get_def() const override { return dest; }
     std::vector <definition *> get_use() const override { return args; }
     void update(definition *__old, definition *__new) override {
         for(auto &__arg : args) if(__arg == __old) __arg = __new;
@@ -161,6 +168,7 @@ struct load_stmt : statement {
     /* <result> = load <type>, ptr <pointer>  */
     std::string data() const override;
     void accept(IRvisitorbase *v) override { return v->visitLoad(this); }
+    temporary *get_def() const override   { return dst; }
     std::vector <definition *> get_use() const override { return {src}; }
     void update(definition *__old, definition *__new) override {
         if(src == __old) src = safe_cast <non_literal *> (__new);
@@ -176,6 +184,7 @@ struct store_stmt : statement {
     /* store <type> <value>, ptr <pointer>  */
     std::string data() const override;
     void accept(IRvisitorbase *v) override { return v->visitStore(this); }
+    temporary *get_def() const override { return nullptr; }
     std::vector <definition *> get_use() const override { return {src}; }
     void update(definition *__old, definition *__new) override {
         if(src == __old) src = __new;
@@ -190,6 +199,7 @@ struct return_stmt : statement {
 
     std::string data() const override;
     void accept(IRvisitorbase *v) override { return v->visitReturn(this); }
+    temporary *get_def() const override { return nullptr; }
     std::vector <definition *> get_use() const override { return {rval}; }
     void update(definition *__old, definition *__new) override {
         if(rval == __old) rval = __new;
@@ -204,6 +214,7 @@ struct allocate_stmt : statement {
     /* <result> = alloca <type> */
     std::string data() const override;
     void accept(IRvisitorbase *v) override { return v->visitAlloc(this); }
+    temporary *get_def() const override { return nullptr; }
     std::vector <definition *> get_use() const override { return {}; }
     void update(definition *__old, definition *__new) override {}
     ~allocate_stmt() override = default;
@@ -220,6 +231,7 @@ struct get_stmt : statement {
     /* <result> = getelementptr <ty>, ptr <ptrval> {, <ty> <idx>} */
     std::string data() const override;
     void accept(IRvisitorbase *v) override { return v->visitGet(this); }
+    temporary *get_def() const override { return dst; }
     std::vector <definition *> get_use() const override { return {src,idx}; }
     void update(definition *__old, definition *__new) override {
         if(src == __old) src = __new;
@@ -241,6 +253,7 @@ struct phi_stmt : statement {
     /* <result> = phi <ty> [ <value,label> ],...... */
     std::string data() const override;
     void accept(IRvisitorbase *v) override { return v->visitPhi(this); }
+    temporary *get_def() const override { return dest; }
     std::vector <definition *> get_use() const override {
         std::vector <definition *> __use;
         for(auto __p : cond) __use.push_back(__p.value);
@@ -257,10 +270,10 @@ struct unreachable_stmt : statement {
     unreachable_stmt(unreachable_stmt *) {}
     std::string data() const override { return "unreachable\n"; }
     void accept(IRvisitorbase *v) override { return v->visitUnreachable(this); }
+    temporary *get_def() const override { return nullptr; }
     std::vector <definition *> get_use() const override { return {}; }
     void update(definition *__old, definition *__new) override {}
     ~unreachable_stmt() override = default;
-
 };
 
 /* Return the only object of this class. */

@@ -11,6 +11,7 @@ struct IRvisitorbase;
 struct node {
     virtual std::string data() const = 0;
     virtual void accept(IRvisitorbase * __v) = 0;
+    virtual temporary * get_def() const = 0;
     virtual std::vector <definition *> get_use() const = 0;
     virtual void update(definition *, definition *) = 0;
     virtual ~node() = default;
