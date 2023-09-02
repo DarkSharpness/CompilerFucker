@@ -16,9 +16,6 @@ struct dominate_maker {
     std::set    <node *> node_set;
     std::vector <node *> node_rpo;
 
-    /* Mapping from a node to all the variable definitions. (Store) */
-    std::map <node *,std::set <IR::variable *>> node_def;
-
     /* Mapping from a node to all its newly inserted variable-phi pair. */
     std::map <node *,std::map <IR::variable *,IR::phi_stmt *>> node_phi;
 
@@ -66,12 +63,35 @@ struct dominate_maker {
         }
         os << '\n';
     }
+
+    /* An interesting helper class. */
+    struct info_collector {
+        /* Collect all definition of local variables (Store only) */
+        static void collect_def(IR::block_stmt *__block,
+            std::set <IR::variable *> &__set) {
+            for(auto __stmt : __block->stmt)
+                if(auto __store = dynamic_cast <IR::store_stmt *> (__stmt))
+                    if(auto __var = dynamic_cast <IR::local_variable *> (__store->dst))
+                        __set.insert(__var);
+        }
+
+        /* Collect all usage of temporaries(which may be loaded from variables). */
+        static void collect_use(IR::block_stmt *__block,
+            std::map <IR::definition *,std::vector <IR::node *>> &__map)  {
+            for(auto __stmt : __block->stmt) {
+                auto __vec = __stmt->get_use();
+                for(auto __use : __vec)
+                    if(dynamic_cast <IR::temporary *> (__use))
+                        __map[__use].push_back(__stmt);
+            }
+        }
+    };
 };
 
 
 
 struct SSAbuilder : IR::IRvisitorbase {
-    std::map <IR::block_stmt *,node>          node_map;
+    std::map <IR::block_stmt *,node> node_map;
     node *top;
     size_t end_tag = 0;
 

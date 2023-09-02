@@ -632,10 +632,10 @@ void IRbuilder::visitFunction(AST::function_def *ctx) {
                 __ret->func = top;
                 __ret->rval = __zero__;
                 top->emplace_new(__ret);
-                warning (
-                    "Missing return statement in main function\n"
-                    "\"return 0;\" is added by default!",ctx
-                );
+                // warning (
+                //     "Missing return statement in main function\n"
+                //     "\"return 0;\" is added by default!",ctx
+                // );
             }
         }
     }

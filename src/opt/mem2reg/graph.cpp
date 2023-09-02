@@ -207,19 +207,30 @@ void dominate_maker::collect_block(node *__node) {
         else if(auto __load = dynamic_cast <IR::load_stmt *> (__p)) {
             if (auto *__var = dynamic_cast <IR::local_variable *> (__load->src)) {
                 auto &__vec = var_map[__var];
+                IR::definition *__def; /* Current definition. */
                 if(__vec.empty()) {
                     warning("Undefined behavior! Load from an uninitialized variable!");
-                    __ans = { IR::unreachable_stmt::new_unreachable() };
-                    break;
-                }
 
-                /* Current node. */
-                auto *__cur = __vec.back();
+#ifdef ENABLE_SAFE_INIT
+                    /* This node will never init from this direction. */
+                    auto __name = __var->get_point_type().name();
+                    if     (__name == "ptr") __def = IR::create_pointer(nullptr);
+                    else if(__name == "i32") __def = IR::create_integer(0);
+                    else if(__name == "i1")  __def = IR::create_boolean(false);
+                    else runtime_assert("Undefined behavior! Unknown type!");
+#else
+                    /* If optimization enabled, it will become an unreachable branch. */
+                    __node->block->stmt = { IR::unreachable_stmt::new_unreachable() };
+                    return;
+#endif
+
+                } else __def = __vec.back();
+
                 /* Replace the old loaded result with data in stack. */
                 auto __iter = use_map.find(__load->dst);
                 runtime_assert("WTF is that?",__iter != use_map.end());
                 for(auto __p : __iter->second)
-                    __p->update(__load->dst,__cur);
+                    __p->update(__load->dst,__def);
                 /* Now it will be no longer be used. */
                 use_map.erase(__iter); continue;
             }
@@ -242,18 +253,20 @@ void dominate_maker::update_branch(node *__node,node *__next) {
         IR::definition *__def = nullptr;
         if(__vec.empty()) {
             warning("Undefined behavior in phi! Load from an uninitialized variable!");
-            /* If optimization enabled, it will directly skip this step. */
-            continue;;
 
+#ifdef ENABLE_SAFE_INIT
             /* This node will never init from this direction. */
             auto __name = __var->get_point_type().name();
             if     (__name == "ptr") __def = IR::create_pointer(nullptr);
             else if(__name == "i32") __def = IR::create_integer(0);
             else if(__name == "i1")  __def = IR::create_boolean(false);
             else runtime_assert("Undefined behavior! Unknown type!");
-        } else {
-            __def = __vec.back();
-        }
+#else
+            /* If optimization enabled, it will directly skip this step. */
+            continue;
+#endif
+
+        } else __def = __vec.back();
         __phi->cond.push_back({__def,__node->block});
     }
 }
