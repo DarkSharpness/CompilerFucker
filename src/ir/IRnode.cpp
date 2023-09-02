@@ -14,8 +14,13 @@ std::string block_stmt::data() const {
 }
 
 
-phi_stmt *block_stmt::is_phi_block() const {
-    return dynamic_cast <phi_stmt *> (stmt[0]);
+std::vector <phi_stmt *> block_stmt::get_phi_block() const {
+    std::vector <phi_stmt *> __vec;
+    for(auto __node : stmt) {
+        if(auto *__phi = dynamic_cast <phi_stmt *> (__node))
+            __vec.push_back(__phi);
+        else break;
+    } return __vec;
 }
 
 bool block_stmt::is_unreachable() const {

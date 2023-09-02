@@ -25,7 +25,7 @@ struct block_stmt {
     /* Simply join all message in it together. */
     std::string data() const;
     auto emplace_new(statement *__stmt) { return stmt.push_back(__stmt); }
-    phi_stmt *is_phi_block() const;
+    std::vector <phi_stmt *> get_phi_block() const;
     /* Whether this block is unreachable. */
     bool is_unreachable() const;
     ~block_stmt() = default;
@@ -185,7 +185,7 @@ struct store_stmt : statement {
     std::string data() const override;
     void accept(IRvisitorbase *v) override { return v->visitStore(this); }
     temporary *get_def() const override { return nullptr; }
-    std::vector <definition *> get_use() const override { return {src}; }
+    std::vector <definition *> get_use() const override { return {src,dst}; }
     void update(definition *__old, definition *__new) override {
         if(src == __old) src = __new;
     }

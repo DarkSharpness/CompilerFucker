@@ -99,7 +99,7 @@ void ASMbuilder::visitBinary(IR::binary_stmt *ctx) {
 
 void ASMbuilder::visitJump(IR::jump_stmt *ctx) {
     /* If phi block, modify the value beforehand. */
-    check_phi(ctx->dest->is_phi_block());
+    check_phi(ctx->dest->get_phi_block());
     create_jump(get_block(ctx->dest));
 }
 
@@ -110,7 +110,7 @@ void ASMbuilder::visitBranch(IR::branch_stmt *ctx) {
     auto *__branch  = new bool_expr {__cond, __true};
 
     block *__tmp = nullptr;
-    if(auto *__phi  = ctx->br[0]->is_phi_block()) {
+    if(auto __phi  = ctx->br[0]->get_phi_block() ; !__phi.empty()) {
         __tmp = new block {__true->name + ".qwq"};
         std::swap(top_block,__tmp);
         check_phi(__phi);
@@ -120,7 +120,7 @@ void ASMbuilder::visitBranch(IR::branch_stmt *ctx) {
     }
 
     top_block->emplace_new(__branch);
-    check_phi(ctx->br[1]->is_phi_block());
+    check_phi(ctx->br[1]->get_phi_block());
     create_jump(__false);
     if(__tmp) top_asm->emplace_new(__tmp);
 }

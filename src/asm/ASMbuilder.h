@@ -156,8 +156,11 @@ struct ASMbuilder : IR::IRvisitorbase {
     }
 
     /* Check the phi expression and update phi expression if success.. */
-    void check_phi(IR::phi_stmt *__phi) {
-        if(!__phi) return;
+    void check_phi(const std::vector <IR::phi_stmt *> &__vec) {
+        if(__vec.empty()) return;
+        runtime_assert("Don't support multiple phi expression in codegen!"
+            ,__vec.size() == 1);
+        auto *__phi = __vec[0];
         for(auto [__val,__label] : __phi->cond) {
             if(__label != top_stmt) continue;
                 create_assign(get_virtual(__phi->dest), __val);
