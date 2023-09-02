@@ -63,8 +63,8 @@ struct deadcode_eliminator {
             /* Link the node into those usage data. */
             auto * __head = array_head;
             for (auto *__info : __vec) {
-                (__head++)->node = __node;
-                __info->insert(__head);
+                __head->node = __node;
+                __info->insert(__head++);
             }
         }
 
