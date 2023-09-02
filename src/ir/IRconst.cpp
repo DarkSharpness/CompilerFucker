@@ -32,7 +32,7 @@ literal *const_folder::operator()
                 if(__rhs->value == 0) return &__INTEGER_DIVIDE_BY_ZERO__;
                 return create_integer(__lhs->value /  __rhs->value);
             case REM:
-                if(__lhs->value == 0) return &__INTEGER_DIVIDE_BY_ZERO__;
+                if(__rhs->value == 0) return &__INTEGER_DIVIDE_BY_ZERO__;
                 return create_integer(__lhs->value %  __rhs->value);
             case AND: return create_integer(__lhs->value &  __rhs->value);
             case OR : return create_integer(__lhs->value |  __rhs->value);
