@@ -214,7 +214,7 @@ void IRbuilder::visitBinaryExpr(AST::binary_expr *ctx) {
             if (result == &__INTEGER_DIVIDE_BY_ZERO__) {
                 /* Possible warning! */
                 warning("Undefined behavior: division by zero!");
-                top->emplace_new(unreachable_stmt::new_unreachable());
+                top->emplace_new(create_unreachable());
             } delete __bin; return;
         }
 
@@ -626,7 +626,7 @@ void IRbuilder::visitFunction(AST::function_def *ctx) {
         && !dynamic_cast <branch_stmt *> (__stmt)
         && !dynamic_cast   <jump_stmt *> (__stmt)) {
             if(ctx->unique_name != "main") {
-                top->emplace_new(unreachable_stmt::new_unreachable());
+                top->emplace_new(create_unreachable());
             } else {
                 auto *__ret = new return_stmt;
                 __ret->func = top;

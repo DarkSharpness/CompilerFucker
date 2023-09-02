@@ -261,12 +261,13 @@ struct unreachable_stmt : statement {
     void update(definition *__old, definition *__new) override {}
     ~unreachable_stmt() override = default;
 
-    /* Return the only object of this class. */
-    static unreachable_stmt *new_unreachable () {
-        static unreachable_stmt __unreachable(nullptr);
-        return &__unreachable;
-    }
 };
+
+/* Return the only object of this class. */
+inline unreachable_stmt *create_unreachable() {
+    static unreachable_stmt __unreachable(nullptr);
+    return &__unreachable;
+}
 
 
 /* Function body. */

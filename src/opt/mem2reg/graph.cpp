@@ -275,7 +275,7 @@ void SSAbuilder::visitBlock(IR::block_stmt *ctx) {
                 ctx->stmt.resize(__beg - ctx->stmt.begin());
                 return;
             case 2:
-                ctx->stmt = { IR::unreachable_stmt::new_unreachable() };
+                ctx->stmt = { IR::create_unreachable() };
                 return;
         }
     }
