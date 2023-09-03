@@ -2,12 +2,13 @@
 
 #include "optnode.h"
 #include <queue>
+#include <unordered_set>
 
 namespace dark::OPT {
 
 /* This is helper class that removes all useless nodes. */
 struct unreachable_remover {
-    std::set <IR::block_stmt *> block_set;
+    std::unordered_set <IR::block_stmt *> block_set;
     std::queue <node *> work_list;
     unreachable_remover(IR::function *,node *);
 
