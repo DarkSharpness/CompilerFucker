@@ -3,8 +3,7 @@
 
 namespace dark::OPT {
 
-deadcode_eliminator::deadcode_eliminator
-    (IR::function *__func,dominate_maker &__maker) {
+deadcode_eliminator::deadcode_eliminator(IR::function *__func,node *) {
     /**
      * Firstly, collect all the usage information. (First def, then use)
      * 
@@ -53,28 +52,32 @@ deadcode_eliminator::deadcode_eliminator
         /* No blocks are unreachable now. */
         for(auto __stmt : __block->stmt) {
             info_holder * __info = create_info(__stmt);
-            std::vector <info_holder *> __vec;
-            for(auto *__use : __stmt->get_use())
-                if(auto __temp = dynamic_cast <IR::temporary *> (__use))
-                    __vec.push_back(get_info(__temp));
-            __info->init(__stmt,__vec);
-
+            __info->init(__stmt);
             /* A side effective command! */
             if(!__info->removable) work_list.push(__info);
+        }
+    }
+
+    /* Specially, we will replace all unused variables as undefined. */
+    for(auto &__info : info_list) {
+        for(auto &__use : __info.uses) {
+            if(!info_map.count(__use)) {
+                std::cerr << "Unused temporary: " << __use->data() << '\n';
+                __info.data->update(__use,IR::create_undefined(__use->type));
+            }
         }
     }
 
     /* Spread the useful data. */
     while(!work_list.empty()) {
         auto __info = work_list.front(); work_list.pop();
-        for(auto *__use : __info->data->get_use())
-            if (auto __temp = dynamic_cast <IR::temporary *> (__use)) {
-                auto __prev = get_info(__temp);
-                if (__prev->removable) {
-                    __prev->removable = false;
-                    work_list.push(__prev);
-                }
+        for(auto *__use : __info->uses) {
+            auto __prev = get_info(__use);
+            if (__prev->removable) {
+                __prev->removable = false;
+                work_list.push(__prev);
             }
+        }
     }
 
     { /* Remove useless data. */
