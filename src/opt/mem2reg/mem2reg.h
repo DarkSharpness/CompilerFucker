@@ -26,11 +26,10 @@ struct SSAbuilder : IR::IRvisitorbase {
         // for(auto &__func : global_functions)
         //      debug_print(&__func);
 
-        for(auto &__func : global_functions)
-            try_optimize(&__func);
+        try_optimize(global_functions);
     }
 
-    void try_optimize(IR::function *);
+    void try_optimize(std::vector <IR::function> &);
 
     void visitBlock(IR::block_stmt*) override;
     void visitFunction(IR::function*) override;

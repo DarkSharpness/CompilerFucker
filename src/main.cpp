@@ -24,6 +24,7 @@
 #include "cfg.h"
 
 int main(int argc, const char* argv<::>) <%
+    dark::OPT::optimize_options::init(argc,argv);
     try {
         // freopen("test.in","r",stdin);
         MxErrorListener listener;
@@ -46,6 +47,7 @@ int main(int argc, const char* argv<::>) <%
         dark::OPT::SSAbuilder {Hastin.global_variables,Hastin.global_functions};
 
         Hastin.debug_print(std::cout);
+
 
         // dark::ASM::ASMbuilder AbelCat   (Hastin.global_variables,Hastin.global_functions);
         // dark::ASM::ASMvalidator Latte   (AbelCat.global_info);

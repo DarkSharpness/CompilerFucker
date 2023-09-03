@@ -9,7 +9,7 @@
 namespace dark::OPT {
 
 
-dominate_maker::dominate_maker(node *__entry) {
+dominate_maker::dominate_maker(IR::function *,node *__entry) {
     dfs(__entry);
     std::reverse(node_rpo.begin(), node_rpo.end());
     runtime_assert("Entry node is not the first node in rpo!",
