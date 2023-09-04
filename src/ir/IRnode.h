@@ -65,8 +65,7 @@ struct compare_stmt : statement {
         if(rvar == __old) rvar = __new;
     }
 
-    bool is_undefined_behavior() const override { return false; }
-
+    // bool is_undefined_behavior() const override { return false; }
     ~compare_stmt() override = default;
 };
 
@@ -114,8 +113,10 @@ struct binary_stmt : statement {
     }
 
     bool is_undefined_behavior() const override {
-        if(auto __rhs = dynamic_cast <integer_constant *> (rvar)) {
-            return (op == SDIV || op == SREM) && __rhs->value == 0;
+        if(auto *__rhs = dynamic_cast <integer_constant *> (rvar)) {
+            bool __val = (op == SDIV || op == SREM) && __rhs->value == 0;
+            if (__val) warning("Undefined behavior: division by zero!");
+            return __val;
         } else return false;
     }
 
@@ -134,7 +135,7 @@ struct jump_stmt : statement {
     temporary *get_def() const override { return nullptr; }
     std::vector <definition *> get_use() const override { return {}; }
     void update(definition *__old, definition *__new) override {}
-    bool is_undefined_behavior() const override { return false; }
+    // bool is_undefined_behavior() const override { return false; }
     ~jump_stmt() override = default;
 };
 
@@ -152,7 +153,7 @@ struct branch_stmt : statement {
     void update(definition *__old, definition *__new) override {
         if(cond == __old) cond = __new;
     }
-    bool is_undefined_behavior() const override { return false; }
+    // bool is_undefined_behavior() const override { return false; }
     ~branch_stmt() override = default;
 };
 
@@ -170,7 +171,7 @@ struct call_stmt : statement {
     void update(definition *__old, definition *__new) override {
         for(auto &__arg : args) if(__arg == __old) __arg = __new;
     }
-    bool is_undefined_behavior() const override { return false; }
+    // bool is_undefined_behavior() const override { return false; }
     ~call_stmt() override = default;
 };
 
@@ -189,7 +190,11 @@ struct load_stmt : statement {
     }
 
     /* Load from nullptr is hard UB! */
-    bool is_undefined_behavior() const override { return src == nullptr; }
+    bool is_undefined_behavior() const override {
+        bool __val = (src == nullptr);
+        if (__val) warning("Undefined behavior: load from nullptr!");
+        return __val;
+    }
     ~load_stmt() = default;
 };
 
@@ -209,7 +214,11 @@ struct store_stmt : statement {
     }
 
     /* Store into nullptr is hard UB! */
-    bool is_undefined_behavior() const override { return dst == nullptr; }
+    bool is_undefined_behavior() const override {
+        bool __val = (dst == nullptr);
+        if (__val) warning("Undefined behavior: store from nullptr!");
+        return __val;
+    }
     ~store_stmt() override = default;
 };
 
@@ -225,7 +234,7 @@ struct return_stmt : statement {
     void update(definition *__old, definition *__new) override {
         if(rval == __old) rval = __new;
     }
-    bool is_undefined_behavior() const override { return false; }
+    // bool is_undefined_behavior() const override { return false; }
     ~return_stmt() override = default;
 };
 
@@ -239,7 +248,7 @@ struct allocate_stmt : statement {
     temporary *get_def() const override { return nullptr; }
     std::vector <definition *> get_use() const override { return {}; }
     void update(definition *__old, definition *__new) override {}
-    bool is_undefined_behavior() const override { return false; }
+    // bool is_undefined_behavior() const override { return false; }
     ~allocate_stmt() override = default;
 };
 
@@ -263,7 +272,9 @@ struct get_stmt : statement {
 
     /* Cannot perform operation on nullptr! */
     bool is_undefined_behavior() const override {
-        return __is_null_type(src->get_value_type());
+        bool __val = __is_null_type(src->get_value_type());
+        if (__val) warning("Undefined behavior: operation on nullptr!");
+        return __val;
     }
 
     ~get_stmt() override = default;
@@ -291,7 +302,7 @@ struct phi_stmt : statement {
     void update(definition *__old, definition *__new) override {
         for(auto &__p : cond) if(__p.value == __old) __p.value = __new;
     }
-    bool is_undefined_behavior() const override { return false; }
+    // bool is_undefined_behavior() const override { return false; }
     ~phi_stmt() override = default;
 };
 
@@ -306,6 +317,7 @@ struct unreachable_stmt : statement {
     bool is_undefined_behavior() const override { return true; }
     ~unreachable_stmt() override = default;
 };
+
 
 /* Return the only object of this class. */
 inline unreachable_stmt *create_unreachable() {
@@ -381,6 +393,9 @@ struct function {
     /* Opens a new block. */
     void emplace_new(block_stmt *__stmt)
     { return stmt.push_back(__stmt); }
+
+    /* An unreachable function. */
+    bool is_unreachable() const { return stmt.front()->is_unreachable(); }
 
 };
 

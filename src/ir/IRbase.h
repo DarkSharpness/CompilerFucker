@@ -19,8 +19,7 @@ struct node {
     /* Update the old definition with a new one. */
     virtual void update(definition *, definition *) = 0;
     /* Return whether the node is hard undefined behavior. */
-    virtual bool is_undefined_behavior() const = 0;
-
+    virtual bool is_undefined_behavior() const { return false; }
     virtual ~node() = default;
 };
 
