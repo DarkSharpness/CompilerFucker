@@ -223,7 +223,7 @@ struct arith_expr : node {
         [DIV]   = {'d','i','v'},
         [REM]   = {'r','e','m'},
         [SLL]   = {'s','l','l'},
-        [SRA]   = {'s','h','a'},
+        [SRA]   = {'s','r','a'},
         [AND]   = {'a','n','d'},
         [OR_]   = {'o','r'},
         [XOR]   = {'x','o','r'},
