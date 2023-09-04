@@ -16,6 +16,8 @@ include_directories(src/opt/mem2reg)
 include_directories(src/opt/dce)
 include_directories(src/opt/ssa)
 include_directories(src/opt/cfg)
+include_directories(src/opt/sccp)
+
 
 
 

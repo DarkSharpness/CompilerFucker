@@ -20,8 +20,6 @@
 #include "ASMvisitor.h"
 
 #include "mem2reg.h"
-#include "deadcode.h"
-#include "cfg.h"
 
 int main(int argc, const char* argv<::>) <%
     try {

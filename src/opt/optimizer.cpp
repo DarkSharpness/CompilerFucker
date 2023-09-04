@@ -2,6 +2,7 @@
 #include "dominate.h"
 #include "deadcode.h"
 #include "cfg.h"
+#include "sccp.h"
 
 namespace dark::OPT {
 
@@ -21,24 +22,22 @@ void SSAbuilder::try_optimize(std::vector <IR::function>  &global_functions) {
         if(__optimize_state.enable_DCE)
             deadcode_eliminator __eliminator {&__func,__entry};
 
+        if(__optimize_state.enable_SCCP)
+            constant_propagatior __propagatior {&__func,__entry};
+
         /* Simplify the CFG. */
         if(__optimize_state.enable_CFG)
-            CFGsimplifier __simplifier {&__func,__entry};
+            graph_simplifier __simplifier {&__func,__entry};
+
+        { /* This removes all unreachable branches in advance. */
+            auto __entry = rebuild_CFG(&__func);
+            unreachable_remover __remover {&__func,__entry};
+        }
 
     }
 
     for(auto &__func : global_functions) {
-        /* This removes all unreachable branches in advance. */
-        auto __entry = rebuild_CFG(&__func);
-        unreachable_remover __remover {&__func,__entry};
 
-        /* Eliminate dead code. */
-        if(__optimize_state.enable_DCE)
-            deadcode_eliminator __eliminator {&__func,__entry};
-
-        /* Simplify the CFG. */
-        if(__optimize_state.enable_CFG)
-            CFGsimplifier __simplifier {&__func,__entry};
     }
 
 }

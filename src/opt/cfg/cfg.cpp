@@ -3,7 +3,7 @@
 
 namespace dark::OPT {
 
-CFGsimplifier::CFGsimplifier(IR::function *__func,node *__entry) {
+graph_simplifier::graph_simplifier(IR::function *__func,node *__entry) {
     /* This is the core function, which may eventually effect constant folding. */
     replace_const_branch(__func,__entry);
 
@@ -16,7 +16,7 @@ CFGsimplifier::CFGsimplifier(IR::function *__func,node *__entry) {
 
 
 
-void CFGsimplifier::replace_const_branch(IR::function *__func,node *__entry) {
+void graph_simplifier::replace_const_branch(IR::function *__func,node *__entry) {
     std::unordered_set <node *> __set;
     auto &&__dfs = [&](auto &&__self,node *__node) -> void {
         if(!__set.insert(__node).second) return;
@@ -38,7 +38,7 @@ void CFGsimplifier::replace_const_branch(IR::function *__func,node *__entry) {
 }
 
 
-void CFGsimplifier::compress_jump(IR::function *__func,node *__entry) {
+void graph_simplifier::compress_jump(IR::function *__func,node *__entry) {
     std::unordered_map <IR::block_stmt *,IR::block_stmt *> __map;
     __map.reserve(__func->stmt.size());
 
@@ -92,7 +92,7 @@ void CFGsimplifier::compress_jump(IR::function *__func,node *__entry) {
 
 
 
-void CFGsimplifier::remove_single_phi(IR::function *__func,node *__entry) {
+void graph_simplifier::remove_single_phi(IR::function *__func,node *__entry) {
     /* First, eliminate all single phi. */
     for(auto __block : __func->stmt) {
         for(auto __stmt : __block->stmt) {

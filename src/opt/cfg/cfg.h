@@ -55,7 +55,7 @@ struct unreachable_remover {
  * It will will also compress useless jumps.
  * 
 */
-struct CFGsimplifier {
+struct graph_simplifier {
     /* Map of temporary usage. */
     std::unordered_map <IR::temporary *,std::vector <IR::node *>> use_map;
 
@@ -77,7 +77,7 @@ struct CFGsimplifier {
         return __tmp ? __tmp : IR::create_undefined(__def->type);
     }
 
-    CFGsimplifier(IR::function *,node *);
+    graph_simplifier(IR::function *,node *);
 
     /* Replace constant branch with jump and set another branch unreachable. */
     void replace_const_branch(IR::function *,node *);
