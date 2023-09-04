@@ -86,61 +86,15 @@ deadcode_eliminator::deadcode_eliminator(IR::function *__func,node *) {
             if(__info.removable) __set.insert(__info.data);
         std::vector <IR::node *> __vec;
         for(auto __block : __func->stmt) {
-            __vec.clear();
             for(auto __stmt : __block->stmt)
                 if(!__set.count(__stmt))
                     __vec.push_back(__stmt);
             __block->stmt.swap(__vec);
+            __vec.clear();
         }
     }
 
 }
-
-
-// void deadcode_eliminator::spread_side_fx(node *__entry) {
-//     /* The set that contains all node. */
-//     std::unordered_set <node *> node_set;
-// 
-//     /* dfs to make these side_fxs. */
-//     auto &&__dfs = [&](node *__node,auto &&__self) {
-//         if(!node_set.insert(__node).second) return;
-// 
-//         side_effect_t __fx = FX_NONE;
-//         for(auto __stmt : __node->block->stmt)
-//             __fx |= get_side_fx(__stmt);
-// 
-//         for(auto *__next : __node->next) {
-//             __self(__next,__self);
-//             /* First easy iteration. */
-//             __fx |= __next->side_fx;
-//         }
-// 
-//         __node->side_fx = __fx;
-//     };
-//     __dfs(__entry,__dfs);
-// 
-//     std::queue <node *> work_list;
-//     for(auto __iter : node_set) work_list.push(__iter);
-//     node_set.clear(); /* No longer useful now, clear memory storage. */
-// 
-//     while(!work_list.empty()) {
-//         auto __node = work_list.front(); work_list.pop();
-// 
-//         /* Will never be changed! */
-//         if(__node->side_fx == FX_FULL) continue;
-// 
-//         /* Iterate this node awa. */
-//         side_effect_t __fx = __node->side_fx;
-//         for(auto *__next : __node->next) __fx |= __next->side_fx;
-// 
-//         /* If changed, add prev to worklist. */
-//         if(__fx == __node->side_fx) continue;
-//         for(auto *__prev : __node->prev) work_list.push(__prev);
-//     }
-// 
-// }
-
-
 
 
 }

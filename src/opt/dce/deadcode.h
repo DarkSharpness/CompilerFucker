@@ -28,8 +28,7 @@ inline bool is_removable_node(IR::node *__node) {
 
 /**
  * @brief Eliminator for dead code in a function.
- * It will not only perform dead code elemination, but also
- * greatly simply the CFG by removing useless blocks.
+ * This is an unaggressive dead code eliminator.
  * 
  */
 struct deadcode_eliminator {

@@ -237,13 +237,13 @@ void dominate_maker::collect_block(node *__node) {
     __node->block->stmt = std::move(__ans);
 }
 
+
 void dominate_maker::update_branch(node *__node,node *__next) {
     /* Just update the phi statement. */
     for(auto [__var,__phi] : node_phi[__next]) {
         auto &__vec = var_map[__var];
         IR::definition *__def = nullptr;
         if(__vec.empty()) {
-            warning("Undefined behavior in phi! Load from an uninitialized variable!");
             __def = create_undefined(__var->get_point_type());
         } else {
             __def = __vec.back();
@@ -258,6 +258,7 @@ void dominate_maker::update_branch(node *__node,node *__next) {
 /* SSA graph builder. */
 namespace dark::OPT {
 
+/* This special impliment will update the CFG graph. */
 void SSAbuilder::visitFunction(IR::function *ctx) {
     for(auto __block : ctx->stmt) visitBlock(__block);
 }

@@ -12,7 +12,6 @@ struct SSAbuilder : IR::IRvisitorbase {
     std::map <IR::block_stmt *,node> node_map;
     node *top;
     size_t end_tag = 0;
-
     node *create_node(IR::block_stmt *__block) {
         return &node_map.try_emplace(__block,__block).first->second;
     }
