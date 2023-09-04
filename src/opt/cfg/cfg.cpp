@@ -4,12 +4,13 @@
 namespace dark::OPT {
 
 CFGsimplifier::CFGsimplifier(IR::function *__func,node *__entry) {
+    /* This is the core function, which may eventually effect constant folding. */
     replace_const_branch(__func,__entry);
 
-    /* This function will remove all single phi. */
+    /* (This function is just a small opt!) Remove all single phi. */
     remove_single_phi(__func,__entry);
 
-    /* Finally compress jump. (This function is just a small opt) */
+    /* (This function is just a small opt!) Finally compress jump. */
     compress_jump(__func,__entry);
 }
 

@@ -37,6 +37,16 @@ struct unreachable_remover {
         for(auto __next : __node->next) dfs(__next,std::forward <_Func> (__func));
     }
 
+    /* Spread those unreachable block tags. */
+    void spread_unreachable();
+    /**
+     * @brief Update branch jump from unreachable branches.
+     * Note that this may result in single phi! (e.g: %1 = phi[1,%entry])
+    */
+    void update_phi_source();
+    /* Remove all unreachable blocks. */
+    void remove_unreachable(IR::function *);
+
 };
 
 /**
@@ -69,10 +79,11 @@ struct CFGsimplifier {
 
     CFGsimplifier(IR::function *,node *);
 
+    /* Replace constant branch with jump and set another branch unreachable. */
     void replace_const_branch(IR::function *,node *);
-
+    /* Remove a single source phi statement. */
     void remove_single_phi(IR::function *,node *);
-
+    /* Compress multiple jump to one (e.g. BB1 -> ... -> BBn  || BB1 -> BBn) . */
     void compress_jump(IR::function *,node *);
 
 };

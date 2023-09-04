@@ -20,12 +20,36 @@ bool remove_node_from(std::vector <node *> &__vec,node *__node) {
 
 unreachable_remover::unreachable_remover
     (IR::function *__func,node *__entry) {
+    /* Just for better performance. */
+    block_set.reserve(__func->stmt.size());
 
     /* Add all unreachable nodes to worklist. */
-    block_set.reserve(__func->stmt.size());
     dfs(__entry,[](node *__node) { return __node->block->is_unreachable(); });
 
     /* Spread the unreachable blocks. */
+    spread_unreachable();
+
+    /* Remove the unreachable blocks from function. */
+    remove_unreachable(__func);
+
+    /* Add all (of course reachable) nodes to worklist. */
+    dfs(__entry,[](void *) { return true; });
+
+    /* Update the phi statement with source from unreachable source. */
+    update_phi_source();
+}
+
+void unreachable_remover::remove_unreachable(IR::function *__func) {
+    std::vector <IR::block_stmt *> __blocks;
+    for(auto __block : __func->stmt)
+        if(block_set.count(__block))
+            __blocks.push_back(__block);
+    __func->stmt = std::move(__blocks);
+    block_set.clear(); /* Now the set is useless now. */
+}
+
+
+void unreachable_remover::spread_unreachable() {
     while(!work_list.empty()) {
         auto *__node = work_list.front(); work_list.pop();
         block_set.erase(__node->block);
@@ -42,21 +66,11 @@ unreachable_remover::unreachable_remover
             if(__prev->next.empty()) work_list.push(__prev);
         } __node->prev.clear();
     }
+}
 
-    { /* Remove the unreachable blocks from function. */
-        std::vector <IR::block_stmt *> __blocks;
-        for(auto __block : __func->stmt)
-            if(block_set.count(__block))
-                __blocks.push_back(__block);
-        __func->stmt = std::move(__blocks);
-        block_set.clear();
-    }
 
-    /* Add all (of course reachable) nodes to worklist. */
-    dfs(__entry,[](void *) { return true; });
-
-    /* Update the phi statement */
-    while(!work_list.empty()) {
+void unreachable_remover::update_phi_source() {
+        while(!work_list.empty()) {
         auto * __node = work_list.front(); work_list.pop();
         auto *&__stmt = __node->block->stmt.back();
         if(auto *__br = dynamic_cast <IR::branch_stmt *> (__stmt)) {
@@ -77,6 +91,5 @@ unreachable_remover::unreachable_remover
         }
     }
 }
-
 
 }
