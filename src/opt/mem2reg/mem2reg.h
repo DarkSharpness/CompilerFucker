@@ -47,6 +47,8 @@ struct SSAbuilder : IR::IRvisitorbase {
     void visitPhi(IR::phi_stmt *) override;
     void visitUnreachable(IR::unreachable_stmt *) override;
 
+    node *rebuild_CFG(IR::function *__func);
+
     /* Must be inlined! */
     inline void link(node *from, node *to) {
         from->next.push_back(to);

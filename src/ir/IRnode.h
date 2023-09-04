@@ -64,6 +64,9 @@ struct compare_stmt : statement {
         if(lvar == __old) lvar = __new;
         if(rvar == __old) rvar = __new;
     }
+
+    bool is_undefined_behavior() const override { return false; }
+
     ~compare_stmt() override = default;
 };
 
@@ -104,10 +107,18 @@ struct binary_stmt : statement {
     void accept(IRvisitorbase *v) override { return v->visitBinary(this); }
     temporary *get_def() const override { return dest; }
     std::vector <definition *> get_use() const override { return {lvar,rvar}; }
+
     void update(definition *__old, definition *__new) override {
         if(lvar == __old) lvar = __new;
         if(rvar == __old) rvar = __new;
     }
+
+    bool is_undefined_behavior() const override {
+        if(auto __rhs = dynamic_cast <integer_constant *> (rvar)) {
+            return (op == SDIV || op == SREM) && __rhs->value == 0;
+        } else return false;
+    }
+
     ~binary_stmt() override = default;
 };
 
@@ -123,6 +134,7 @@ struct jump_stmt : statement {
     temporary *get_def() const override { return nullptr; }
     std::vector <definition *> get_use() const override { return {}; }
     void update(definition *__old, definition *__new) override {}
+    bool is_undefined_behavior() const override { return false; }
     ~jump_stmt() override = default;
 };
 
@@ -140,6 +152,7 @@ struct branch_stmt : statement {
     void update(definition *__old, definition *__new) override {
         if(cond == __old) cond = __new;
     }
+    bool is_undefined_behavior() const override { return false; }
     ~branch_stmt() override = default;
 };
 
@@ -157,6 +170,7 @@ struct call_stmt : statement {
     void update(definition *__old, definition *__new) override {
         for(auto &__arg : args) if(__arg == __old) __arg = __new;
     }
+    bool is_undefined_behavior() const override { return false; }
     ~call_stmt() override = default;
 };
 
@@ -171,8 +185,11 @@ struct load_stmt : statement {
     temporary *get_def() const override   { return dst; }
     std::vector <definition *> get_use() const override { return {src}; }
     void update(definition *__old, definition *__new) override {
-        if(src == __old) src = safe_cast <non_literal *> (__new);
+        if(src == __old) src = dynamic_cast <non_literal *> (__new);
     }
+
+    /* Load from nullptr is hard UB! */
+    bool is_undefined_behavior() const override { return src == nullptr; }
     ~load_stmt() = default;
 };
 
@@ -188,7 +205,11 @@ struct store_stmt : statement {
     std::vector <definition *> get_use() const override { return {src,dst}; }
     void update(definition *__old, definition *__new) override {
         if(src == __old) src = __new;
+        if(dst == __old) dst = dynamic_cast <non_literal *> (__new);
     }
+
+    /* Store into nullptr is hard UB! */
+    bool is_undefined_behavior() const override { return dst == nullptr; }
     ~store_stmt() override = default;
 };
 
@@ -204,6 +225,7 @@ struct return_stmt : statement {
     void update(definition *__old, definition *__new) override {
         if(rval == __old) rval = __new;
     }
+    bool is_undefined_behavior() const override { return false; }
     ~return_stmt() override = default;
 };
 
@@ -217,6 +239,7 @@ struct allocate_stmt : statement {
     temporary *get_def() const override { return nullptr; }
     std::vector <definition *> get_use() const override { return {}; }
     void update(definition *__old, definition *__new) override {}
+    bool is_undefined_behavior() const override { return false; }
     ~allocate_stmt() override = default;
 };
 
@@ -237,6 +260,12 @@ struct get_stmt : statement {
         if(src == __old) src = __new;
         if(idx == __old) idx = __new;
     }
+
+    /* Cannot perform operation on nullptr! */
+    bool is_undefined_behavior() const override {
+        return __is_null_type(src->get_value_type());
+    }
+
     ~get_stmt() override = default;
 };
 
@@ -262,6 +291,7 @@ struct phi_stmt : statement {
     void update(definition *__old, definition *__new) override {
         for(auto &__p : cond) if(__p.value == __old) __p.value = __new;
     }
+    bool is_undefined_behavior() const override { return false; }
     ~phi_stmt() override = default;
 };
 
@@ -273,6 +303,7 @@ struct unreachable_stmt : statement {
     temporary *get_def() const override { return nullptr; }
     std::vector <definition *> get_use() const override { return {}; }
     void update(definition *__old, definition *__new) override {}
+    bool is_undefined_behavior() const override { return true; }
     ~unreachable_stmt() override = default;
 };
 

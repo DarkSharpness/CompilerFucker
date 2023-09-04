@@ -270,16 +270,13 @@ void SSAbuilder::visitBlock(IR::block_stmt *ctx) {
     auto __beg = ctx->stmt.begin();
     auto __end = ctx->stmt.end();
     while(__beg != __end) {
-        visit(*__beg++);
-        /* Remove unreachable code. */
-        switch(end_tag) {
-            case 1:
-                ctx->stmt.resize(__beg - ctx->stmt.begin());
-                return;
-            case 2:
-                ctx->stmt = { IR::create_unreachable() };
-                return;
-        }
+        if((*__beg)->is_undefined_behavior()) {
+            /* Remove unreachable code. */
+            ctx->stmt = { IR::create_unreachable() };
+            return;
+        } else visit(*__beg++);
+        /* If terminate, return. */
+        if(end_tag) return ctx->stmt.resize(__beg - ctx->stmt.begin());
     }
     runtime_assert("Undefined behavior! No terminator in the block!");
 }
@@ -310,9 +307,7 @@ void SSAbuilder::visitAlloc(IR::allocate_stmt *ctx) {}
 void SSAbuilder::visitGet(IR::get_stmt *ctx) {}
 void SSAbuilder::visitPhi(IR::phi_stmt *ctx) {}
 
-void SSAbuilder::visitUnreachable(IR::unreachable_stmt *ctx) {
-    end_tag = 2;
-}
+void SSAbuilder::visitUnreachable(IR::unreachable_stmt *ctx) {}
 
 
 }

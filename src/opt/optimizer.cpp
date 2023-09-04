@@ -27,7 +27,34 @@ void SSAbuilder::try_optimize(std::vector <IR::function>  &global_functions) {
 
     }
 
+    for(auto &__func : global_functions) {
+        /* This removes all unreachable branches in advance. */
+        auto __entry = rebuild_CFG(&__func);
+        unreachable_remover __remover {&__func,__entry};
 
+        /* Eliminate dead code. */
+        if(__optimize_state.enable_DCE)
+            deadcode_eliminator __eliminator {&__func,__entry};
+
+        /* Simplify the CFG. */
+        if(__optimize_state.enable_CFG)
+            CFGsimplifier __simplifier {&__func,__entry};
+    }
+
+}
+
+node *SSAbuilder::rebuild_CFG(IR::function *__func) {
+    node *__entry = nullptr;
+    for(auto __block : __func->stmt) {
+        auto *__node = create_node(__block);
+        if(!__entry) __entry = __node;
+        __node->prev.clear();
+        __node->next.clear();
+        __node->dom.clear();
+        __node->fro.clear();
+    } /* Rebuild the CFG! */
+    visitFunction(__func);
+    return __entry;
 }
 
 }

@@ -9,11 +9,18 @@ namespace dark::IR {
 struct IRvisitorbase;
 
 struct node {
-    virtual std::string data() const = 0;
     virtual void accept(IRvisitorbase * __v) = 0;
+    /* Return the string form IR. */
+    virtual std::string data() const = 0;
+    /* Return the temporary this statment defines. */
     virtual temporary * get_def() const = 0;
+    /* Return all the usages of the node. */
     virtual std::vector <definition *> get_use() const = 0;
+    /* Update the old definition with a new one. */
     virtual void update(definition *, definition *) = 0;
+    /* Return whether the node is hard undefined behavior. */
+    virtual bool is_undefined_behavior() const = 0;
+
     virtual ~node() = default;
 };
 

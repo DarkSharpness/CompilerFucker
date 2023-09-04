@@ -71,13 +71,13 @@ struct node {
 
     std::vector <node *> prev;
     std::vector <node *> next;
+    std::vector <node *> dom; /* Dominated dots. */
+    std::vector <node *> fro; /* Dominated Frontier. */
 
     explicit node(IR::block_stmt *__block) : block(__block) {}
 
     const std::string &name() const noexcept { return block->label; }
 
-    std::vector <node *> dom; /* Dominated dots. */
-    std::vector <node *> fro; /* Dominated Frontier. */
 
     bool is_entry() const noexcept { return prev.empty(); }
     bool is_exit()  const noexcept { return next.empty(); }
