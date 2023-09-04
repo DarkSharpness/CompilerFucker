@@ -24,8 +24,8 @@
 #include "cfg.h"
 
 int main(int argc, const char* argv<::>) <%
-    dark::OPT::optimize_options::init(argc,argv);
     try {
+        dark::OPT::optimize_options::init(argc,argv);
         // freopen("test.in","r",stdin);
         MxErrorListener listener;
 
@@ -42,12 +42,13 @@ int main(int argc, const char* argv<::>) <%
 
         auto *tree = parser.file_Input();
         dark::ASTbuilder Wankupi {tree};
+        
         dark::AST::ASTvisitor Conless {Wankupi.global,Wankupi.mapping};
         dark::IR::IRbuilder Hastin {Conless.global,Conless.class_map,Wankupi.global};
-        dark::OPT::SSAbuilder {Hastin.global_variables,Hastin.global_functions};
-
+        
+        if(dark::OPT::optimize_options::get_state().optimize_level > 0)
+            dark::OPT::SSAbuilder {Hastin.global_variables,Hastin.global_functions};
         Hastin.debug_print(std::cout);
-
 
         // dark::ASM::ASMbuilder AbelCat   (Hastin.global_variables,Hastin.global_functions);
         // dark::ASM::ASMvalidator Latte   (AbelCat.global_info);
