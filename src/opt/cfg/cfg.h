@@ -3,8 +3,19 @@
 #include "optnode.h"
 #include <queue>
 #include <unordered_set>
+#include <unordered_map>
 
 namespace dark::OPT {
+
+/* Return a new jump statement to replace a branch. */
+inline IR::jump_stmt *replace_branch
+    (IR::branch_stmt *__br,IR::block_stmt *__dest) {
+    delete __br; /* First release the memory. */
+    auto *__jump = new IR::jump_stmt;
+    __jump->dest = __dest;
+    return __jump;
+}
+
 
 /* This is helper class that removes all useless nodes. */
 struct unreachable_remover {
@@ -25,6 +36,44 @@ struct unreachable_remover {
         if(__func(__node)) work_list.push(__node);
         for(auto __next : __node->next) dfs(__next,std::forward <_Func> (__func));
     }
+
+};
+
+/**
+ * @brief This is helper class that will simplify CFG.
+ * It will remove unreachable branches and replace all single phi.
+ * It will will also compress useless jumps.
+ * 
+*/
+struct CFGsimplifier {
+    /* Map of temporary usage. */
+    std::unordered_map <IR::temporary *,std::vector <IR::node *>> use_map;
+
+    /* A list of phi statements to remove. */
+    std::queue <IR::phi_stmt *> work_list;
+
+    /* Return the phi statement type. */
+    static IR::definition *get_phi_type(IR::phi_stmt *__phi) {
+        IR::temporary  *__def = __phi->dest;
+        IR::definition *__tmp = nullptr;
+
+        for(auto [__use,__] : __phi->cond) {
+            if(__use == __def) continue;
+            if(__tmp == nullptr) __tmp = __use;
+            /* Multiple definition: not a zero/ single phi! */
+            else if(__tmp != __use) return nullptr;
+        }
+
+        return __tmp ? __tmp : IR::create_undefined(__def->type);
+    }
+
+    CFGsimplifier(IR::function *,node *);
+
+    void replace_const_branch(IR::function *,node *);
+
+    void remove_single_phi(IR::function *,node *);
+
+    void compress_jump(IR::function *,node *);
 
 };
 
