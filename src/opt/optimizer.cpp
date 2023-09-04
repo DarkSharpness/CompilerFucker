@@ -6,14 +6,18 @@
 
 namespace dark::OPT {
 
+
 /* The real function that controls all the optimization. */
 void SSAbuilder::try_optimize(std::vector <IR::function>  &global_functions) {
     auto __optimize_state = optimize_options::get_state();
     for(auto &__func : global_functions) {
         auto *__entry = create_node(__func.stmt.front());
- 
+
         /* This removes all unreachable branches in advance. */
         unreachable_remover __remover {&__func,__entry};
+
+        /* This function will never be touched again. */
+        if(__func.is_unreachable()) continue;
 
         /* This builds up SSA form and lay phi statement. */
         dominate_maker __maker {&__func,__entry};
@@ -26,14 +30,15 @@ void SSAbuilder::try_optimize(std::vector <IR::function>  &global_functions) {
             constant_propagatior __propagatior {&__func,__entry};
 
         /* Simplify the CFG. */
-        if(__optimize_state.enable_CFG)
+        if(__optimize_state.enable_CFG) {
+            /* Remove newly generated unreachable blocks. */
             graph_simplifier __simplifier {&__func,__entry};
-
-        { /* This removes all unreachable branches in advance. */
-            auto __entry = rebuild_CFG(&__func);
-            unreachable_remover __remover {&__func,__entry};
         }
 
+        { /* After simplification, the CFG graph may go invalid. */
+            __entry = rebuild_CFG(&__func);
+            unreachable_remover __remover {&__func,__entry};
+        }
     }
 
     for(auto &__func : global_functions) {

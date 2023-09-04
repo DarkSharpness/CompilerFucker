@@ -211,7 +211,7 @@ void dominate_maker::collect_block(node *__node) {
                 IR::definition *__def; /* Current definition. */
 
                 if(__vec.empty()) {
-                    warning("Undefined behavior! Load from an uninitialized variable!");
+                    warning("Undefined behavior: Load from an uninitialized variable!");
                     __def = create_undefined(__var->get_point_type());
                 } else {
                     __def = __vec.back();
@@ -219,7 +219,7 @@ void dominate_maker::collect_block(node *__node) {
 
                 /* Replace the old loaded result with data in stack. */
                 auto __iter = use_map.find(__load->dst);
-                runtime_assert("WTF is that?",__iter != use_map.end());
+                runtime_assert("WTF is this?",__iter != use_map.end());
                 for(auto __p : __iter->second)
                     __p->update(__load->dst,__def);
                 /* Now it will be no longer be used. */
@@ -278,7 +278,7 @@ void SSAbuilder::visitBlock(IR::block_stmt *ctx) {
         /* If terminate, return. */
         if(end_tag) return ctx->stmt.resize(__beg - ctx->stmt.begin());
     }
-    runtime_assert("Undefined behavior! No terminator in the block!");
+    runtime_assert("Undefined behavior: No terminator in the block!");
 }
 
 

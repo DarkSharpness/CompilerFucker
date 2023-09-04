@@ -20,7 +20,7 @@ inline IR::jump_stmt *replace_branch
 /* This is helper class that removes all useless nodes. */
 struct unreachable_remover {
     std::unordered_set <IR::block_stmt *> block_set;
-    std::queue <node *> work_list;
+    std::deque <node *> work_list;
     unreachable_remover(IR::function *,node *);
 
     /**
@@ -32,19 +32,21 @@ struct unreachable_remover {
     template <class _Func>
     void dfs(node *__node,_Func &&__func) {
         /* All ready visited. */
-        if(block_set.insert(__node->block).second == false) return;
-        if(__func(__node)) work_list.push(__node);
+        if(!block_set.insert(__node->block).second) return;
+        if(__func(__node)) work_list.push_back(__node);
         for(auto __next : __node->next) dfs(__next,std::forward <_Func> (__func));
     }
-
+    /* Remove those with no exit. */
+    void remove_dead_loop(node *);
     /* Spread those unreachable block tags. */
     void spread_unreachable();
     /**
      * @brief Update branch jump from unreachable branches.
      * Note that this may result in single phi! (e.g: %1 = phi[1,%entry])
+     * In addition, any branch to unreachable block will be replaced with jump.
     */
-    void update_phi_source();
-    /* Remove all unreachable blocks. */
+    void update_phi_branch_source();
+    /* Remove all unreachable blocks in function.(CFG irrelated.) */
     void remove_unreachable(IR::function *);
 
 };
