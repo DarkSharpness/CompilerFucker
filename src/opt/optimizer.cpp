@@ -10,13 +10,12 @@ namespace dark::OPT {
 /* The real function that controls all the optimization. */
 void SSAbuilder::try_optimize(std::vector <IR::function>  &global_functions) {
     auto __optimize_state = optimize_options::get_state();
+    /* First pass : simple optimization. */
     for(auto &__func : global_functions) {
         auto *__entry = create_node(__func.stmt.front());
 
         /* This removes all unreachable branches in advance. */
         unreachable_remover __remover {&__func,__entry};
-
-        /* This function will never be touched again. */
         if(__func.is_unreachable()) continue;
 
         /* This builds up SSA form and lay phi statement. */
@@ -26,14 +25,13 @@ void SSAbuilder::try_optimize(std::vector <IR::function>  &global_functions) {
         if(__optimize_state.enable_DCE)
             deadcode_eliminator __eliminator {&__func,__entry};
 
+        /* Sparse constant propagation. */
         if(__optimize_state.enable_SCCP)
             constant_propagatior __propagatior {&__func,__entry};
 
         /* Simplify the CFG. */
-        if(__optimize_state.enable_CFG) {
-            /* Remove newly generated unreachable blocks. */
+        if(__optimize_state.enable_CFG)
             graph_simplifier __simplifier {&__func,__entry};
-        }
 
         { /* After simplification, the CFG graph may go invalid. */
             __entry = rebuild_CFG(&__func);
@@ -42,7 +40,7 @@ void SSAbuilder::try_optimize(std::vector <IR::function>  &global_functions) {
     }
 
     for(auto &__func : global_functions) {
-
+        // second pass.
     }
 
 }

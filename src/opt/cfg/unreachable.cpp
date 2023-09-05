@@ -42,9 +42,12 @@ unreachable_remover::unreachable_remover
     if (__func->stmt.empty()) {
         __func->stmt = {__entry->block};
         __entry->block->stmt = {IR::create_unreachable()};
+        __entry->next.clear();
+        __entry->prev.clear();
         return;
     }
-    
+
+    dfs(__entry,[](node *__node) { return true; });
     /* Update the phi statement with source from unreachable source. */
     update_phi_branch_source();
 }
@@ -107,7 +110,6 @@ void unreachable_remover::update_phi_branch_source() {
 
 
 void unreachable_remover::remove_dead_loop(node *__entry) {
-    // warning("Potential dead loop detected!");
     std::unordered_set <node *> __visit;
     auto &&__dfs = [&](auto &&__self,node *__node) -> void {
         if (!__visit.insert(__node).second) return;
@@ -150,6 +152,8 @@ void unreachable_remover::remove_dead_loop(node *__entry) {
             block_set.insert(__node->block);
         }
     }
+
+    work_list.clear();
 }
 
 }

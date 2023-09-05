@@ -3,6 +3,7 @@
 #include "utility.h"
 #include <string>
 #include <set>
+#include <map>
 
 namespace dark::IR {
 
@@ -223,6 +224,8 @@ struct non_literal : definition {
 struct literal : definition {
     /* Special function used in global variable initialization. */
     virtual std::string type_data() const = 0;
+    /* Return the constant value inside. */
+    virtual std::ptrdiff_t get_constant_value() const = 0;
 };
 
 /* Variables are pointers to value. */
@@ -254,6 +257,8 @@ struct string_constant : literal {
     cstring_type   type;
     explicit string_constant(const std::string &__ctx) : context(__ctx),type({__ctx.length()}) {}
     wrapper get_value_type() const override { return wrapper {&type,0}; }
+    std::ptrdiff_t get_constant_value() const override
+    { runtime_assert("No such operation on string!"); return 0; }
     std::string  type_data() const override {
         return string_join("private unnamed_addr constant ",type.name()); 
     }
@@ -269,7 +274,6 @@ struct string_constant : literal {
         }
         return __ans += "\\00\"";
     }
-
     std::string ASMdata() const {
         std::string __ans = "\"";
         for(char __p : context) {
@@ -293,6 +297,13 @@ struct pointer_constant : literal {
     std::string  type_data() const override { return "global ptr"; }
     wrapper get_value_type() const override { return var ? ++var->type : wrapper {&__null_class__,0}; }
     std::string  data()      const override { return var ? var->name : "null"; }
+    std::ptrdiff_t get_constant_value() const override {
+        static std::map <const void *,int> __pool;
+        /* Null pointer case. */
+        if(!var) return 0;
+        /* Other pointer constant case. */
+        else return __pool.emplace(var,__pool.size() + 1).first->second;
+    }
     ~pointer_constant() override = default;
 };
 
@@ -303,6 +314,7 @@ struct integer_constant : literal {
     explicit integer_constant(int __v) : value(__v) {}
     std::string  type_data() const override { return "global i32"; }
     wrapper get_value_type() const override { return {&__integer_class__,0}; }
+    std::ptrdiff_t get_constant_value() const override { return value; }
     std::string  data()      const override { return std::to_string(value); }
     ~integer_constant() override = default;
 };
@@ -316,6 +328,7 @@ struct boolean_constant : literal {
     std::string  type_data() const override { return "global i1"; }
     wrapper get_value_type() const override { return {&__boolean_class__,0}; }
     std::string  data()      const override { return value ? "true" : "false"; }
+    std::ptrdiff_t get_constant_value() const override { return value; }
     ~boolean_constant() override = default;
 };
 
@@ -348,15 +361,35 @@ inline pointer_constant *create_pointer(variable *__ptr) {
     return const_cast <pointer_constant *> (&*__pool.emplace(__ptr).first);
 }
 
-inline undefined *create_undefined(wrapper type) {
+inline literal *create_constant(std::ptrdiff_t __val,wrapper __type) {
+    if(__type.name() == "i32") return create_integer(__val);
+    if(__type.name() == "i1")  return create_boolean(__val);
+    runtime_assert("No such constant type!");
+}
+
+
+/**
+ * @brief Create an undefined value.
+ * @param type Type of the object (optional).
+ * @param __hint Hint for the type: 0 for auto, 1 for ptr, 2 for i32, 3 for i1.
+ * @return Inner undefined value.
+ */
+inline undefined *create_undefined(wrapper type,size_t __hint = 0) {
     static undefined __ptr {{&__null_class__,0}};
     static undefined __int {{&__integer_class__,0}};
     static undefined __bool{{&__boolean_class__,0}};
+    switch(__hint) {
+        case 1: return &__ptr;
+        case 2: return &__int;
+        case 3: return &__bool;
+    }
+
     auto __name = type.name();
     if(__name == "ptr") return &__ptr;
     if(__name == "i32") return &__int;
     if(__name == "i1")  return &__bool;
-    throw error("Unknown type.");
+    runtime_assert("Unknown type!");
+    return nullptr;
 }
 
 

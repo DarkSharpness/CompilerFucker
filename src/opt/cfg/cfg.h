@@ -17,7 +17,14 @@ inline IR::jump_stmt *replace_branch
 }
 
 
-/* This is helper class that removes all useless nodes. */
+/**
+ * @brief This is helper class that removes all useless nodes.
+ * Note that after this function, the CFG graph is still valid.
+ * But the function might become unreachable.
+ * Consequently, we need to use test whether the function is reachable
+ * before going on using the pass.
+ * 
+*/
 struct unreachable_remover {
     std::unordered_set <IR::block_stmt *> block_set;
     std::deque <node *> work_list;
@@ -55,6 +62,7 @@ struct unreachable_remover {
  * @brief This is helper class that will simplify CFG.
  * It will remove unreachable branches and replace all single phi.
  * It will will also compress useless jumps.
+ * Note that the CFG graph may go invalid afterwards.
  * 
 */
 struct graph_simplifier {
@@ -71,7 +79,15 @@ struct graph_simplifier {
 
         for(auto [__use,__] : __phi->cond) {
             if(__use == __def) continue;
-            if(__tmp == nullptr) __tmp = __use;
+            /**
+             * @brief Simple rule as below:
+             * Self = undef.
+             * undef + undef = undef.
+             * undef + def   = single phi def.
+             * def   + def   = non-single phi.
+            */
+            if(dynamic_cast <IR::undefined *> (__use)) continue;
+            else if(__tmp == nullptr) __tmp = __use;
             /* Multiple definition: not a zero/ single phi! */
             else if(__tmp != __use) return nullptr;
         }
@@ -82,7 +98,9 @@ struct graph_simplifier {
     graph_simplifier(IR::function *,node *);
 
     /* Replace constant branch with jump and set another branch unreachable. */
-    void replace_const_branch(IR::function *,node *);
+    static void replace_const_branch(IR::function *,node *);
+    /* Collect all single phi statements. */
+    void collect_single_phi(IR::function *,node *);
     /* Remove a single source phi statement. */
     void remove_single_phi(IR::function *,node *);
     /* Compress multiple jump to one (e.g. BB1 -> ... -> BBn  || BB1 -> BBn) . */
