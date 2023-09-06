@@ -45,7 +45,7 @@ deadcode_eliminator::deadcode_eliminator(IR::function *__func,node *) {
 
     // /* First, work out the potential side effect of each node. */
     // spread_side_fx(__maker.node_rpo.front());
-
+    if (__func->is_unreachable()) return;
 
     /* First, we will collect all def-use chains. */
     for(auto __block : __func->stmt) {
