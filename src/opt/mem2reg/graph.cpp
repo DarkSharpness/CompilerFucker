@@ -278,6 +278,7 @@ void SSAbuilder::visitBlock(IR::block_stmt *ctx) {
         /* If terminate, return. */
         if(end_tag) return ctx->stmt.resize(__beg - ctx->stmt.begin());
     }
+    std::cerr << ctx->data() << '\n';
     runtime_assert("Undefined behavior: No terminator in the block!");
 }
 

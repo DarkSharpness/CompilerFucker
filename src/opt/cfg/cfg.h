@@ -7,6 +7,8 @@
 
 namespace dark::OPT {
 
+bool remove_node_from(std::vector <node *> &__vec,node *__node);
+
 /* Return a new jump statement to replace a branch. */
 inline IR::jump_stmt *replace_branch
     (IR::branch_stmt *__br,IR::block_stmt *__dest) {
@@ -27,26 +29,14 @@ inline IR::jump_stmt *replace_branch
 */
 struct unreachable_remover {
     std::unordered_set <IR::block_stmt *> block_set;
-    std::deque <node *> work_list;
+    std::vector <node *> work_list;
     unreachable_remover(IR::function *,node *);
 
-    /**
-     * @brief Add all nodes that satisfies the condition to work_list.
-     * @tparam _Func Condition function type.
-     * @param __node The node that is being visited.
-     * @param __func Condition function.
-     */
-    template <class _Func>
-    void dfs(node *__node,_Func &&__func) {
-        /* All ready visited. */
-        if(!block_set.insert(__node->block).second) return;
-        if(__func(__node)) work_list.push_back(__node);
-        for(auto __next : __node->next) dfs(__next,std::forward <_Func> (__func));
-    }
-    /* Remove those with no exit. */
-    void remove_dead_loop(node *);
-    /* Spread those unreachable block tags. */
-    void spread_unreachable();
+    /* Insert those reachable blocks. */
+    void update_dfs_front(node *);
+    /* Insert those blocks that can be reached from entry and exit.  */
+    void update_dfs_reverse();
+
     /**
      * @brief Update branch jump from unreachable branches.
      * Note that this may result in single phi! (e.g: %1 = phi[1,%entry])

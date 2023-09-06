@@ -126,6 +126,27 @@ struct constant_propagatior {
 
     std::queue <block_info> block_list;
 
+    struct {
+        std::queue         <IR::node *> data;
+        std::unordered_set <IR::node *> visit;
+    
+        [[nodiscard]] IR::node *pop_out() noexcept {
+            auto __ret = data.front();
+            data.pop();
+            visit.erase(__ret);
+            return __ret;
+        }
+    
+        void push_in(IR::node *__node) noexcept {
+            if (visit.insert(__node).second)
+                data.push(__node);
+        }
+    
+        bool empty() const noexcept { return data.empty(); }
+
+    } work_list;
+
+
     constant_propagatior(IR::function *,node *);
 
     void init_info(IR::function *);

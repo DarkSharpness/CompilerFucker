@@ -8,7 +8,6 @@ graph_simplifier::graph_simplifier(IR::function *__func,node *__entry) {
     /* This is the core function, which may eventually effect constant folding. */
     replace_const_branch(__func,__entry);
 
-    unreachable_remover(__func,__entry);
     if (__func->is_unreachable()) return;
 
     /* Collect all single phi usage before return. */
@@ -18,7 +17,7 @@ graph_simplifier::graph_simplifier(IR::function *__func,node *__entry) {
     remove_single_phi(__func,__entry);
 
     /* (This function is just a small opt!) Finally compress jump. */
-    compress_jump(__func,__entry);
+    // compress_jump(__func,__entry);
 }
 
 
@@ -28,16 +27,24 @@ void graph_simplifier::replace_const_branch(IR::function *__func,node *__entry) 
         if(!__set.insert(__node).second) return;
         auto *__block = __node->block;
         auto *&__last = __block->stmt.back();
+
         /* Unreachable settings~ */
         if(auto *__br = dynamic_cast <IR::branch_stmt *> (__last))
-            if (auto __cond = dynamic_cast <IR::boolean_constant *> (__br->cond))
-                __br->br[__cond->value]->stmt.front() =
-                    IR::create_unreachable();
+            if (auto __cond = dynamic_cast <IR::boolean_constant *> (__br->cond)) {
+                runtime_assert("~~~",__node->next.size() == 2);
+                auto &__next = __node->next[1];
+                if (__next->block != __br->br[__cond->value])
+                    std::swap(__next,__node->next[0]);
+                runtime_assert("~~~",remove_node_from(__next->prev,__node));
+                __node->next.pop_back();
+            }
 
         for(auto __next : __node->next) __self(__self,__next);
     };
 
     __dfs(__dfs,__entry);
+
+    unreachable_remover {__func,__entry};
 }
 
 

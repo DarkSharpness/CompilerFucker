@@ -58,11 +58,11 @@ deadcode_eliminator::deadcode_eliminator(IR::function *__func,node *) {
         }
     }
 
-    /* Specially, we will replace all unused variables as undefined. */
+    /* Specially, we will replace all undefed variables as undefined. */
     for(auto &__info : info_list) {
         for(auto &__use : __info.uses) {
             if(!info_map.count(__use)) {
-                std::cerr << "Unused temporary: " << __use->data() << '\n';
+                // std::cerr << "Undefed temporary: " << __use->data() << '\n';
                 __info.data->update(__use,IR::create_undefined(__use->type));
             }
         }

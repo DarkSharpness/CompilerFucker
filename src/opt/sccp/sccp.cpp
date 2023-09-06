@@ -21,13 +21,20 @@ inline bool constant_propagatior::may_go_constant(IR::node *__node) {
 
 constant_propagatior::constant_propagatior
     (IR::function *__func,node *) {
+
     collect_use(__func);
     init_info(__func);
 
     /* Start working. */
+    size_t __cnt = 0;
     __cache.reserve(2);
-    while (!block_list.empty()) update_block();
-
+    while (!block_list.empty()) {
+        update_block();
+        if (++__cnt == 1000) {
+            warning("Too many iterations! Fail to constant propagate!");
+            return;
+        }
+    }
     /* Now, all blocks are updated. */
     update_constant(__func);
 }
@@ -133,20 +140,15 @@ bool constant_propagatior::merge_info
 
     auto __beg = __info->value_map.begin();
     for(auto &&[__key,__old] : __iter->second.value_map) {
-        runtime_assert("I misunderstood STL......",__beg->first == __key);
         auto &__new = (__beg++)->second;
-        /* Nothing to update if identical or old is null. */
-        if (__new == __old || __old == nullptr) continue;
+        if (__old == __new) continue;
+        if (__old == nullptr) { __new = nullptr; continue; }
 
         __succ = true;
-        /* Undefined case. */
-        if (dynamic_cast <IR::undefined *> (__old)) {
-            __old = __new;
-        } else if (dynamic_cast <IR::undefined *> (__new)) {
-            __new = __old;
-        } else {
-            __old = __new = nullptr;
-        }
+
+        if (dynamic_cast <IR::undefined *> (__old)) { __old = __new; continue; }
+        if (dynamic_cast <IR::undefined *> (__new)) { __new = __old; continue; }
+        __old = __new = nullptr;
     } return __succ;
 }
 
@@ -184,6 +186,7 @@ void constant_propagatior::update_constant(IR::function *__func) {
     for(auto __block : __func->stmt) {
         auto  __iter = info_map.find(__block);
         if (__iter == info_map.end()) continue;
+
         auto &__info = __iter->second;
         for(auto __stmt : __block->stmt) {
             /* Useless expression is eliminated. */

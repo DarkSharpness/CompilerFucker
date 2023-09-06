@@ -15,28 +15,36 @@ void SSAbuilder::try_optimize(std::vector <IR::function>  &global_functions) {
         auto *__entry = create_node(__func.stmt.front());
 
         /* This removes all unreachable branches in advance. */
-        unreachable_remover __remover {&__func,__entry};
+        unreachable_remover{&__func,__entry};
         if(__func.is_unreachable()) continue;
 
         /* This builds up SSA form and lay phi statement. */
-        dominate_maker __maker {&__func,__entry};
+        dominate_maker{&__func,__entry};
 
         /* Eliminate dead code. */
-        if(__optimize_state.enable_DCE)
-            deadcode_eliminator __eliminator {&__func,__entry};
+        if(__optimize_state.enable_DCE) {
+            deadcode_eliminator{&__func,__entry};
+            std::cerr << 0 << '\n';
+        }
 
-        /* Sparse constant propagation. */
-        if(__optimize_state.enable_SCCP)
-            constant_propagatior __propagatior {&__func,__entry};
+        /* Sparse constant propagation. O(n ^ 3) , so at most 1000. */
+        if(__optimize_state.enable_SCCP) {
+            constant_propagatior{&__func,__entry};
+            /* There will be potential deadcode. */
+            deadcode_eliminator {&__func,__entry};
+            std::cerr << 1 << '\n';
+        }
 
         /* Simplify the CFG. */
-        if(__optimize_state.enable_CFG)
-            graph_simplifier __simplifier {&__func,__entry};
-
-        { /* After simplification, the CFG graph may go invalid. */
-            __entry = rebuild_CFG(&__func);
-            unreachable_remover __remover {&__func,__entry};
+        if(__optimize_state.enable_CFG) {
+            // __entry = rebuild_CFG(&__func);
+            graph_simplifier{&__func,__entry};
+            std::cerr << 2 << '\n';
         }
+
+
+
+
     }
 
     for(auto &__func : global_functions) {
