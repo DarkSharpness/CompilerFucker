@@ -56,98 +56,60 @@ struct constant_calculator : IR::IRvisitorbase {
 };
 
 
+/**
+ * @brief Sparse conditional constant propagation.
+ * It will not change CFG and only do constant propagation.
+ * Nevertheless, it still take use of constant branch to
+ * better spread constant.
+ * 
+ */
 struct constant_propagatior {
     std::vector <IR::definition *> __cache;
     constant_calculator calc;
 
-    /* We assume that all globals are unknown now. */
-    struct constant_info {
-        /* If null, non-constant. Otherwise,undefined / constant. */
-        std::map <IR::temporary *,IR::definition *> value_map;
-
-        using iterator_type = decltype(value_map)::iterator;
-
-        /* Return the definition mapped from current definition. */
-        IR::definition *get_literal(IR::definition *__old) const {
-            /* No mapping for undefined / literal type. */
-            if (dynamic_cast <IR::literal *>   (__old)) return __old;
-            if (dynamic_cast <IR::undefined *> (__old)) return __old;
-
-            /* All temporaries must be in the map.  */
-            if (auto __tmp = dynamic_cast <IR::temporary *> (__old))
-                return value_map.at(__tmp);
-
-            /* Other cases are non-constant. */
-            return nullptr;
-        }
-
-        bool update_at(iterator_type __pos,IR::definition *__new) {
-            runtime_assert("Fail!",__pos != value_map.end());
-            auto &__old = __pos->second;
-            /* First, handle with the cases of undefined. */
-            if (dynamic_cast <IR::undefined *> (__new)) return false;
-            if (dynamic_cast <IR::undefined *> (__old))
-            { __old = __new; return true; }
-
-            auto __lval = dynamic_cast <IR::literal *> (__new);
-            auto __rval = dynamic_cast <IR::literal *> (__old);
-            /**
-             * This is a magic equation!
-             * If both literal constant, then compare their value (ptr).
-             * If both are not literal, of course they are equal(null == null).
-             * Otherwise, they are not equal.
-            */
-            bool __ret  = __lval != __rval;
-            /* Not equal : update as nullptr. */
-            if (__ret) __old = nullptr;
-            return __ret;
-        }
-
-        /* Tries to update inner constant state. */
-        bool update(IR::temporary *__tmp,IR::definition *__new) 
-        { return update_at(value_map.find(__tmp),__new); }
-
-
-    };
-
     struct usage_info {
-        std::vector <IR::node *> use_list;
-        IR::node                *def_node;
+        std::vector <IR::node *>  use_list;  /* Use list. */
+        IR::definition *new_def  = nullptr;  /* Potential new definition. */
+        IR::node       *def_node = nullptr;  /* Definition node. */
     };
-
-    std::unordered_map <IR::block_stmt *,constant_info> info_map;
-    std::unordered_map <IR::temporary  *,  usage_info >  use_map;
 
     struct block_info {
-        IR::block_stmt *node; /* Current  block. */
-        IR::block_stmt *prev; /* Previous block. */
-        constant_info  *info; /* Current  info.  */
+        std::vector <IR::block_stmt *> visit;/* Visit list. */
+        bool visit_from(IR::block_stmt *__prev) {
+            if (find(__prev)) return true;
+            visit.push_back(__prev);
+            return false;
+        }
+
+        bool find(IR::block_stmt *__prev) const noexcept {
+            for(auto __block : visit) if (__block == __prev) return true;
+            return false;
+        }
+
+        size_t visit_count() const noexcept { return visit.size(); }
     };
 
-    std::queue <block_info> block_list;
+    struct edge_info { IR::block_stmt *prev, *next; };
 
-    struct {
-        std::queue         <IR::node *> data;
-        std::unordered_set <IR::node *> visit;
-    
-        [[nodiscard]] IR::node *pop_out() noexcept {
-            auto __ret = data.front();
-            data.pop();
-            visit.erase(__ret);
-            return __ret;
-        }
-    
-        void push_in(IR::node *__node) noexcept {
-            if (visit.insert(__node).second)
-                data.push(__node);
-        }
-    
-        bool empty() const noexcept { return data.empty(); }
+    std::unordered_map <IR::temporary *, usage_info>   use_map;
+    std::unordered_map <IR::block_stmt *,block_info> block_map;
+    std::unordered_map <IR::node *,block_info *> node_map;
 
-    } work_list;
+    using CFG_Container = std::queue <edge_info>;
+    using SSA_Container = std::queue <IR::node *>;
 
+    CFG_Container CFG_worklist;
+    SSA_Container SSA_worklist;
 
     constant_propagatior(IR::function *,node *);
+
+    /* A hacking method! */
+    inline IR::block_stmt *get_block(IR::node *__node) {
+        /* Plain memory setting. */
+        static_assert(sizeof(*block_map.begin()) == sizeof(void *) + sizeof(block_info));
+        void *__info = node_map[__node];
+        return *(static_cast <IR::block_stmt **> (__info) - 1);
+    }
 
     void init_info(IR::function *);
 
@@ -157,16 +119,14 @@ struct constant_propagatior {
     /* Judge whether one node can be constant defed. */
     static bool may_go_constant(IR::node *);
 
-    void update_block();
-
-    void try_spread(constant_info *,IR::node *);
-
-    void spread_state(constant_info *,IR::temporary *);
-
+    void update_SSA();
+    void update_CFG();
+    void update_PHI(IR::phi_stmt *);
+    void visit_branch(IR::branch_stmt *);
+    void visit_node(IR::node *);
+    void try_update_value(IR::node *);
+    IR::definition *get_value(IR::definition *);
     void update_constant(IR::function *);
-
-    /* Merge 2 constant info and return whether there is info updated. */
-    bool merge_info(IR::block_stmt *,constant_info *);
 
 };
 

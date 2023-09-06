@@ -20,136 +20,127 @@ inline bool constant_propagatior::may_go_constant(IR::node *__node) {
 
 
 constant_propagatior::constant_propagatior
-    (IR::function *__func,node *) {
-
+    (IR::function *__func,node *__entry) {
     collect_use(__func);
     init_info(__func);
 
-    /* Start working. */
-    size_t __cnt = 0;
-    __cache.reserve(2);
-    while (!block_list.empty()) {
-        update_block();
-        if (++__cnt == 1000) {
-            warning("Too many iterations! Fail to constant propagate!");
-            return;
-        }
+    while(!CFG_worklist.empty()) {
+        do update_CFG(); while(!CFG_worklist.empty());
+        while(!SSA_worklist.empty()) update_SSA();
     }
-    /* Now, all blocks are updated. */
+
     update_constant(__func);
+
+    std::unordered_set <node *> visit;
+    auto &&__dfs = [&](auto &&__self,node *__node) -> void {
+        if (!visit.insert(__node).second) return;
+        auto __beg = __node->next.begin();
+        auto __end = __node->next.end();
+        for(;__beg != __end;) {
+            auto __next = *__beg;
+            /* Never visited from this direction! */
+            if (!block_map[__next->block].find(__node->block)) {
+                remove_node_from(__next->prev,__node);
+                *__beg = *--__end; continue;
+            } else ++__beg;
+            __self(__self,__next);
+        }
+    };
+
+    // __dfs(__dfs,__entry);
 }
 
 
-IR::definition *get_phi_value(IR::phi_stmt *__phi,IR::block_stmt *__pre) {
-    for(auto [__val,__src] : __phi->cond)
-        if (__src == __pre) return __val;
-    runtime_assert("This should never never happen!");
-    return nullptr;
-}
+void constant_propagatior::update_CFG() {
+    auto [__from,__block] = CFG_worklist.front(); CFG_worklist.pop();
+    auto &__visitor = block_map[__block];
+    if (__visitor.visit_from(__from)) return;
 
-
-void constant_propagatior::update_block() {
-    auto [__block,__prev,__info] = block_list.front(); block_list.pop();
     auto __beg = __block->stmt.begin();
     auto __end = --__block->stmt.end();
 
+    while(auto __phi = dynamic_cast <IR::phi_stmt *> (*__beg))
+        update_PHI(__phi) , ++__beg;
 
-    { /* Just update all phi statements parallelly. */
-        /* If phi statement, update branch of that side. */
-        std::vector <std::pair <IR::temporary *,IR::definition *>> __remap;
-        while(auto __phi = dynamic_cast <IR::phi_stmt *> (*__beg)) {
-            auto __val = get_phi_value(__phi,__prev);
-            __remap.push_back({__phi->dest,__info->get_literal(__val)});
-            ++__beg;
-        }
-        for(auto __pair : __remap)
-            if(__info->update(__pair.first,__pair.second))
-                spread_state(__info,__pair.first);
-    }
+    if (__visitor.visit_count() == 1)
+        while(__beg != __end) visit_node(*__beg++);
 
-
-    /* Update all statements except the exit. */
-    while(__beg != __end) try_spread(__info,*__beg++);
-    /* Special case! If merge failed, no more visiting. */
-    if (!merge_info(__block,__info)) return delete __info;
-
-
-    /* Visit the last node (CFG related node.) */
-    auto __last = *__beg;
-    if (auto __jump = dynamic_cast <IR::jump_stmt *> (__last))
-        block_list.push({__jump->dest,__block,__info});
-
-    else if (auto __br = dynamic_cast <IR::branch_stmt *> (__last)) {
-        auto __cond = __info->get_literal(__br->cond);
-
-        /* WTF? Undefined branch ?? Just cut it all! */
-        if(dynamic_cast <IR::undefined *> (__cond)) {
-            warning("I never expected this to happen! (Undefined branch)");
-            return delete __info;
-        }
-
-        /* Normal case now. */
-        if (auto __bool = dynamic_cast <IR::boolean_constant *> (__cond))
-            block_list.push({__br->br[!__bool->value],__block,__info});
-        else { /* Both branches are reachable! */
-            block_list.push({__br->br[0],__block,new auto(*__info)});
-            block_list.push({__br->br[1],__block,__info});
-        }
-    } else { /* In theory, there is no more unreachable now...... */
-        safe_cast <IR::return_stmt *> (__last);
-        return delete __info;
-    }
+    if (auto __jump = dynamic_cast <IR::jump_stmt *> (*__end))
+        CFG_worklist.push({__block,__jump->dest});
 }
 
 
-void constant_propagatior::spread_state
-    (constant_info *__info,IR::temporary *__def) {
-    /* Non-constant / Constant. */
-    IR::literal *__val = dynamic_cast <IR::literal *>
-        (__info->value_map.at(__def));
-
-    /* Go to all usage and tries to update. */
-    for(auto __use : use_map[__def].use_list)
-        try_spread(__info,__use);
+void constant_propagatior::update_SSA() {
+    auto __node = SSA_worklist.front(); SSA_worklist.pop();
+    if (auto __phi = dynamic_cast <IR::phi_stmt *> (__node))
+        update_PHI(__phi);
+    else if (node_map[__node]->visit_count())
+        visit_node(__node);
 }
 
 
-void constant_propagatior::try_spread
-    (constant_info *__info,IR::node *__stmt) {
-    /* A new definition of the statement. */
-    if (!may_go_constant(__stmt)) return;
-    /* This is a temporary optimization!!! */
-    if (dynamic_cast <IR::phi_stmt *> (__stmt)) return;
-
-    auto __def = __stmt->get_def();
+void constant_propagatior::update_PHI(IR::phi_stmt *__phi) {
+    auto *__info = node_map[__phi];
+    if (!__info->visit_count()) return;
 
     __cache.clear();
-    for(auto __tmp : __stmt->get_use())
-        __cache.push_back(__info->get_literal(__tmp));
+    for(auto [__value,__block] : __phi->cond)
+        if(__info->find(__block))
+            __cache.push_back(get_value(__value));
 
-    if(__info->update(__def,calc.work(__stmt,__cache))) 
-        spread_state(__info,__def);
+    try_update_value(__phi);
 }
 
 
-bool constant_propagatior::merge_info
-    (IR::block_stmt *__block,constant_info *__info) {
-    auto [__iter,__succ] = info_map.try_emplace(__block,*__info);
-    if (__succ) return true;
-    /* Now __succ is naturally false. */
+void constant_propagatior::visit_node(IR::node *__node) {
+    /* Only those that may go constant will be updated. */
+    if (auto __br = dynamic_cast <IR::branch_stmt *> (__node))
+        return visit_branch(__br);
+    if (!may_go_constant(__node)) return;
 
-    auto __beg = __info->value_map.begin();
-    for(auto &&[__key,__old] : __iter->second.value_map) {
-        auto &__new = (__beg++)->second;
-        if (__old == __new) continue;
-        if (__old == nullptr) { __new = nullptr; continue; }
+    __cache.clear();
+    for(auto __use : __node->get_use())
+        __cache.push_back(get_value(__use));
 
-        __succ = true;
+    try_update_value(__node);
+}
 
-        if (dynamic_cast <IR::undefined *> (__old)) { __old = __new; continue; }
-        if (dynamic_cast <IR::undefined *> (__new)) { __new = __old; continue; }
-        __old = __new = nullptr;
-    } return __succ;
+
+void constant_propagatior::try_update_value(IR::node *__node) {
+    auto __new = calc.work(__node,__cache);
+    auto __def = __node->get_def();
+
+    /* Self definition means undefined! */
+    if (__new == __def) return;
+    auto &__info = use_map.at(__def);
+    auto &__old  = __info.new_def;
+
+    /* Nothing shall be updated. Naturally. */
+    if (__old == __new || dynamic_cast <IR::undefined *> (__new)) return;
+
+    /**
+     * undef + any = any.
+     * def0 + def1 = null (aka. non-constant).
+    */
+    __old = dynamic_cast <IR::undefined *> (__old) ? __new : nullptr;
+
+    for(auto __use : __info.use_list) SSA_worklist.push(__use);
+}
+
+
+IR::definition *constant_propagatior::get_value
+    (IR::definition *__def) {
+    auto __tmp = dynamic_cast <IR::temporary *> (__def);
+
+    /* Only temporaries can be remapped. */
+    if (!__tmp)
+        return dynamic_cast <IR::undefined *> (__def)
+            || dynamic_cast <IR::literal *>   (__def) ? __def : nullptr;
+
+    /* Find the value in the temporary map. */
+    auto __new = use_map[__tmp].new_def;
+    /* In worst case, a temporary can still be itself. */
+    return __new ? __new : __def;
 }
 
 
@@ -157,7 +148,7 @@ void constant_propagatior::collect_use(IR::function *__func) {
     for(auto __block : __func->stmt)
         for(auto __stmt : __block->stmt) {
             auto __def = __stmt->get_def();
-            if(__def) use_map[__def].def_node = __stmt;
+            if (__def) use_map[__def].def_node = __stmt;
             for(auto __use : __stmt->get_use())
                 if(auto __tmp = dynamic_cast <IR::temporary *> (__use))
                     use_map[__tmp].use_list.push_back(__stmt);
@@ -166,43 +157,58 @@ void constant_propagatior::collect_use(IR::function *__func) {
 
 
 void constant_propagatior::init_info(IR::function *__func) {
-    info_map.reserve(__func->stmt.size());
-    /* Set all as undefined! */
-    auto *__info = new constant_info;
+    /* Only those undefined or possibly go constant
+        will be assigned undefined. Others are null (non-constant). */
+    for(auto &&[__def,__info] : use_map)
+        if (!__info.def_node || may_go_constant(__info.def_node))
+            __info.new_def = IR::create_undefined(__def->type);
 
-    /* Only when may go constant-able will be assigned undefined. */
-    for(auto &&__pair : use_map)
-        __info->value_map[__pair.first] =
-            may_go_constant(__pair.second.def_node) ?
-                IR::create_undefined(__pair.first->type) : nullptr;
+    for(auto __block : __func->stmt) {
+        auto &__info = block_map[__block];
+        for(auto __node : __block->stmt)
+            node_map[__node] = &__info;
+    }
 
-    auto *__entry = __func->stmt.front();
-    block_list.push({__entry,nullptr,__info});
+    /* Insert to CFG */
+    CFG_worklist.push({nullptr,__func->stmt.front()});
 }
 
 
 void constant_propagatior::update_constant(IR::function *__func) {
     std::vector <IR::node *> __vec;
     for(auto __block : __func->stmt) {
-        auto  __iter = info_map.find(__block);
-        if (__iter == info_map.end()) continue;
-
-        auto &__info = __iter->second;
-        for(auto __stmt : __block->stmt) {
-            /* Useless expression is eliminated. */
-            auto *__def = __stmt->get_def();
-            if (__def && __info.value_map.at(__def)) continue;
-
-            /* Otherwise should keep down. */
-            __vec.push_back(__stmt);
-            auto __uses = __stmt->get_use();
-            for(auto *__use : __uses) {
-                auto *__val = __info.get_literal(__use);
-                if (__val) __stmt->update(__use,__val);
+        for(auto __node : __block->stmt) {
+            if (may_go_constant(__node)) {
+                auto *__val = get_value(__node->get_def());
+                if (dynamic_cast <IR::literal *> (__val)) continue;
+            }
+            __vec.push_back(__node);
+            for(auto __use : __node->get_use()) {
+                auto *__val = get_value(__use);
+                if (auto __lit = dynamic_cast <IR::literal *> (__val);
+                    __lit != nullptr && __use != __lit)
+                    __node->update(__use,__lit);
             }
         }
         __vec.swap(__block->stmt);
         __vec.clear();
+    }
+}
+
+
+void constant_propagatior::visit_branch(IR::branch_stmt *__br) {
+    auto __var = get_value(__br->cond);
+
+    /* No branch to take now. */
+    if (dynamic_cast <IR::undefined *> (__var)) return;
+
+    auto *__block = get_block(__br);
+    /* Take only one branch. */
+    if (auto __bool = dynamic_cast <IR::boolean_constant *> (__var))
+        CFG_worklist.push({__block,__br->br[!__bool->value]});
+    else { /* Take both is non-constant. */
+        CFG_worklist.push({__block,__br->br[0]});
+        CFG_worklist.push({__block,__br->br[1]});
     }
 }
 

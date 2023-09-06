@@ -31,19 +31,18 @@ void SSAbuilder::try_optimize(std::vector <IR::function>  &global_functions) {
         if(__optimize_state.enable_SCCP) {
             constant_propagatior{&__func,__entry};
             /* There will be potential deadcode. */
-            deadcode_eliminator {&__func,__entry};
+            unreachable_remover {&__func,__entry};
             std::cerr << 1 << '\n';
         }
 
         /* Simplify the CFG. */
         if(__optimize_state.enable_CFG) {
-            // __entry = rebuild_CFG(&__func);
             graph_simplifier{&__func,__entry};
+            __entry = rebuild_CFG(&__func);
+            deadcode_eliminator{&__func,__entry};
+            unreachable_remover {&__func,__entry};
             std::cerr << 2 << '\n';
         }
-
-
-
 
     }
 
@@ -66,5 +65,6 @@ node *SSAbuilder::rebuild_CFG(IR::function *__func) {
     visitFunction(__func);
     return __entry;
 }
+
 
 }

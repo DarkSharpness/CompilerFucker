@@ -91,4 +91,7 @@ struct node {
     }
 };
 
+bool remove_node_from(std::vector <node *> &__vec,node *__node);
+
+
 }

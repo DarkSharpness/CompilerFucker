@@ -17,7 +17,7 @@ graph_simplifier::graph_simplifier(IR::function *__func,node *__entry) {
     remove_single_phi(__func,__entry);
 
     /* (This function is just a small opt!) Finally compress jump. */
-    // compress_jump(__func,__entry);
+    compress_jump(__func,__entry);
 }
 
 
