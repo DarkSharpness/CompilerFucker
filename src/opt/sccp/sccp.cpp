@@ -21,6 +21,8 @@ inline bool constant_propagatior::may_go_constant(IR::node *__node) {
 
 constant_propagatior::constant_propagatior
     (IR::function *__func,node *__entry) {
+    if (__func->is_unreachable()) return;
+
     collect_use(__func);
     init_info(__func);
 
@@ -96,6 +98,8 @@ void constant_propagatior::visit_node(IR::node *__node) {
     /* Only those that may go constant will be updated. */
     if (auto __br = dynamic_cast <IR::branch_stmt *> (__node))
         return visit_branch(__br);
+    if (dynamic_cast <IR::phi_stmt *> (__node)) throw;
+
     if (!may_go_constant(__node)) return;
 
     __cache.clear();
@@ -115,12 +119,18 @@ void constant_propagatior::try_update_value(IR::node *__node) {
     auto &__info = use_map.at(__def);
     auto &__old  = __info.new_def;
 
-    /* Nothing shall be updated. Naturally. */
-    if (__old == __new || dynamic_cast <IR::undefined *> (__new)) return;
+    /**
+     * Nothing shall be updated. Naturally.
+     * null + any   => null
+     * any  + any   => any
+     * any  + udef  => any
+    */
+    if (__old == __new || __old == nullptr
+    || dynamic_cast <IR::undefined *> (__new)) return;
 
     /**
-     * undef + any = any.
-     * def0 + def1 = null (aka. non-constant).
+     * udef + any   => any
+     * def0 + def1  => null (aka. non-constant).
     */
     __old = dynamic_cast <IR::undefined *> (__old) ? __new : nullptr;
 
@@ -178,11 +188,6 @@ void constant_propagatior::update_constant(IR::function *__func) {
     std::vector <IR::node *> __vec;
     for(auto __block : __func->stmt) {
         for(auto __node : __block->stmt) {
-            if (may_go_constant(__node)) {
-                auto *__val = get_value(__node->get_def());
-                if (dynamic_cast <IR::literal *> (__val)) continue;
-            }
-            __vec.push_back(__node);
             for(auto __use : __node->get_use()) {
                 auto *__val = get_value(__use);
                 if (auto __lit = dynamic_cast <IR::literal *> (__val);
@@ -190,8 +195,6 @@ void constant_propagatior::update_constant(IR::function *__func) {
                     __node->update(__use,__lit);
             }
         }
-        __vec.swap(__block->stmt);
-        __vec.clear();
     }
 }
 

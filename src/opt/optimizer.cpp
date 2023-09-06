@@ -27,19 +27,18 @@ void SSAbuilder::try_optimize(std::vector <IR::function>  &global_functions) {
             std::cerr << 0 << '\n';
         }
 
-        /* Sparse constant propagation. O(n ^ 3) , so at most 1000. */
+        /* Sparse constant propagation. */
         if(__optimize_state.enable_SCCP) {
             constant_propagatior{&__func,__entry};
-            /* There will be potential deadcode. */
+            deadcode_eliminator {&__func,__entry};
             unreachable_remover {&__func,__entry};
             std::cerr << 1 << '\n';
         }
 
         /* Simplify the CFG. */
         if(__optimize_state.enable_CFG) {
-            graph_simplifier{&__func,__entry};
-            __entry = rebuild_CFG(&__func);
-            deadcode_eliminator{&__func,__entry};
+            graph_simplifier    {&__func,__entry};
+            deadcode_eliminator {&__func,__entry};
             unreachable_remover {&__func,__entry};
             std::cerr << 2 << '\n';
         }

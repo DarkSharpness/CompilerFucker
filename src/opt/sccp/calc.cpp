@@ -196,7 +196,8 @@ void constant_calculator::visitPhi(IR::phi_stmt *__phi) {
     IR::definition *__tmp = nullptr;
 
     for(auto __use : __input) {
-        if(__use == __def) continue;
+        if (__use == nullptr) return set_result(nullptr);
+        if (__use == __def) continue;
         /**
          * @brief Simple rule as below:
          * Self = undef.
