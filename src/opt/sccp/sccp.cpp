@@ -114,26 +114,16 @@ void constant_propagatior::try_update_value(IR::node *__node) {
     auto __new = calc.work(__node,__cache);
     auto __def = __node->get_def();
 
-    /* Self definition means undefined! */
+    /* Self definition means undefined! Nothing to do! */
     if (__new == __def) return;
     auto &__info = use_map.at(__def);
-    auto &__old  = __info.new_def;
 
-    /**
-     * Nothing shall be updated. Naturally.
-     * null + any   => null
-     * any  + any   => any
-     * any  + udef  => any
-    */
-    if (__old == __new || __old == nullptr
-    || dynamic_cast <IR::undefined *> (__new)) return;
+    /* Merge the definition according to given rule. */
+    __new = merge_definition(__info.new_def,__new);
+    if (__info.new_def == __new) return;
 
-    /**
-     * udef + any   => any
-     * def0 + def1  => null (aka. non-constant).
-    */
-    __old = dynamic_cast <IR::undefined *> (__old) ? __new : nullptr;
-
+    /* Update case! */
+    __info.new_def = __new;
     for(auto __use : __info.use_list) SSA_worklist.push(__use);
 }
 

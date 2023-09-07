@@ -21,11 +21,9 @@ void SSAbuilder::try_optimize(std::vector <IR::function>  &global_functions) {
         /* This builds up SSA form and lay phi statement. */
         dominate_maker{&__func,__entry};
 
-        /* Eliminate dead code. */
-        if(__optimize_state.enable_DCE) {
-            deadcode_eliminator{&__func,__entry};
-            std::cerr << 0 << '\n';
-        }
+        /* Eliminate dead code safely. */
+        deadcode_eliminator{&__func,__entry};
+        std::cerr << 0 << '\n';
 
         /* Sparse constant propagation. */
         if(__optimize_state.enable_SCCP) {
@@ -43,10 +41,19 @@ void SSAbuilder::try_optimize(std::vector <IR::function>  &global_functions) {
             std::cerr << 2 << '\n';
         }
 
+        /* Peephole optimization. */
+        if(__optimize_state.enable_PEEP) {
+            std::cerr << 3 << '\n';
+        }
+
+        /* After first pass of optimization, collect information! */
+
+
+        std::cerr << __func.name << " finished!\n";
     }
 
+    /* Second pass: using collected information to optimize. */
     for(auto &__func : global_functions) {
-        // second pass.
     }
 
 }

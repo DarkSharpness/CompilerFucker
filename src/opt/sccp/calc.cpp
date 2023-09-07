@@ -218,4 +218,20 @@ void constant_calculator::visitUnreachable(IR::unreachable_stmt *) {
     return set_result(nullptr);
 }
 
+
+/**
+ * @brief Merge the definition of 2 IR value. \n
+ * undef + def_0 ==> def_0 \n
+ * def_0 + def_0 ==> def_0 \n
+ * def_0 + def_1 ==> null (non-const)
+*/
+IR::definition *merge_definition(IR::definition *__lhs,IR::definition *__rhs) {
+    if (dynamic_cast <IR::undefined *> (__lhs)) return __rhs;
+    if (dynamic_cast <IR::undefined *> (__rhs)) return __lhs;
+    if (__lhs == __rhs) return __lhs;
+    else                return nullptr;
+}
+
+
+
 }

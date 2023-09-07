@@ -299,6 +299,13 @@ struct phi_stmt : statement {
         for(auto __p : cond) __use.push_back(__p.value);
         return __use;
     }
+
+    /* Update the block label of a phi statement. */
+    void update(IR::block_stmt *__old , IR::block_stmt *__new) {
+        for(auto &__p : cond) if(__p.label == __old)
+            return static_cast <void> (__p.label = __new);
+        runtime_assert("This shouldn't happen!");
+    }
     void update(definition *__old, definition *__new) override {
         for(auto &__p : cond) if(__p.value == __old) __p.value = __new;
     }

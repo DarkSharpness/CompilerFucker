@@ -16,8 +16,9 @@ class optimize_options {
                 uint64_t enable_DCE     : 1;
                 uint64_t enable_SCCP    : 1;
                 uint64_t enable_CFG     : 1;
+                uint64_t enable_PEEP    : 1;
+                uint64_t enable_INLINE  : 1;
                 /* Useless padding. */
-                uint64_t                : 59;
             };
             size_t __init__; /* This is used to help init. */
         };
@@ -33,13 +34,19 @@ class optimize_options {
         constexpr explicit optimize_info(
             bool __DCE,
             bool __SCCP,
-            bool __CFG
+            bool __CFG,
+            bool __PEEP,
+            bool __INLINE
         ) noexcept : __init__(0) {
             enable_DCE  = __DCE;
             enable_SCCP = __SCCP;
             enable_CFG  = __CFG;
+            enable_PEEP = __PEEP;
+            enable_INLINE = __INLINE;
         }
 
+        /* Return whether any optimization is enabled. */
+        bool is_enabled() const noexcept { return __init__ != 0; }
     };
   private:
     optimize_options() = delete;
@@ -85,10 +92,10 @@ class optimize_options {
     static void update_optimize_level(size_t __n) {
         if(__n > 3) throw std::runtime_error("Invalid optimization level.");
         static const optimize_info update_map[] = {
-            optimize_info { 0 , 0 , 0 },
-            optimize_info { 1 , 0 , 0 },
-            optimize_info { 1 , 1 , 0 },
-            optimize_info { 1 , 1 , 1 },
+            optimize_info { 0 , 0 , 0 , 0 , 0},
+            optimize_info { 1 , 1 , 1 , 0 , 0},
+            optimize_info { 1 , 1 , 1 , 1 , 1},
+            optimize_info { 1 , 1 , 1 , 1 , 1},
         };
         size_t __mask__ = _init.__init__;
         state. __init__ = /* Special method. */
@@ -123,6 +130,18 @@ class optimize_options {
         _init.enable_CFG = true;
     }
 
+    static void update_PEEP(bool __val) {
+        if(_init.enable_PEEP) throw_duplicate_option("PEEP");
+        state.enable_PEEP = __val;
+        _init.enable_PEEP = true;
+    }
+
+    static void update_INLINE(bool __val) {
+        if(_init.enable_INLINE) throw_duplicate_option("INLINE");
+        state.enable_INLINE = __val;
+        _init.enable_INLINE = true;
+    }
+
     static void try_parse_command(std::string_view __view) {
         auto __pos = __view.find('-');
         auto __cmd = __view.substr(0,__pos);
@@ -130,9 +149,15 @@ class optimize_options {
         if(__cmd == "disable") {
             if(__ctx == "DCE")       return update_DCE(0);
             else if(__ctx == "SCCP") return update_SCCP(0);
+            else if(__ctx == "CFG")  return update_CFG(0);
+            else if(__ctx == "PEEP") return update_PEEP(0);
+            else if(__ctx == "INLINE") return update_INLINE(0);
         } else if(__cmd == "enable") {
             if(__ctx == "DCE")       return update_DCE(1);
             else if(__ctx == "SCCP") return update_SCCP(1);
+            else if(__ctx == "CFG")  return update_CFG(1);
+            else if(__ctx == "PEEP") return update_PEEP(1);
+            else if(__ctx == "INLINE") return update_INLINE(1);
         }
         throw_invalid_option(__view);
     }

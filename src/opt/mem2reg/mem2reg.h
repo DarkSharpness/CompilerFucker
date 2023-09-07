@@ -22,9 +22,6 @@ struct SSAbuilder : IR::IRvisitorbase {
         for(auto &__func : global_functions)
             visitFunction(&__func);
 
-        // for(auto &__func : global_functions)
-        //      debug_print(&__func);
-
         try_optimize(global_functions);
     }
 

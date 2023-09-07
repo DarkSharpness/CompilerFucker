@@ -99,8 +99,6 @@ struct IRbuilder : AST::ASTvisitorbase {
                 os << __ptr->data() << '\n';
             }
         } os << '\n';
-        for(auto &__var : builtin_function)
-            os << __var.declare();
 
         for(auto &__var : global_variables)
             os << __var.data() << '\n';
@@ -108,6 +106,9 @@ struct IRbuilder : AST::ASTvisitorbase {
 
         for(auto &__func : global_functions)
             os << __func.data() << '\n';
+
+        for(auto &__var : builtin_function)
+            os << __var.declare();
     }
 
     void make_basic(scope *__string,scope *__array);

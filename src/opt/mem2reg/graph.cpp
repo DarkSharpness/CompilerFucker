@@ -268,6 +268,7 @@ void SSAbuilder::visitBlock(IR::block_stmt *ctx) {
     top = create_node(ctx);
     end_tag = 0;
     auto __beg = ctx->stmt.begin();
+    auto __bak = __beg;
     auto __end = ctx->stmt.end();
     while(__beg != __end) {
         if((*__beg)->is_undefined_behavior()) {
@@ -276,7 +277,7 @@ void SSAbuilder::visitBlock(IR::block_stmt *ctx) {
             return;
         } else visit(*__beg++);
         /* If terminate, return. */
-        if(end_tag) return ctx->stmt.resize(__beg - ctx->stmt.begin());
+        if(end_tag) return ctx->stmt.resize(__beg - __bak);
     }
     std::cerr << ctx->data() << '\n';
     runtime_assert("Undefined behavior: No terminator in the block!");

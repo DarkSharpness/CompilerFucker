@@ -7,15 +7,6 @@
 
 namespace dark::OPT {
 
-/* Return a new jump statement to replace a branch. */
-inline IR::jump_stmt *replace_branch
-    (IR::branch_stmt *__br,IR::block_stmt *__dest) {
-    delete __br; /* First release the memory. */
-    auto *__jump = new IR::jump_stmt;
-    __jump->dest = __dest;
-    return __jump;
-}
-
 
 /**
  * @brief This is helper class that removes all useless nodes.
