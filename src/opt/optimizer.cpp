@@ -9,7 +9,7 @@ namespace dark::OPT {
 
 /* The real function that controls all the optimization. */
 void SSAbuilder::try_optimize(std::vector <IR::function>  &global_functions) {
-    auto __optimize_state = optimize_options::get_state();
+    const auto __optimize_state = optimize_options::get_state();
     /* First pass : simple optimization. */
     for(auto &__func : global_functions) {
         auto *__entry = create_node(__func.stmt.front());
@@ -25,25 +25,22 @@ void SSAbuilder::try_optimize(std::vector <IR::function>  &global_functions) {
         deadcode_eliminator{&__func,__entry};
         std::cerr << 0 << '\n';
 
-        /* Sparse constant propagation. */
-        if(__optimize_state.enable_SCCP) {
+        if (__optimize_state.enable_SCCP) {
             constant_propagatior{&__func,__entry};
-            deadcode_eliminator {&__func,__entry};
-            unreachable_remover {&__func,__entry};
-            std::cerr << 1 << '\n';
+            branch_cutter       {&__func,__entry};
+            deadcode_eliminator {&__func,__entry};            
         }
 
-        /* Simplify the CFG. */
-        if(__optimize_state.enable_CFG) {
-            graph_simplifier    {&__func,__entry};
+        if (__optimize_state.enable_CFG) {
+            single_killer       {&__func,__entry};
+            branch_compressor   {&__func,__entry};
             deadcode_eliminator {&__func,__entry};
-            unreachable_remover {&__func,__entry};
-            std::cerr << 2 << '\n';
         }
+
+        unreachable_remover {&__func,__entry};
 
         /* Peephole optimization. */
         if(__optimize_state.enable_PEEP) {
-            std::cerr << 3 << '\n';
         }
 
         /* After first pass of optimization, collect information! */

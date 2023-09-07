@@ -105,7 +105,7 @@ struct constant_propagatior {
 
     /* A hacking method! */
     inline IR::block_stmt *get_block(IR::node *__node) {
-        /* Plain memory setting. */
+        /* Requires plain memory setting. */
         static_assert(sizeof(*block_map.begin()) == sizeof(void *) + sizeof(block_info));
         void *__info = node_map[__node];
         return *(static_cast <IR::block_stmt **> (__info) - 1);
@@ -129,5 +129,27 @@ struct constant_propagatior {
     void update_constant(IR::function *);
 
 };
+
+
+/**
+ * @brief This is helper class that will remove all single phi.
+ * It will replace single phi from its source.
+ * It will not change the CFG graph structure.
+ * 
+*/
+struct single_killer {
+    /* Map of temporary usage. */
+    std::unordered_map <IR::temporary *,std::vector <IR::node *>> use_map;
+
+    /* A list of phi statements to remove. */
+    std::queue <IR::phi_stmt *> work_list;
+
+    single_killer(IR::function *,node *);
+
+    static IR::definition *merge_phi_value(IR::phi_stmt *__phi);
+    void collect_single_phi(IR::function *,node *);
+    void remove_single_phi(IR::function *,node *);
+};
+
 
 }

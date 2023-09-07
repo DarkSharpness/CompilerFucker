@@ -3,6 +3,15 @@
 
 namespace dark::OPT {
 
+
+/**
+ * @brief A non-aggressive dead code eliminator.
+ * This eliminator will not change the CFG structure.
+ * It only removes all CFG unrelated and effectless code.
+ * This is rather mild as it requires no CFG analysis nor
+ * function call analysis.
+ * 
+ */
 deadcode_eliminator::deadcode_eliminator(IR::function *__func,node *) {
     /**
      * Firstly, collect all the usage information. (First def, then use)
@@ -43,8 +52,6 @@ deadcode_eliminator::deadcode_eliminator(IR::function *__func,node *) {
      * optimize the IR using other methods like constant propagation.
     */
 
-    // /* First, work out the potential side effect of each node. */
-    // spread_side_fx(__maker.node_rpo.front());
     if (__func->is_unreachable()) return;
 
     /* First, we will collect all def-use chains. */
@@ -80,7 +87,7 @@ deadcode_eliminator::deadcode_eliminator(IR::function *__func,node *) {
         }
     }
 
-    { /* Remove useless data. */
+    [&]() -> void { /* Remove useless data. */
         std::unordered_set <IR::node *> __set;
         for(auto &__info : info_list)
             if(__info.removable) __set.insert(__info.data);
@@ -92,8 +99,7 @@ deadcode_eliminator::deadcode_eliminator(IR::function *__func,node *) {
             __block->stmt.swap(__vec);
             __vec.clear();
         }
-    }
-
+    }();
 }
 
 

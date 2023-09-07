@@ -3,22 +3,14 @@
 
 namespace dark::OPT {
 
+
 /**
- * @brief Returns if constant_calculator can work on this node
- * and return a non-nullptr (aka. constant/undefined) value.
- * Currently, only binary/compare/phi statements are supported.
+ * @brief Sparse conditional constant propagation.
+ * It will not change CFG and only do constant propagation.
+ * Nevertheless, it still take use of constant branch to
+ * better spread constant.
  * 
- * @param __node The IR node to be checked.
- * @return As described above.
  */
-inline bool constant_propagatior::may_go_constant(IR::node *__node) {
-    if (dynamic_cast <IR::binary_stmt  *> (__node)) return true;
-    if (dynamic_cast <IR::compare_stmt *> (__node)) return true;
-    if (dynamic_cast <IR::phi_stmt *>     (__node)) return true;
-    return false;
-}
-
-
 constant_propagatior::constant_propagatior
     (IR::function *__func,node *__entry) {
     if (__func->is_unreachable()) return;
@@ -32,27 +24,28 @@ constant_propagatior::constant_propagatior
     }
 
     update_constant(__func);
-
-    std::unordered_set <node *> visit;
-    auto &&__dfs = [&](auto &&__self,node *__node) -> void {
-        if (!visit.insert(__node).second) return;
-        auto __beg = __node->next.begin();
-        auto __end = __node->next.end();
-        for(;__beg != __end;) {
-            auto __next = *__beg;
-            /* Never visited from this direction! */
-            if (!block_map[__next->block].find(__node->block)) {
-                remove_node_from(__next->prev,__node);
-                *__beg = *--__end; continue;
-            } else ++__beg;
-            __self(__self,__next);
-        }
-    };
-
-    // __dfs(__dfs,__entry);
 }
 
 
+/**
+ * @brief Returns if constant_calculator can work on this node
+ * and return a non-nullptr (aka. constant/undefined) value.
+ * Currently, only binary/compare/phi statements are supported.
+ * 
+ * @param __node The IR node to be checked.
+ * @return As described above.
+ */
+bool constant_propagatior::may_go_constant(IR::node *__node) {
+    if (dynamic_cast <IR::binary_stmt  *> (__node)) return true;
+    if (dynamic_cast <IR::compare_stmt *> (__node)) return true;
+    if (dynamic_cast <IR::phi_stmt *>     (__node)) return true;
+    return false;
+}
+
+
+/**
+ * @brief Take out an edge from CFG worklist and work on it.
+ */
 void constant_propagatior::update_CFG() {
     auto [__from,__block] = CFG_worklist.front(); CFG_worklist.pop();
     auto &__visitor = block_map[__block];
@@ -72,6 +65,9 @@ void constant_propagatior::update_CFG() {
 }
 
 
+/**
+ * @brief Take out a node from SSA worklist and work on it.
+ */
 void constant_propagatior::update_SSA() {
     auto __node = SSA_worklist.front(); SSA_worklist.pop();
     if (auto __phi = dynamic_cast <IR::phi_stmt *> (__node))
@@ -81,6 +77,9 @@ void constant_propagatior::update_SSA() {
 }
 
 
+/**
+ * @brief Visit a phi node.
+ */
 void constant_propagatior::update_PHI(IR::phi_stmt *__phi) {
     auto *__info = node_map[__phi];
     if (!__info->visit_count()) return;
@@ -98,7 +97,6 @@ void constant_propagatior::visit_node(IR::node *__node) {
     /* Only those that may go constant will be updated. */
     if (auto __br = dynamic_cast <IR::branch_stmt *> (__node))
         return visit_branch(__br);
-    if (dynamic_cast <IR::phi_stmt *> (__node)) throw;
 
     if (!may_go_constant(__node)) return;
 
@@ -128,17 +126,16 @@ void constant_propagatior::try_update_value(IR::node *__node) {
 }
 
 
-IR::definition *constant_propagatior::get_value
-    (IR::definition *__def) {
+IR::definition *constant_propagatior::get_value(IR::definition *__def) {
     auto __tmp = dynamic_cast <IR::temporary *> (__def);
 
-    /* Only temporaries can be remapped. */
-    if (!__tmp)
+    if (!__tmp) /* Only temporaries can be remapped. */
         return dynamic_cast <IR::undefined *> (__def)
             || dynamic_cast <IR::literal *>   (__def) ? __def : nullptr;
 
     /* Find the value in the temporary map. */
     auto __new = use_map[__tmp].new_def;
+
     /* In worst case, a temporary can still be itself. */
     return __new ? __new : __def;
 }
