@@ -26,6 +26,8 @@ branch_cutter::branch_cutter(IR::function *__func,node *__entry) {
                 if (__next->block != __br->br[__cond->value])
                     std::swap(__next,__node->next[0]);
                 runtime_assert("~~~",remove_node_from(__next->prev,__node));
+                for(auto __phi : __next->block->get_phi_block())
+                    __phi->update(__block,__next->block);
                 __node->next.pop_back();
             }
 

@@ -79,7 +79,6 @@ void unreachable_remover::update_dfs_reverse() {
     auto &&__dfs = [&](auto &&__self,node *__node) -> void {
         if (!__old_set.count(__node->block)) return;
         if (!block_set.insert(__node->block).second) return;
-
         work_list.push_back(__node);
         for(auto __prev : __node->prev) __self(__self,__prev);
     };
@@ -92,25 +91,28 @@ void unreachable_remover::update_dfs_reverse() {
 void unreachable_remover::update_phi_branch_source() {
     /* Core update algorithm (SFINAE safe~) */
     auto &&__update = [&](auto &__vec,auto &&__Func) -> std::enable_if_t
-        <std::is_convertible_v <decltype(__Func(*__vec.end())),IR::block_stmt *>> {
+        <std::is_convertible_v <decltype(__Func(*__vec.end())),bool>> {
         auto __beg = __vec.begin();
         auto __end = __vec.end();
         auto __bak = __beg;
         while(__beg != __end) {
-            if (!block_set.count(__Func(*__beg)))
+            if (__Func(*__beg))
                 *__beg = *--__end;
             else ++__beg;
-        } __vec.resize(__end - __bak);
+        } __vec.resize(__beg - __bak);
     };
 
-
-    /* Control flow graph condition. */
-    auto &&__CFG = [&](node *__node) -> IR::block_stmt * { return __node->block; };
-    /* Phi statement condition. */
-    auto &&__PHI = [&](auto &__pair) -> IR::block_stmt * { return __pair.label;  }; 
-
-
     for(auto *__node : work_list) {
+        auto &&__CFG = [&](node *__node) -> bool {
+            return !block_set.count(__node->block);
+        };
+        auto &&__PHI = [=](auto &__pair) -> bool {
+            for(auto __prev : __node->prev)
+                if(__prev->block == __pair.label)
+                    return false;
+            return true;
+        };
+
         /* First,update CFG info. */
         __update(__node->prev,__CFG);
         __update(__node->next,__CFG);
@@ -121,8 +123,10 @@ void unreachable_remover::update_phi_branch_source() {
             if(__node->next.size() == 1)
                __last = replace_branch(__br,__node->next[0]->block);
 
+        /* Remove unsourced phi node. */
         for(auto *__phi : __node->block->get_phi_block())
             __update(__phi->cond,__PHI);
+
     }
 }
 

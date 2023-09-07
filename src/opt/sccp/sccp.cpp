@@ -60,8 +60,11 @@ void constant_propagatior::update_CFG() {
     if (__visitor.visit_count() == 1)
         while(__beg != __end) visit_node(*__beg++);
 
-    if (auto __jump = dynamic_cast <IR::jump_stmt *> (*__end))
+    if (auto __jump = dynamic_cast <IR::jump_stmt *> (*__beg))
         CFG_worklist.push({__block,__jump->dest});
+
+    else if (auto __br = dynamic_cast <IR::branch_stmt *> (*__beg))
+        visit_branch(__br);
 }
 
 
