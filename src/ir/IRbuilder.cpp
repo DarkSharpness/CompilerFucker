@@ -102,7 +102,7 @@ void IRbuilder::visitUnaryExpr(AST::unary_expr *ctx) {
             string_join(binary_stmt::str[__bin->op],'.')
         );
         __bin->lvar = ctx->op[0] == '-' ? (definition *)__zero__ : 
-                      ctx->op[0] == '!' ? (definition *)__true__ : __one1__;
+                      ctx->op[0] == '!' ? (definition *)__true__ : __neg1__;
         __bin->rvar = result;
         top->emplace_new(__bin);
         result = __bin->dest;
