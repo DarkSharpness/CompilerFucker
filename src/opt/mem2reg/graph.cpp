@@ -57,6 +57,9 @@ dominate_maker::dominate_maker(IR::function *,node *__entry) {
     };
 
     for(auto __node : node_rpo) {
+        __node->dom.clear(); /* These 2 data are useless now. */
+        __node->fro.clear(); /* These 2 data are useless now. */
+
         auto &__map = node_phi[__node];
         __node->block->stmt.insert (
             __node->block->stmt.begin(),

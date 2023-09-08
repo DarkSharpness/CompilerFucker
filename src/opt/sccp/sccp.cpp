@@ -180,7 +180,7 @@ void constant_propagatior::update_constant(IR::function *__func) {
         for(auto __node : __block->stmt) {
             for(auto __use : __node->get_use()) {
                 auto *__val = get_value(__use);
-                if (auto __lit = dynamic_cast <IR::literal *> (__val);
+                if (auto __lit = dynamic_cast <IR::definition *> (__val);
                     __lit != nullptr && __use != __lit)
                     __node->update(__use,__lit);
             }
