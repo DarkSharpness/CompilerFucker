@@ -812,6 +812,8 @@ void IRbuilder::make_basic(scope *__string,scope *__array) {
     wrapper __nul = {class_map["null"]   = &   __null_class__ ,0};
 
     builtin_function.resize(22);
+    for(size_t i = 0 ; i < 22 ; ++i)
+        builtin_function[i].is_builtin = true;
 
     builtin_function[0].type = __i32;
     builtin_function[1].type = __i32;
@@ -842,7 +844,7 @@ void IRbuilder::make_basic(scope *__string,scope *__array) {
     builtin_function[3].name = "__String_parseInt__";
     builtin_function[4].name = "__String_ord__";
     builtin_function[5].name = "__print__";
-    builtin_function[6].name = "__println__";
+    builtin_function[6].name = "puts";
     builtin_function[7].name = "__printInt__";
     builtin_function[8].name = "__printlnInt__";
     builtin_function[9].name = "__getString__";

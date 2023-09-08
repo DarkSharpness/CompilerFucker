@@ -345,6 +345,7 @@ struct function {
 
   public:
     std::string name; /* Function name. */
+    bool is_builtin = false;
 
     std::vector < variable  *> args; /* Argument list.   */
     std::vector <block_stmt *> stmt; /* Body data.       */
