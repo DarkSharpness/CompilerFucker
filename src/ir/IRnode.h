@@ -341,6 +341,7 @@ struct function {
     size_t while_count = 0; /* This is used to help generate IR. */
     std::vector <temporary *> temp; /* Real temporary holder. */
     std::map <std::string,size_t> count; /* Count of each case. */
+    void *impl = nullptr;
 
   public:
     std::string name; /* Function name. */
@@ -348,6 +349,13 @@ struct function {
     std::vector < variable  *> args; /* Argument list.   */
     std::vector <block_stmt *> stmt; /* Body data.       */
     wrapper                    type; /* Return type. */
+
+    /* Set the inner implement pointer */
+    void set_impl(void *__impl) noexcept { impl = __impl; }
+
+    /* Take out the inner implement pointer without safety check. */
+    template <class T>
+    T *get_impl_ptr() const noexcept { return static_cast <T *> (impl); }
 
     std::string create_label(const std::string &__name)
     { return string_join(__name,'-',std::to_string(count[__name]++)); }
