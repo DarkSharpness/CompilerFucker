@@ -26,11 +26,9 @@ single_killer::single_killer(IR::function *__func,node *) {
  * If non-null, this is a single phi.
  */
 IR::definition *single_killer::merge_phi_value(IR::phi_stmt *__phi) {
-    IR::temporary  *__def = __phi->dest;
     IR::definition *__tmp = nullptr;
 
     for(auto [__use,__] : __phi->cond) {
-        if(__use == __def) continue;
         /**
          * @brief Simple rule as below:
          * Self = undef.
@@ -44,7 +42,7 @@ IR::definition *single_killer::merge_phi_value(IR::phi_stmt *__phi) {
         else if(__tmp != __use) return nullptr;
     }
 
-    return __tmp ? __tmp : IR::create_undefined(__def->type);
+    return __tmp ? __tmp : IR::create_undefined(__phi->dest->type);
 }
 
 

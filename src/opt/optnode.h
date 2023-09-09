@@ -78,9 +78,6 @@ struct node {
 
     const std::string &name() const noexcept { return block->label; }
 
-    bool is_entry() const noexcept { return prev.empty(); }
-    bool is_exit()  const noexcept { return next.empty(); }
-
     std::string data() const noexcept {
         std::vector <std::string> buf;
         buf.reserve(1 + next.size());

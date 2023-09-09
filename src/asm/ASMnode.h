@@ -137,7 +137,7 @@ struct function {
     std::vector <block *> stmt;
 
     /* Emplace a function argument. */
-    void emplace_arg(const std::vector <IR::variable *> &args) {
+    void emplace_arg(const std::vector <IR::function_argument *> &args) {
         /* Set the address for the variable. */
         for(size_t i = 8 ; i < args.size() ; ++i)
             var_map[args[i]] = (ssize_t)(7 - i);

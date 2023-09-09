@@ -769,7 +769,7 @@ store_stmt *IRbuilder::visitFunctionParam(AST::identifier *__p) {
     variable *__var = new function_argument;
     __var->name = __p->unique_name;
     __var->type = get_type(__p->type);
-    top->args.push_back(__var);
+    top->args.push_back(static_cast <function_argument *> (__var));
 
     auto *__store = new store_stmt;
     __store->src  = __var; /* Variable in the param */
@@ -861,11 +861,18 @@ void IRbuilder::make_basic(scope *__string,scope *__array) {
     builtin_function[20].name = "__new_array4__";
     builtin_function[21].name = "malloc";
 
-    auto *__ptr__  = new local_variable;
+    builtin_function[5].inout_state = function::OUT;
+    builtin_function[6].inout_state = function::OUT;
+    builtin_function[7].inout_state = function::OUT;
+    builtin_function[8].inout_state = function::OUT;
+    builtin_function[9].inout_state = function::IN;
+    builtin_function[10].inout_state = function::IN;
+
+    auto *__ptr__  = new function_argument;
     __ptr__->type  = __nul;
-    auto *__int__  = new local_variable;
+    auto *__int__  = new function_argument;
     __int__->type  = __i32;
-    auto *__bool__ = new local_variable;
+    auto *__bool__ = new function_argument;
     __bool__->type = __boo;
 
     builtin_function[0].args = {__ptr__};

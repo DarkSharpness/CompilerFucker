@@ -9,7 +9,7 @@
 namespace dark::OPT {
 
 struct constant_propagatior;
-struct constant_calculator : IR::IRvisitorbase {
+struct constant_calculator final : IR::IRvisitorbase {
   protected:
     void *data; /* This argument is responsible for passing the params. */
     using array_type = std::vector<IR::definition *>;

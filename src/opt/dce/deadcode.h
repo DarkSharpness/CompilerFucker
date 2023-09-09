@@ -47,7 +47,7 @@ struct deadcode_eliminator {
 
             /* Init the data. */
             removable = is_removable_node(data = __node);
-                
+
             auto __vec = __node->get_use();
             uses.reserve(__vec.size());
             for(auto __use : __vec)

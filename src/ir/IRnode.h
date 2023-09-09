@@ -8,6 +8,26 @@
 #include <vector>
 #include <cstdint>
 
+namespace dark {
+
+
+/**
+ * @brief A wrapper that is using to help hide implement.
+ */
+struct hidden_impl {
+  private:
+    void *impl = nullptr;
+  public:
+    /* Set the hidden implement pointer. */
+    void set_impl_ptr(void *__impl) noexcept { impl = __impl; }
+
+    /* Get the hidden implement pointer. */
+    template <class T>
+    T *get_impl_ptr() const noexcept { return static_cast <T *> (impl); }
+};
+
+}
+
 
 namespace dark::IR {
 
@@ -160,7 +180,7 @@ struct branch_stmt : statement {
 
 struct call_stmt : statement {
     function  *func;
-    temporary *dest;
+    temporary *dest = nullptr; /* For the sake of safety. */
     std::vector <definition *> args;
 
     /* <result> = call <ResultType> @<FunctionName> (<argument>) */
@@ -334,29 +354,27 @@ inline unreachable_stmt *create_unreachable() {
 
 
 /* Function body. */
-struct function {
+struct function : hidden_impl {
   private:
     size_t for_count   = 0; /* This is used to help generate IR. */
     size_t cond_count  = 0; /* This is used to help generate IR. */
     size_t while_count = 0; /* This is used to help generate IR. */
     std::vector <temporary *> temp; /* Real temporary holder. */
     std::map <std::string,size_t> count; /* Count of each case. */
-    void *impl = nullptr;
 
   public:
-    std::string name; /* Function name. */
-    bool is_builtin = false;
+    static constexpr uint8_t NONE = 0b00;
+    static constexpr uint8_t IN   = 0b01;
+    static constexpr uint8_t OUT  = 0b10;
+    static constexpr uint8_t INOUT= 0b11;
+ 
+    std::string name;            /* Function name. */
+    bool    is_builtin  = false; /* Builtin function. */
+    uint8_t inout_state = NONE;  /* Inout state.      */
 
-    std::vector < variable  *> args; /* Argument list.   */
-    std::vector <block_stmt *> stmt; /* Body data.       */
-    wrapper                    type; /* Return type. */
-
-    /* Set the inner implement pointer */
-    void set_impl(void *__impl) noexcept { impl = __impl; }
-
-    /* Take out the inner implement pointer without safety check. */
-    template <class T>
-    T *get_impl_ptr() const noexcept { return static_cast <T *> (impl); }
+    std::vector <function_argument *> args; /* Argument list.   */
+    std::vector     <block_stmt *>    stmt; /* Body data.       */
+    wrapper                           type; /* Return type. */
 
     std::string create_label(const std::string &__name)
     { return string_join(__name,'-',std::to_string(count[__name]++)); }

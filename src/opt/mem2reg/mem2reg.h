@@ -3,13 +3,18 @@
 #include "optnode.h"
 #include "IRnode.h"
 #include "IRbase.h"
+#include "IRinfo.h"
+
+#include <deque>
 
 
 /* Optimize only. */
 namespace dark::OPT {
 
-struct SSAbuilder : IR::IRvisitorbase {
+struct SSAbuilder final : IR::IRvisitorbase {
     std::map <IR::block_stmt *,node> node_map;
+    std::deque    <function_info>   info_list;
+
     node *top;
     size_t end_tag = 0;
     node *create_node(IR::block_stmt *__block) {

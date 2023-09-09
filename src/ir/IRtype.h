@@ -230,19 +230,31 @@ struct literal : definition {
 
 /* Variables are pointers to value. */
 struct variable : non_literal {
+    virtual size_t variable_type() const noexcept = 0;
     ~variable() override = default;
 };
 
 /* Variables are pointers to value. */
 struct local_variable : variable {
+    size_t variable_type() const noexcept override { return 0; }
     ~local_variable() override = default;
 };
 
 struct global_variable : variable {
+    size_t variable_type() const noexcept override { return 1; }
     ~global_variable() override = default;
 };
 
 struct function_argument : variable {
+    static constexpr uint8_t DEAD = 0b00; /* Value not used in any expression. */
+    static constexpr uint8_t USED = 0b01; /* Value used in some expression(s). */
+    static constexpr uint8_t FUNC = 0b10; /* Value used in function call.   */
+    static constexpr uint8_t LEAK = 0b11; /* Value stored/return out.     */
+
+    /* The state of a given argument(Dead/Alive/Leaked.) */
+    uint8_t state = USED;
+
+    size_t variable_type() const noexcept override { return 2; }
     ~function_argument() override = default;
 };
 
