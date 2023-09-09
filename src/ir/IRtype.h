@@ -246,10 +246,10 @@ struct global_variable : variable {
 };
 
 struct function_argument : variable {
-    static constexpr uint8_t DEAD = 0b00; /* Value not used in any expression. */
-    static constexpr uint8_t USED = 0b01; /* Value used in some expression(s). */
-    static constexpr uint8_t FUNC = 0b10; /* Value used in function call.   */
-    static constexpr uint8_t LEAK = 0b11; /* Value stored/return out.     */
+    static constexpr uint8_t DEAD = 0b000; /* Value not used in any expression. */
+    static constexpr uint8_t USED = 0b001; /* Value used in some expression(s). */
+    static constexpr uint8_t LEAK = 0b011; /* Value stored/return out.          */
+    static constexpr uint8_t FUNC = 0b100; /* Value used in function call.      */
 
     /* The state of a given argument(Dead/Alive/Leaked.) */
     uint8_t state = USED;

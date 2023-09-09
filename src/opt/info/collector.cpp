@@ -18,7 +18,7 @@ template <>
 info_collector::info_collector <0> (function_info &__info,std::false_type) {
     auto &use_map = __info.use_map;
 
-    /* First collect def/use information. */
+    /* First collect basic def/use information and inout information. */
     [&]() ->void {
         for(auto __block : __info.func->stmt) {
             for(auto __stmt : __block->stmt) {
@@ -38,10 +38,11 @@ info_collector::info_collector <0> (function_info &__info,std::false_type) {
         }
     }();
 
+
     /* Next, collect some necessary global information. */
     [&]() -> void {
         for(auto &&[__var,__vec] : use_map) {
-            __vec.set_impl_ptr(new leak_info);
+            __vec.set_impl_ptr(new reliance);
             if (auto __global = dynamic_cast <IR::global_variable *> (__var)) {
                 auto &__ref = __info.used_global_var[__global];
                 for(auto __node : __vec) {
@@ -59,11 +60,20 @@ info_collector::info_collector <0> (function_info &__info,std::false_type) {
     /* Leak information initialization. */
     [&]() -> void {
         std::queue <IR::node *> work_list;
+        auto &&__update = [&](auto *__tmp,uint8_t __state) -> reliance * {
+            auto *__var = dynamic_cast <IR::non_literal *> (__tmp);
+            if (!__var) return nullptr; /* Failed to cast, so return. */
+            auto &__vec = use_map[__var];
+            work_list.push(__vec.def_node);
+            auto *__ptr = __vec.get_impl_ptr <reliance> ();
+            __ptr->rely_flag = __state;
+            return __ptr;
+        };
+
         for(auto __block : __info.func->stmt) {
             for(auto __stmt : __block->stmt) {
                 if (auto __call = dynamic_cast <IR::call_stmt *> (__stmt)) {
                     auto __func = __call->func;
-                    if (__func->is_builtin) continue;
                     size_t __n = __call->args.size();
                     for(size_t i = 0 ; i < __n ; ++i) {
                         auto *__var =
@@ -73,27 +83,23 @@ info_collector::info_collector <0> (function_info &__info,std::false_type) {
                         auto &__vec = use_map[__var];
                         work_list.push(__vec.def_node);
 
-                        auto *__ptr = __vec.get_impl_ptr <leak_info> ();
-                        if (__n > leak_info::THRESHOLD)
-                            __ptr->leak_flag = true;
-                        else __ptr->leak_func[__func].set(i);
+                        auto *__ptr = __vec.get_impl_ptr <reliance> ();
+                        if (__n > reliance::THRESHOLD)
+                            __ptr->rely_flag = IR::function_argument::LEAK;
+                        else if(__func->is_builtin) {
+                            __ptr->rely_flag = IR::function_argument::USED;
+                        } else { /* Rely on function now. */
+                            __ptr->rely_flag = IR::function_argument::FUNC;
+                            __ptr->rely_func[__func].set(i);
+                        }
                     }
                 } else if(auto __ret = dynamic_cast <IR::return_stmt *> (__stmt)) {
-                    auto *__var = dynamic_cast <IR::non_literal *> (__ret->rval);
-                    if (!__var) continue;
-
-                    /* Add the potential leak to list. */
-                    auto &__vec = use_map[__var];
-                    work_list.push(__vec.def_node);
-                    __vec.get_impl_ptr <leak_info> ()->leak_flag = true;
+                    __update(__ret->rval,IR::function_argument::LEAK);
                 } else if(auto __store = dynamic_cast <IR::store_stmt *> (__stmt)) {
-                    auto *__var = dynamic_cast <IR::non_literal *> (__store->src);
-                    if (!__var) continue;
-
-                    /* Add the potential leak to list. */
-                    auto &__vec = use_map[__var];
-                    work_list.push(__vec.def_node);
-                    __vec.get_impl_ptr <leak_info> ()->leak_flag = true;
+                    __update(__store->src,IR::function_argument::LEAK);
+                    __update(__store->dst,IR::function_argument::USED);
+                } else if(auto __br = dynamic_cast <IR::branch_stmt *> (__stmt)) {
+                    __update(__br->cond,IR::function_argument::USED);
                 }
             }
         }
@@ -101,32 +107,52 @@ info_collector::info_collector <0> (function_info &__info,std::false_type) {
         /* Work out the leak information. */
         while(!work_list.empty()) {
             auto *__node = work_list.front(); work_list.pop();
-            /* Will not spread the info case. */
+            /* Will not spread the leak info case. */
             if (dynamic_cast <IR::call_stmt *> (__node)
             ||  dynamic_cast <IR::load_stmt *> (__node) || !__node) continue;
-            auto *__ptr = use_map[__node->get_def()].get_impl_ptr <leak_info> ();
+            auto *__ptr = use_map[__node->get_def()].get_impl_ptr <reliance> ();
             for(auto __use : __node->get_use()) {
                 if (auto *__var = dynamic_cast <IR::non_literal *> (__use)) {
                     auto &__vec = use_map[__var];
-                    auto *__tmp = __vec.get_impl_ptr <leak_info> ();
-                    if (*__tmp |= *__ptr) work_list.push(__vec.def_node);
+                    auto *__tmp = __vec.get_impl_ptr <reliance> ();
+                    if (__tmp->merge_leak(__ptr)) work_list.push(__vec.def_node);
                 }
             }
         }
     }();
 
+
+
     /* Work out the arg_state. */
     [&]() -> void {
+        std::queue <IR::node *> work_list;
+        for(auto &&[__var,__vec] : use_map) {
+            auto *__ptr = __vec.get_impl_ptr <reliance> ();
+            if (__ptr->is_used()) work_list.push(__vec.def_node);
+        }
+
+        while(!work_list.empty()) {
+            auto *__node = work_list.front(); work_list.pop();
+            /* Will not spread the used info case. */
+            if (dynamic_cast <IR::call_stmt *> (__node) || !__node) continue;
+            auto *__ptr = use_map[__node->get_def()].get_impl_ptr <reliance> ();
+            for(auto __use : __node->get_use()) {
+                if (auto *__var = dynamic_cast <IR::non_literal *> (__use)) {
+                    auto &__vec = use_map[__var];
+                    auto *__tmp = __vec.get_impl_ptr <reliance> ();
+                    if (__tmp->merge_used(__ptr)) work_list.push(__vec.def_node);
+                }
+            }
+        }
+
         for(auto *__arg : __info.func->args) {
             auto &__ref = __arg->state;
             auto &__vec = use_map[__arg];
             /* If not used, of course safe. */
             if (__vec.empty()) { __ref = IR::function_argument::DEAD; continue; }
 
-            auto *__ptr = __vec.get_impl_ptr <leak_info> ();
-            __ref = __ptr->leak_flag        ? IR::function_argument::LEAK :
-                    __ptr->leak_func.size() ? IR::function_argument::FUNC : 
-                                              IR::function_argument::USED ;
+            /* If only used in function as dead argument. */
+            __ref = __vec.get_impl_ptr <reliance> ()->rely_flag;
         }
     }();
 }
@@ -290,15 +316,15 @@ void function_graph::resolve_dependency(std::deque <function_info> &__array) {
 
     for(auto &__info : __array) {
         size_t __n  = __info.func->args.size();
-        if (__n > leak_info::THRESHOLD) continue;
+        if (__n > reliance::THRESHOLD) continue;
         for(auto __arg : __info.func->args) {
             if (__arg->state != IR::function_argument::DEAD)
                 work_list.push_back(__arg);
-            if (__arg->state != IR::function_argument::FUNC) continue;
-            __arg->state = IR::function_argument::DEAD;
+            if (!(__arg->state & IR::function_argument::FUNC)) continue;
+            __arg->state ^= IR::function_argument::FUNC;
 
-            auto *__ptr = __info.use_map.at(__arg).get_impl_ptr <leak_info> ();
-            for(auto [__func,__bits] : __ptr->leak_func) {
+            auto *__ptr = __info.use_map.at(__arg).get_impl_ptr <reliance> ();
+            for(auto [__func,__bits] : __ptr->rely_func) {
                 auto *__args = __func->args.data();
                 size_t __beg = __bits._Find_first();
                 while(__beg != __bits.size()) {

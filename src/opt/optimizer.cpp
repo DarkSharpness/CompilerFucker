@@ -25,23 +25,15 @@ void print_info(const function_info &__info,std::ostream &__os = std::cerr) {
             case IR::function_argument::DEAD: __os << "Not used!"; break;
             case IR::function_argument::USED: __os << "Just used!"; break;
             case IR::function_argument::LEAK: __os << "Leaked!"; break;
-            case IR::function_argument::FUNC: __os << "Func depend: ";
-            auto *__ptr = __info.use_map.at(__arg).get_impl_ptr <leak_info>();
-            if (!__ptr) runtime_assert(":(");
-            for (auto [__func,__bits] : __ptr->leak_func) {
-                __os << __func->name << "[";
-                bool __first = true;
-                for(size_t i = 0 ; i != __bits.size() ; ++i)
-                    if(__bits[i]) {
-                        if(!__first) __os << ',';
-                        else  __first = false;
-                        __os << i;
-                    }
-                __os << "] ";
-            }
+            default: __os << static_cast <int> (__arg->state);
         } __os << '\n';
     }
-    __os << "----------------------\n";
+    const char *__msg[4] = {
+        "NONE","IN ONLY","OUT ONLY","IN AND OUT"
+    };
+
+    __os << "Inout state: " << __msg[__info.func->inout_state];
+    __os << "\n----------------------\n";
 }
 
 
