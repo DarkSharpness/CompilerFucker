@@ -108,8 +108,7 @@ info_collector::info_collector <0> (function_info &__info,std::false_type) {
         while(!work_list.empty()) {
             auto *__node = work_list.front(); work_list.pop();
             /* Will not spread the leak info case. */
-            if (dynamic_cast <IR::call_stmt *> (__node)
-            ||  dynamic_cast <IR::load_stmt *> (__node) || !__node) continue;
+            if (!dynamic_cast <IR::phi_stmt *> (__node)) continue;
             auto *__ptr = use_map[__node->get_def()].get_impl_ptr <reliance> ();
             for(auto __use : __node->get_use()) {
                 if (auto *__var = dynamic_cast <IR::non_literal *> (__use)) {
