@@ -1,5 +1,5 @@
 #include "cfg.h"
-
+#include <algorithm>
 
 namespace dark::OPT {
 
@@ -117,25 +117,28 @@ branch_compressor::branch_compressor(IR::function *__func,node *__entry) {
                 for(auto __use : __stmt->get_use())
                     if (auto __tmp = dynamic_cast <IR::temporary *> (__use))
                         ++use_map[__tmp].ref_count;
-            } *(__ptr++) = {__block,__block->stmt.size()};
+            } (__ptr++)->init(__block);
         }
     }();
 
     /* Remove useless temporary for branches. */
-    auto &&__remove = [&](IR::node *__node) -> void {
-        if (auto __call = dynamic_cast <IR::call_stmt *> (__node)) {
-            if (__call->func->is_builtin && !__call->func->inout_state)
-                return; /* Call stmt can't be removed. */
-        } if (!__node) return; /* Empty case. */
+    auto &&__remove = [&](IR::node *__stmt) -> void {
+        if (auto __call = dynamic_cast <IR::call_stmt *> (__stmt)) {
+            if (!__call->func->is_builtin || !__call->func->inout_state)
+                return; /* Side effective call stmt can't be removed. */
+        } if (!__stmt) return; /* Empty case. */
 
         /* Otherwise, for an unused node, it should be recycled! */
-        for(auto __use : __node->get_use()) try_remove_useless(__use);
+        for(auto __use : __stmt->get_use()) try_remove_useless(__use);
 
-        auto &__ref = use_map[__node->get_def()];
-        if (--__ref.block->count == 1) {
-            auto &__vec = __ref.block->block->stmt;
+        auto &__ref = use_map[__stmt->get_def()];
+        auto &__vec = __ref.block->block->stmt;
+
+        /* Erase from last can be faster. */
+        __vec.erase(std::find(__vec.rbegin(),__vec.rend(),__stmt).base() - 1);
+        if (__vec.size() == 1) {
             __vec = {__vec.back()}; /* Only leave the control flow. */
-            work_list.push_back(__ref.block->block->get_impl_ptr <node> ());
+            work_list.push_back(__ref.block->data);
         }
     };
 
@@ -190,6 +193,13 @@ bool branch_compressor::compress_line(node *__prev,node *__node) {
     __stmt.pop_back(); /* Pop the useless flow now. */
     auto &__data = __node->block->stmt;
     __stmt.insert(__stmt.end(),__data.begin(),__data.end());
+    for(auto __stmt : __data) {
+        auto __tmp  = __stmt->get_def();
+        if (!__tmp) continue;
+        auto &__ref = use_map[__tmp];
+        __ref.block->init(__prev->block);
+    }
+
     work_list.push_back(__prev);
     return true;
 }

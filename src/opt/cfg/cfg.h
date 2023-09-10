@@ -63,9 +63,20 @@ struct branch_compressor {
 
     std::unordered_set <node *> visit;
 
+    /* The information of a block. */
     struct block_info {
-        IR::block_stmt  *block = nullptr;
-        size_t           count = 0;
+        IR::block_stmt *block;
+        node            *data;
+        /* Init the info. */
+        void init(IR::block_stmt *__block) {
+            block = __block;
+            data  = __block->get_impl_ptr <node> ();
+        }
+        void init(node *__node) {
+            block = __node->block;
+            data  = __node; 
+        }
+
     };
 
     /* Sometimes, simpler is better~ */

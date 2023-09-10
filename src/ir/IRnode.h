@@ -20,10 +20,21 @@ struct hidden_impl {
   public:
     /* Set the hidden implement pointer. */
     void set_impl_ptr(void *__impl) noexcept { impl = __impl; }
+    /* Set the hidden implement value. */
+    template <class T>
+    auto set_impl_val(T __val) noexcept
+    -> std::enable_if_t <sizeof(T) <= sizeof(void *)>
+    { impl = reinterpret_cast <void *> (__val); }
 
     /* Get the hidden implement pointer. */
     template <class T>
-    T *get_impl_ptr() const noexcept { return static_cast <T *> (impl); }
+    auto get_impl_ptr() const noexcept { return static_cast <T *> (impl); }
+
+    template <class T>
+    auto get_impl_val() const noexcept
+    -> std::enable_if_t <sizeof(T) <= sizeof(void *),T &>
+    { return static_cast <T &> (impl); }
+
 };
 
 }

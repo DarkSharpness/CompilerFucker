@@ -25,13 +25,21 @@ void print_info(const function_info &__info,std::ostream &__os = std::cerr) {
             case IR::function_argument::DEAD: __os << "Not used!"; break;
             case IR::function_argument::USED: __os << "Just used!"; break;
             case IR::function_argument::LEAK: __os << "Leaked!"; break;
-            default: __os << static_cast <int> (__arg->state);
+            default: __os << "??";
         } __os << '\n';
     }
-    const char *__msg[4] = {
-        "NONE","IN ONLY","OUT ONLY","IN AND OUT"
-    };
+    __os << "Global variable:\n ";
+    for(auto [__var,__state] : __info.used_global_var) {
+        __os << "    " << __var->data() << " : ";
+        switch(__state) {
+            case function_info::LOAD : __os << "Load only!"; break;
+            case function_info::STORE: __os << "Store only!"; break;
+            case function_info::BOTH : __os << "Load & Store!"; break;
+            default: __os << "??";
+        } __os << '\n';
+    }
 
+    const char *__msg[4] = { "NONE","IN ONLY","OUT ONLY","IN AND OUT" };
     __os << "Inout state: " << __msg[__info.func->inout_state];
     __os << "\n----------------------\n";
 }
