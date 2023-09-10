@@ -37,7 +37,7 @@ struct deadcode_eliminator {
         IR::node *data = nullptr;
         /* Whether the node is removable. */
         bool removable = true;
-
+        /* Just a cache of uses. */
         std::vector <IR::temporary *> uses;
 
         /* Init with a the definition node and all usage information. */

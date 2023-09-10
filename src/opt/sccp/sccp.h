@@ -135,6 +135,8 @@ struct constant_propagatior {
  * @brief This is helper class that will remove all single phi.
  * It will replace single phi from its source.
  * It will not change the CFG graph structure.
+ * Sadly, this has been proven to be fake! It may goes wrong!
+ * 
  * 
 */
 struct single_killer {
@@ -144,7 +146,7 @@ struct single_killer {
     /* A list of phi statements to remove. */
     std::queue <IR::phi_stmt *> work_list;
 
-    single_killer(IR::function *,node *);
+    single_killer(IR::function *,node *) = delete;
 
     static IR::definition *merge_phi_value(IR::phi_stmt *__phi);
     void collect_single_phi(IR::function *,node *);
