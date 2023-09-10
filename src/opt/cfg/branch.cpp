@@ -40,6 +40,19 @@ branch_cutter::branch_cutter(IR::function *__func,node *__entry) {
 
 
 /**
+ * @brief Update the branch prev -> node to prev->next.
+ * It will modify informatio with prev only.
+ */
+void branch_compressor::update_branch
+    (IR::branch_stmt *__br,node *__prev,node *__node,node *__next) {
+    __br->br[__br->br[0] != __node->block] = __next->block;
+    auto &__ref = __prev->next[0];
+    if (__ref == __node) __ref = __next;
+    else       __prev->next[1] = __next;
+}
+
+
+/**
  * @brief A mild to radical branch compressor.
  * It will compress all jumps to jump , some branches to jump if possible.
  * Note that after this pass , there may be some unreachable node in the
@@ -47,43 +60,120 @@ branch_cutter::branch_cutter(IR::function *__func,node *__entry) {
  * 
  */
 branch_compressor::branch_compressor(IR::function *__func,node *__entry) {
+    /* Dfs to build up the work-list and visit. */
     auto &&__dfs = [&](auto &&__self,node *__node) -> void {
         if (!visit.insert(__node).second) return;
+        __node->block->set_impl_ptr(__node);
         for(auto __next : __node->next) __self(__self,__next);
         work_list.push_back(__node);
     };
     __dfs(__dfs,__entry);
 
-    while(!work_list.empty()) {
-        auto *__node = work_list.back(); work_list.pop_back();
-        if (__node->prev.size() == 0) continue; /* Entry node / empty case! */
+    /* Merge those identical exit-only blocks. */
+    [&]() -> void {
+        std::unordered_map <IR::definition *,node *> __map;
+        for(auto __node : visit) 
+            if(auto __ret = dynamic_cast <IR::return_stmt *>
+                (__node->block->stmt.front())) {
+                auto [__iter,__bool] = __map.try_emplace(__ret->rval,__node);
+                if (__bool) continue; /* First such exit. */
+
+                /* Relinking! */
+                auto __next = __iter->second;
+                for(auto __prev : __node->prev) {
+                    auto *&__last = __prev->block->stmt.back();
+                    if (auto *__jump = dynamic_cast <IR::jump_stmt *> (__last)) {
+                        __jump->dest = __next->block;
+                        __prev->next[0] = __next;
+                        continue;
+                    }
+
+                    /* Branch case now. */
+                    auto *__br = safe_cast <IR::branch_stmt *> (__last);
+                    if (__br->br[0] == __next->block || __br->br[1] == __next->block) {
+                        __prev->next = {__next};
+                        __last = replace_branch(__br,__next->block);
+                    } else {  /* Branch replacement.  */
+                        update_branch(__br,__prev,__node,__next);
+                    }
+                }
+                /* Clear all prev data. */
+                __node->prev.clear();
+            }
+    }();
+
+    /* Collect all def use data. */
+    std::vector <block_info> count_pool(__func->stmt.size());
+    [&]() -> void {
+        auto *__ptr = count_pool.data();
+        for(auto __block : __func->stmt) {
+            for(auto __stmt : __block->stmt) {
+                auto *__def = __stmt->get_def();
+                if (__def) {
+                    auto &__ref = use_map[__def];
+                    __ref.def_node = __stmt;
+                    __ref.block    = __ptr;
+                }
+                for(auto __use : __stmt->get_use())
+                    if (auto __tmp = dynamic_cast <IR::temporary *> (__use))
+                        ++use_map[__tmp].ref_count;
+            } *(__ptr++) = {__block,__block->stmt.size()};
+        }
+    }();
+
+    /* Remove useless temporary for branches. */
+    auto &&__remove = [&](IR::node *__node) -> void {
+        if (auto __call = dynamic_cast <IR::call_stmt *> (__node)) {
+            if (__call->func->is_builtin && !__call->func->inout_state)
+                return; /* Call stmt can't be removed. */
+        } if (!__node) return; /* Empty case. */
+
+        /* Otherwise, for an unused node, it should be recycled! */
+        for(auto __use : __node->get_use()) try_remove_useless(__use);
+
+        auto &__ref = use_map[__node->get_def()];
+        if (--__ref.block->count == 1) {
+            auto &__vec = __ref.block->block->stmt;
+            __vec = {__vec.back()}; /* Only leave the control flow. */
+            work_list.push_back(__ref.block->block->get_impl_ptr <node> ());
+        }
+    };
+
+    /* Compress useless branches. */
+    auto &&__compress = [&](node *__node) -> void {
+        if (__node->prev.size() == 0) return; /* Entry node / empty case! */
         if (__node->prev.size() == 1 && __node->prev[0]->next.size() == 1) {
-            auto *__prev = __node->prev[0];
-            compress_line(__prev,__node);
+            /* If single phi, we can't compress the node! */
+            compress_line(__node->prev[0],__node);
         } else if (__node->next.size() == 1 && __node->block->stmt.size() == 1) {
             auto *__next = __node->next[0];
-            if (__next->prev.size() == 1) compress_line(__node,__next);
-            else /* May have multiple branching. */
-                compress_branch(__node,__next);
+            if (__next->prev.size() == 1 && compress_line(__node,__next)) return;
+            compress_branch(__node,__next);
+        }
+    };
+
+    while(!work_list.empty()) {
+        do {
+            auto *__node = work_list.back(); work_list.pop_back();
+            __compress(__node);
+        } while(!work_list.empty());
+        while(!remove_list.empty()) {
+            auto *__node = remove_list.back(); remove_list.pop_back();
+            __remove(__node);
         }
     }
 
-    /* Set of all unreachable node. */
-    std::unordered_set <IR::block_stmt *> __set;
-    for(auto __node : visit)
-        if (__node->prev.empty() && __node != __entry)
-            __set.insert(__node->block);
-
-    /* Remove all unreachable node. */
-    std::vector <IR::block_stmt *> __final;
-    for(auto __block : __func->stmt)
-        if (!__set.count(__block)) __final.push_back(__block);
-
-    __func->stmt = std::move(__final);
+    remove_block(__func,__entry);
 }
 
 
-void branch_compressor::compress_line(node *__prev,node *__node) {
+/**
+ * @brief Compress 2 nodes that are in a line.
+ */
+bool branch_compressor::compress_line(node *__prev,node *__node) {
+    if(dynamic_cast <IR::phi_stmt *> (__node->block->stmt.front()))
+        return false; /* Unable to compress a single-phi block. */
+
     /* Update the CFG graph and related phi. */
     __node->prev.clear();
     __prev->next = std::move(__node->next);
@@ -100,9 +190,15 @@ void branch_compressor::compress_line(node *__prev,node *__node) {
     __stmt.pop_back(); /* Pop the useless flow now. */
     auto &__data = __node->block->stmt;
     __stmt.insert(__stmt.end(),__data.begin(),__data.end());
+    work_list.push_back(__prev);
+    return true;
 }
 
-
+/**
+ * @brief Compress 2 node that are in a branch
+ * @param __node The node to with only one exit.
+ * @param __next The node to with multiple entry.
+ */
 void branch_compressor::compress_branch(node *__node,node *__next) {
     std::unordered_map <IR::block_stmt *,bool> conflict_map;
     /* Add all prev to the conflict_map. */
@@ -139,9 +235,13 @@ void branch_compressor::compress_branch(node *__node,node *__next) {
 
             /* From existed branch : branch to jump.  */
             auto *&__last = __prev->block->stmt.back();
-            __last = replace_branch(
-                safe_cast <IR::branch_stmt *> (__last),__next->block
-            );
+            auto  *__br   = safe_cast <IR::branch_stmt *> (__last);
+            try_remove_useless(__br->cond);
+
+            __last = replace_branch(__br,__next->block);
+
+            /* Maybe prev node can be updated. */
+            work_list.push_back(__prev);
             runtime_assert("nyan~",remove_node_from(__prev->next,__node));
         } else {
             /* From unknown branch : update it now! */
@@ -151,11 +251,8 @@ void branch_compressor::compress_branch(node *__node,node *__next) {
                 __jump->dest    = __next->block;
                 __prev->next[0] = __next;
             } else { /* Branch replacement.  */
-                auto __br = safe_cast <IR::branch_stmt *> (__last);
-                __br->br[__br->br[0] != __node->block] = __next->block;
-                auto &__ref = __prev->next[0];
-                if (__ref == __node) __ref = __next;
-                else       __prev->next[1] = __next;
+                auto *__br = safe_cast <IR::branch_stmt *> (__last);
+                update_branch(__br,__prev,__node,__next);
             }
 
             /* Insert new phi to one before back. */
@@ -177,6 +274,34 @@ void branch_compressor::compress_branch(node *__node,node *__next) {
         __node->prev.clear();
         __node->next.clear();
     } else __node->prev.resize(__beg - __bak);
+}
+
+
+/**
+ * @brief Remove all unreachable node in the last step.
+ */
+void branch_compressor::remove_block(IR::function *__func,node *__entry) {
+     /* Set of all unreachable node. */
+    std::unordered_set <IR::block_stmt *> __set;
+    for(auto __node : visit)
+        if (__node->prev.empty() && __node != __entry)
+            __set.insert(__node->block);
+
+    /* Remove all unreachable node. */
+    std::vector <IR::block_stmt *> __final;
+    for(auto __block : __func->stmt)
+        if (!__set.count(__block)) __final.push_back(__block);
+
+    __func->stmt = std::move(__final);
+}
+
+/* Try to find dead code and remove it. */
+void branch_compressor::try_remove_useless(IR::definition *__def) {
+    if (auto *__tmp = dynamic_cast <IR::temporary *> (__def)) {
+        auto &__ref = use_map[__tmp];
+        if (--__ref.ref_count == 0)
+            remove_list.push_back(__ref.def_node);
+    }
 }
 
 

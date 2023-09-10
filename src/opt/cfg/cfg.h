@@ -59,11 +59,31 @@ struct branch_cutter {
 struct branch_compressor {
     /* Add to the work list !!! */
     std::vector <node *> work_list;
+    std::vector <IR::node *> remove_list;
+
     std::unordered_set <node *> visit;
+
+    struct block_info {
+        IR::block_stmt  *block = nullptr;
+        size_t           count = 0;
+    };
+
+    /* Sometimes, simpler is better~ */
+    struct usage_info {
+        IR::node *def_node  = nullptr;
+        size_t    ref_count = 0;
+        block_info * block  = 0;
+    };
+
+    std::unordered_map <IR::temporary *,usage_info> use_map;
+
     branch_compressor(IR::function *,node *);
 
-    static void compress_line  (node *,node *);
-    static void compress_branch(node *,node *);
+    bool compress_line(node *,node *);
+    void compress_branch(node *,node *);
+    void remove_block(IR::function *,node *);
+    void try_remove_useless(IR::definition *);
+    static void update_branch(IR::branch_stmt *,node *,node *,node *);
 };
 
 

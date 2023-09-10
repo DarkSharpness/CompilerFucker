@@ -62,9 +62,8 @@ void SSAbuilder::try_optimize(std::vector <IR::function>  &global_functions) {
         }
 
         if (__optimize_state.enable_CFG) {
-            single_killer       {&__func,__entry};
             branch_compressor   {&__func,__entry};
-            single_killer       {&__func,__entry};
+            deadcode_eliminator {&__func,__entry};
             branch_compressor   {&__func,__entry};
             deadcode_eliminator {&__func,__entry};
         }
