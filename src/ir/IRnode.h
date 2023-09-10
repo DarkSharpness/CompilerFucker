@@ -38,7 +38,7 @@ using statement = node;
 struct phi_stmt;
 
 /* Block statement is not a statement! */
-struct block_stmt {
+struct block_stmt : hidden_impl {
     std::string label;
     std::vector <statement *> stmt; /* Statements */
 
@@ -254,7 +254,9 @@ struct return_stmt : statement {
     void update(definition *__old, definition *__new) override {
         if(rval == __old) rval = __new;
     }
-    // bool is_undefined_behavior() const override { return false; }
+    bool is_undefined_behavior() const override {
+        return dynamic_cast <IR::undefined *> (rval);
+    }
     ~return_stmt() override = default;
 };
 
