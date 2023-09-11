@@ -9,45 +9,26 @@
 
 namespace dark::OPT {
 
-inline bool is_removable_node(IR::node *__node) {
-    if(dynamic_cast <IR::store_stmt *> (__node)) {
-        return false;
-    } else if(dynamic_cast <IR::call_stmt *> (__node)) {
-        return false;
-    } else if(dynamic_cast <IR::jump_stmt *> (__node)) {
-        return false;
-    } else if(dynamic_cast <IR::branch_stmt *> (__node)) {
-        return false;
-    } else if(dynamic_cast <IR::return_stmt *> (__node)) {
-        return false;
-    } else {
-        return true;
-    }
-}
 
-
-/**
- * @brief Eliminator for dead code in a function.
- * This is an unaggressive dead code eliminator.
- * 
- */
-struct deadcode_eliminator {
+struct DCE_base {
     struct info_holder {
         /* The inner data. */
-        IR::node *data = nullptr;
+        IR::node  *data = nullptr;
+        OPT::node *node = nullptr;
         /* Whether the node is removable. */
-        bool removable = true;
+        bool  removable = true;
         /* Just a cache of uses. */
         std::vector <IR::temporary *> uses;
 
         /* Init with a the definition node and all usage information. */
-        void init(IR::node *__node) {
+        void init(IR::node *__node,IR::block_stmt *__block) {
             /* Should only call once! */
             runtime_assert("Invalid SSA form!",data == nullptr);
 
-            /* Init the data. */
-            removable = is_removable_node(data = __node);
+            data = __node; 
+            node = __block->get_impl_ptr <OPT::node> ();
 
+            /* Init the data. */
             auto __vec = __node->get_use();
             uses.reserve(__vec.size());
             for(auto __use : __vec)
@@ -59,11 +40,8 @@ struct deadcode_eliminator {
     /* Mapping from defs to uses and real node. */
     std::unordered_map <IR::temporary *, info_holder *> info_map;
     /* This is the real data holder. */
-    std::deque <info_holder>   info_list;
-    /* This is the list of variables to remove. */
+    std::deque <info_holder  > info_list;
     std::queue <info_holder *> work_list;
-
-    deadcode_eliminator(IR::function *,node *);
 
     /**
      * @brief Get the info tied to the temporary.
@@ -76,9 +54,8 @@ struct deadcode_eliminator {
         return __ptr;
     }
 
-
     /**
-     * @brief 
+     * @brief Create a new info holder for the temporary.
      * 
      * @param __temp The temporary defined by the node in SSA.
      * @return The info holder tied to the temporary.
@@ -88,8 +65,55 @@ struct deadcode_eliminator {
         return __def ? get_info(__def) : &info_list.emplace_back();
     }
 
+    /* First, we will collect all def-use chains. */
+    template <class _Func>
+    void collect_useful(IR::function *__func,_Func &&__rule) {
+        for(auto __block : __func->stmt) {
+            /* No blocks are unreachable now. */
+            for(auto __stmt : __block->stmt) {
+                info_holder * __info = create_info(__stmt);
+                __info->init(__stmt,__block);
 
+                /* Tries to update removable according to rule. */
+                __info->removable = __rule(__stmt);
+
+                /* A side effective command! */
+                if (!__info->removable) work_list.push(__info);
+            }
+        }
+    }
+
+    void replace_undefined();
+    void remove_useless(IR::function *);
 };
+
+
+/**
+ * @brief Eliminator for dead code in a function.
+ * This is an unaggressive dead code eliminator.
+ * 
+ */
+struct deadcode_eliminator : DCE_base {
+    /* This is the list of variables to remove. */
+    deadcode_eliminator(IR::function *,node *);
+    void spread_useful();
+};
+
+/**
+ * @brief Eliminator for aggressive dead code in a function.
+ * It will analyze the potential effect in the reverse graph.
+ * If a block's definition is not linked to any use, it is
+ * dead. 
+ * 
+*/
+struct aggressive_eliminator : DCE_base {
+    std::unordered_set <node *> live_set;
+    std::queue <node *> node_list;
+
+    aggressive_eliminator(IR::function *,node *);
+    void spread_live();
+};
+
 
 
 }

@@ -54,30 +54,39 @@ deadcode_eliminator::deadcode_eliminator(IR::function *__func,node *) {
 
     if (__func->is_unreachable()) return;
 
-    /* First, we will collect all def-use chains. */
-    for(auto __block : __func->stmt) {
-        /* No blocks are unreachable now. */
-        for(auto __stmt : __block->stmt) {
-            info_holder * __info = create_info(__stmt);
-            __info->init(__stmt);
-            /* A side effective command! */
-            if(!__info->removable) work_list.push(__info);
+    auto &&__rule = [](IR::node *__node) -> bool {
+        if(dynamic_cast <IR::store_stmt *> (__node)) {
+            return false;
+        } else if(auto __call = dynamic_cast <IR::call_stmt *> (__node)) {
+            auto __func = __call->func;
+            /* In this pass, only builtin function without inout are safe. */
+            return __func->is_builtin && !__func->inout_state;
+        } else if(dynamic_cast <IR::return_stmt *> (__node)) {
+            return false;
+        } else if(dynamic_cast <IR::jump_stmt *> (__node)) {
+            return false;
+        } else if(dynamic_cast <IR::branch_stmt *> (__node)) {
+            return false;
+        } else {
+            return true;
         }
-    }
+    };
 
-    /* Specially, we will replace all undefed variables as undefined. */
-    for(auto &__info : info_list) {
-        for(auto &__use : __info.uses) {
-            if(!info_map.count(__use)) {
-                // std::cerr << "Undefed temporary: " << __use->data() << '\n';
-                __info.data->update(__use,IR::create_undefined(__use->type));
-            }
-        }
-    }
+    collect_useful(__func,__rule);
+    replace_undefined();
+    spread_useful();
+    remove_useless(__func);
+}
 
-    /* Spread the useful data. */
+
+/**
+ * @brief Just spread the useful data.
+ * It will use data in worklist and then clear the worklist.
+*/
+void deadcode_eliminator::spread_useful() {
     while(!work_list.empty()) {
         auto __info = work_list.front(); work_list.pop();
+        if (__info->removable) continue;
         for(auto *__use : __info->uses) {
             auto __prev = get_info(__use);
             if (__prev->removable) {
@@ -86,20 +95,6 @@ deadcode_eliminator::deadcode_eliminator(IR::function *__func,node *) {
             }
         }
     }
-
-    [&]() -> void { /* Remove useless data. */
-        std::unordered_set <IR::node *> __set;
-        for(auto &__info : info_list)
-            if(__info.removable) __set.insert(__info.data);
-        std::vector <IR::node *> __vec;
-        for(auto __block : __func->stmt) {
-            for(auto __stmt : __block->stmt)
-                if(!__set.count(__stmt))
-                    __vec.push_back(__stmt);
-            __block->stmt.swap(__vec);
-            __vec.clear();
-        }
-    }();
 }
 
 

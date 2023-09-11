@@ -11,6 +11,17 @@
 
 namespace dark::OPT {
 
+void build_virtual_exit(IR::function *__func,node *__exit) {
+    for(auto __block : __func->stmt) {
+        auto *__last = __block->stmt.back();
+        if (!dynamic_cast <IR::return_stmt*> (__last)) continue;
+        auto __next = __block->get_impl_ptr <node> ();
+        __exit->next.push_back(__next);
+        __next->prev.push_back(__exit);
+    }
+}
+
+
 /* This function is used to print the information of the function. */
 void print_info(const function_info &__info,std::ostream &__os = std::cerr) {
     __os << "----------------------\n";
@@ -61,12 +72,11 @@ void SSAbuilder::try_optimize(std::vector <IR::function>  &global_functions) {
 
         /* Eliminate dead code safely. */
         deadcode_eliminator{&__func,__entry};
-        std::cerr << 0 << '\n';
 
         if (__optimize_state.enable_SCCP) {
             constant_propagatior{&__func,__entry};
             branch_cutter       {&__func,__entry};
-            deadcode_eliminator {&__func,__entry};            
+            deadcode_eliminator {&__func,__entry};   
         }
 
         if (__optimize_state.enable_CFG) {
@@ -84,10 +94,30 @@ void SSAbuilder::try_optimize(std::vector <IR::function>  &global_functions) {
             deadcode_eliminator {&__func,__entry};
         }
 
+        /* Aggressive deadcode elemination. */
+        if(__optimize_state.enable_DCE) {
+            node __exit{nullptr};
+            reverse_CFG(&__func);
+            /* Now, all exit have no prev. */
+            build_virtual_exit(&__func,&__exit);
+            dominate_maker {&__exit,true};
+            for(auto __block : __func.stmt) {
+                auto *__node = __block->get_impl_ptr <node> ();
+                std::cerr << __node->block->label << " : ";
+                for(auto __temp : __node->fro)
+                    std::cerr << __temp->block->label << " ";
+                std::cerr << '\n';
+            }
+            reverse_CFG(&__func);
+            aggressive_eliminator(&__func,__entry);
+            rebuild_CFG(&__func);
+        }
+
         /* After first pass of optimization, collect information! */
         info_collector {info_list.emplace_back(&__func),std::false_type{}};
 
         std::cerr << __func.name << " finished!\n";
+        std::cerr << "--------------------------------\n";
     }
 
     /* Spread the data recursively! */
@@ -98,7 +128,7 @@ void SSAbuilder::try_optimize(std::vector <IR::function>  &global_functions) {
 
     /* Second pass: using collected information to optimize. */
     for(auto &__func : global_functions) {
-    
+
     }
 }
 
@@ -115,5 +145,11 @@ node *SSAbuilder::rebuild_CFG(IR::function *__func) {
     visitFunction(__func); return __entry;
 }
 
+void  SSAbuilder::reverse_CFG(IR::function *__func) {
+    for(auto __block : __func->stmt) {
+        auto *__node = __block->get_impl_ptr <node> ();
+        std::swap(__node->prev,__node->next);
+    }
+}
 
 }
