@@ -63,7 +63,6 @@ branch_compressor::branch_compressor(IR::function *__func,node *__entry) {
     /* Dfs to build up the work-list and visit. */
     auto &&__dfs = [&](auto &&__self,node *__node) -> void {
         if (!visit.insert(__node).second) return;
-        __node->block->set_impl_ptr(__node);
         for(auto __next : __node->next) __self(__self,__next);
         work_list.push_back(__node);
     };

@@ -8,22 +8,33 @@
 /* Dominate maker */
 namespace dark::OPT {
 
-
-dominate_maker::dominate_maker(IR::function *,node *__entry) {
+/**
+ * @brief Build up the dominant tree only
+ * @param __entry The entry node.
+ * @param __flag  Whether this is a reverse graph.
+ */
+dominate_maker::dominate_maker(node *__entry,bool __flag) {
     dfs(__entry);
     std::reverse(node_rpo.begin(), node_rpo.end());
-    runtime_assert("Entry node is not the first node in rpo!",
-        node_rpo.front() == __entry);
 
     /* Work out the dominant set iteratively. */
     iterate(__entry);
+
+    if(__flag) { /* Reverse graph, so remove virtual exit from the node. */
+        for(auto __node : node_rpo) {
+            auto __iter = std::find (
+                __node->dom.rbegin(),__node->dom.rend(),__entry
+            );
+            __node->dom.erase(__iter.base() - 1);
+        }
+    }
 
     for(auto __node : node_rpo)
         for(auto __prev : __node->prev)
             for(auto __temp : __prev->dom)
                 if(__node == __temp || !std::binary_search(
-                    __node->dom.begin(),__node->dom.end(),__temp))
-                    __temp->fro.push_back(__node);
+                   __node->dom.begin(),__node->dom.end(),__temp)
+                )  __temp->fro.push_back(__node);
 
     for(auto __node : node_rpo) {
         if(__node == __entry) continue;
@@ -31,7 +42,16 @@ dominate_maker::dominate_maker(IR::function *,node *__entry) {
         auto __iter = std::unique(__node->fro.begin(),__node->fro.end());
         __node->fro.resize(__iter - __node->fro.begin());
     }
+}
 
+
+/**
+ * @brief Build up the dominant tree and perform
+ * SSA build up algorithm.
+ * @param __entry The entry node.
+ */
+dominate_maker::dominate_maker(IR::function *,node *__entry)
+    : dominate_maker {__entry,false} {
     /* Collect the defs first and spread the defs. */
     for(auto __node : node_rpo) {
         std::set <IR::variable *> __set;
@@ -178,7 +198,7 @@ void dominate_maker::rename(node *__node) {
     /* Rename the phi_stmt and build up the dest. */
     for(auto [__var,__phi] : __map) {
         __phi->dest = new IR::temporary;
-        __phi->dest->name = string_join(__var->name,".mem2reg.",std::to_string(phi_count++));
+        __phi->dest->name = string_join(__var->name,".mem.",std::to_string(phi_count++));
         __phi->dest->type = --__var->type;
         var_map[__var].push_back(__phi->dest);
     }
@@ -269,6 +289,7 @@ void SSAbuilder::visitFunction(IR::function *ctx) {
 
 void SSAbuilder::visitBlock(IR::block_stmt *ctx) {
     top = create_node(ctx);
+    ctx->set_impl_ptr(top);
     end_tag = 0;
     auto __beg = ctx->stmt.begin();
     auto __bak = __beg;
@@ -285,29 +306,22 @@ void SSAbuilder::visitBlock(IR::block_stmt *ctx) {
     std::cerr << ctx->data() << '\n';
     runtime_assert("Undefined behavior: No terminator in the block!");
 }
-
-
 void SSAbuilder::visitJump(IR::jump_stmt *ctx) {
     link(top, create_node(ctx->dest));
     end_tag = 1;
 }
-
-
 void SSAbuilder::visitBranch(IR::branch_stmt *ctx) {
     link(top, create_node(ctx->br[0]));
     link(top, create_node(ctx->br[1]));
     end_tag = 1;
 }
-
 void SSAbuilder::visitInit(IR::initialization *ctx) {}
 void SSAbuilder::visitCompare(IR::compare_stmt *ctx) {}
 void SSAbuilder::visitBinary(IR::binary_stmt *ctx) {}
 void SSAbuilder::visitCall(IR::call_stmt *ctx) {}
 void SSAbuilder::visitLoad(IR::load_stmt *ctx) {}
 void SSAbuilder::visitStore(IR::store_stmt *ctx) {}
-void SSAbuilder::visitReturn(IR::return_stmt *ctx) {
-    end_tag = 1;
-}
+void SSAbuilder::visitReturn(IR::return_stmt *ctx) { end_tag = 1; }
 void SSAbuilder::visitAlloc(IR::allocate_stmt *ctx) {}
 void SSAbuilder::visitGet(IR::get_stmt *ctx) {}
 void SSAbuilder::visitPhi(IR::phi_stmt *ctx) {}

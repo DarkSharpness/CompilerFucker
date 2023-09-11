@@ -24,6 +24,8 @@ struct dominate_maker {
 
     bool update_tag = false;
 
+    dominate_maker(node *,bool = false);
+
     dominate_maker(IR::function *,node *);
 
     /* Work out the RPO and collect all nodes. */

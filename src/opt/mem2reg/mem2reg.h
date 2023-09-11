@@ -50,6 +50,7 @@ struct SSAbuilder final : IR::IRvisitorbase {
     void visitUnreachable(IR::unreachable_stmt *) override;
 
     node *rebuild_CFG(IR::function *__func);
+    void  reverse_CFG(IR::function *__func);
 
     /* Must be inlined! */
     inline void link(node *from, node *to) {

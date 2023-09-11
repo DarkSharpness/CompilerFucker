@@ -44,6 +44,10 @@ info_collector::info_collector <0> (function_info &__info,std::false_type) {
         for(auto &&[__var,__vec] : use_map) {
             __vec.set_impl_ptr(new reliance);
             if (auto __global = dynamic_cast <IR::global_variable *> (__var)) {
+                /* If global string pointer, pls just continue. */
+                std::string_view __view = __global->name;
+                if(__view.substr(0,5) == "@str.") continue;
+
                 auto &__ref = __info.used_global_var[__global];
                 for(auto __node : __vec) {
                     if (dynamic_cast <IR::load_stmt *> (__node))
@@ -119,7 +123,6 @@ info_collector::info_collector <0> (function_info &__info,std::false_type) {
             }
         }
     }();
-
 
 
     /* Work out the arg_state. */
@@ -303,8 +306,8 @@ void function_graph::work_topo(std::deque <function_info> &__array) {
 
 
 /**
- * @brief Resolve the depency of the function.
- * @param __array 
+ * @brief Resolve the dependency of the function.
+ * @param __array Resolve the dependency.
  */
 void function_graph::resolve_dependency(std::deque <function_info> &__array) {
     std::unordered_map <
