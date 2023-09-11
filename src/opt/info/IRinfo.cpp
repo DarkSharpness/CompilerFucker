@@ -1,6 +1,24 @@
 #include "IRinfo.h"
 
+namespace dark {
 
+/**
+ * @return Whether a function call is related to global variable
+ * or side effective to the data.
+ */
+bool IR::function::is_side_effective() const {
+    /* Only those linked to inout are side effective. */ 
+    if (is_builtin) return inout_state;
+
+    /* No function info has been collected: error! */
+    auto __ptr = get_impl_ptr <OPT::function_info> ();
+    if (!__ptr || !__ptr->real_info) return true;
+
+    warning("Not implemented yet.");
+    return true;
+}
+
+}
 
 namespace dark::OPT {
 

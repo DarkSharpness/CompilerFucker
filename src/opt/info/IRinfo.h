@@ -91,8 +91,8 @@ struct reliance {
  * 
  */
 struct function_info {
-    IR::function *func;       /* The function information owner. */
-    function_info *real_info; /* Only one member in the SCC will hold the data. */
+    IR::function  *func;                /* The function information owner. */
+    function_info *real_info = nullptr; /* Only one member in the SCC will hold the data. */
 
     explicit function_info(IR::function *__func)
     noexcept : func(__func) { __func->set_impl_ptr(this); }

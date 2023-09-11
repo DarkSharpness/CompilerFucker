@@ -412,7 +412,9 @@ struct function : hidden_impl {
         return -1;
     }
 
+    /* Whether the function is side effective. */
 
+    bool is_side_effective() const;
     /* Create a temporary with given name (no suffix) and return pointer to __temp. */
     temporary *create_temporary_no_suffix(wrapper __type,const std::string &__name) {
         auto *__temp = temp.emplace_back(new temporary);
