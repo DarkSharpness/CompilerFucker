@@ -112,6 +112,7 @@ struct aggressive_eliminator : DCE_base {
 
     aggressive_eliminator(IR::function *,node *);
     void spread_live();
+    void update_dead(IR::function *);
 };
 
 

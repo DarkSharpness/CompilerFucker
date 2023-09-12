@@ -111,6 +111,13 @@ void SSAbuilder::try_optimize(std::vector <IR::function>  &global_functions) {
             reverse_CFG(&__func);
             aggressive_eliminator(&__func,__entry);
             rebuild_CFG(&__func);
+            unreachable_remover(&__func,__entry);
+        }
+
+        /* Final simplification after DCE and PEEP. */
+        if (__optimize_state.enable_CFG) {
+            branch_compressor   {&__func,__entry};
+            deadcode_eliminator {&__func,__entry};
         }
 
         /* After first pass of optimization, collect information! */
@@ -132,20 +139,23 @@ void SSAbuilder::try_optimize(std::vector <IR::function>  &global_functions) {
     }
 }
 
-node *SSAbuilder::rebuild_CFG(IR::function *__func) {
-    node *__entry = nullptr;
+void SSAbuilder::reset_CFG(IR::function *__func) {
     for(auto __block : __func->stmt) {
         auto *__node = create_node(__block);
-        if(!__entry) __entry = __node;
+        __block->set_impl_ptr(__node);
         __node->prev.clear();
         __node->next.clear();
         __node->dom.clear();
         __node->fro.clear();
-    } /* Rebuild the CFG! */
-    visitFunction(__func); return __entry;
+    }
 }
 
-void  SSAbuilder::reverse_CFG(IR::function *__func) {
+void SSAbuilder::rebuild_CFG(IR::function *__func) {
+    reset_CFG(__func);
+    visitFunction(__func);
+}
+
+void SSAbuilder::reverse_CFG(IR::function *__func) {
     for(auto __block : __func->stmt) {
         auto *__node = __block->get_impl_ptr <node> ();
         std::swap(__node->prev,__node->next);

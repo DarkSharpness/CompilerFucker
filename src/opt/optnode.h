@@ -71,7 +71,7 @@ struct node {
 
     std::vector <node *> prev;
     std::vector <node *> next;
-    std::vector <node *> dom; /* Dominated dots. */
+    std::vector <node *> dom; /* Dominated dots.     */
     std::vector <node *> fro; /* Dominated Frontier. */
 
     explicit node(IR::block_stmt *__block) : block(__block) {}
