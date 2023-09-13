@@ -3,7 +3,6 @@
 #include "optnode.h"
 #include "IRnode.h"
 #include "IRbase.h"
-#include "IRinfo.h"
 
 #include <deque>
 
@@ -13,7 +12,6 @@ namespace dark::OPT {
 
 struct SSAbuilder final : IR::IRvisitorbase {
     std::map <IR::block_stmt *,node> node_map;
-    std::deque    <function_info>   info_list;
 
     node *top;
     size_t end_tag = 0;

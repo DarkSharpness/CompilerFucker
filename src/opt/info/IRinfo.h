@@ -39,11 +39,12 @@ struct reliance {
     /* Potential function args that lead to the leak. */
     std::unordered_map <IR::function *,std::bitset <THRESHOLD>> rely_func;
 
+    /* Just use bitset to simplify. We don't expect any extra cost. */
+    static_assert(sizeof(std::bitset <THRESHOLD>) <= sizeof(size_t));
+
     /* Whether the information has leaked (Stored / returned out) */
     uint8_t rely_flag = const_space::DEAD;
 
-    /* Just use bitset to simplify. We don't expect any extra cost. */
-    static_assert(sizeof(std::bitset <THRESHOLD>) <= sizeof(size_t));
 
     bool is_leak() const noexcept { return rely_flag & LEAK_BIT; }
     bool is_used() const noexcept { return rely_flag & USED_BIT; }

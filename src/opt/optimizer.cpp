@@ -58,7 +58,11 @@ void print_info(const function_info &__info,std::ostream &__os = std::cerr) {
 
 /* The real function that controls all the optimization. */
 void SSAbuilder::try_optimize(std::vector <IR::function>  &global_functions) {
+    /* Function information list. */
+    std::deque  <function_info> info_list;
+    /* A variable holding optimization state. */
     const auto __optimize_state = optimize_options::get_state();
+
     /* First pass : simple optimization. */
     for(auto &__func : global_functions) {
         auto *__entry = create_node(__func.stmt.front());
