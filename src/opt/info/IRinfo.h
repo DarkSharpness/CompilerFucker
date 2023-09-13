@@ -97,7 +97,7 @@ struct function_info {
     explicit function_info(IR::function *__func)
     noexcept : func(__func) { __func->set_impl_ptr(this); }
 
-    struct usage_info : std::vector <IR::node *> , hidden_impl {
+    struct usage_info : hidden_impl {
         IR::node *def_node = nullptr; /* Definition node. */
     };
 

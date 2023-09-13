@@ -20,13 +20,22 @@ info_collector::info_collector <0> (function_info &__info,std::false_type) {
 
     /* First collect basic def/use information and inout information. */
     [&]() ->void {
+        /* Update the global usage map~ */
+        auto &&__update_global = [&__use_map = __info.used_global_var]
+            (IR::non_literal *__var,uint8_t __state) -> void {
+            auto __global = dynamic_cast <IR::global_variable *> (__var);
+            if (!__global) return;
+            std::string_view __view = __global->name;
+            if (__view.substr(0,5) == "@str.") return;
+            __use_map[__global] |= __state;
+        };
+
         for(auto __block : __info.func->stmt) {
             for(auto __stmt : __block->stmt) {
-                for(auto __use : __stmt->get_use())
-                    if (auto __var = dynamic_cast <IR::non_literal *> (__use))
-                        use_map[__var].push_back(__stmt);
-                auto __def = __stmt->get_def();
-                if (__def) use_map[__def].def_node = __stmt;
+                if (auto __load = dynamic_cast <IR::load_stmt *> (__stmt))
+                    __update_global(__load->src ,function_info::LOAD);
+                if (auto __store = dynamic_cast <IR::store_stmt *> (__stmt))
+                    __update_global(__store->dst,function_info::STORE);
 
                 /* Collect the inout information. */
                 if (auto __call  = dynamic_cast <IR::call_stmt *> (__stmt)) {
@@ -34,32 +43,22 @@ info_collector::info_collector <0> (function_info &__info,std::false_type) {
                     if (!__info.called_func.insert(__called).second) continue;
                     __info.func->inout_state |= __called->inout_state;
                 }
-            }
-        }
-    }();
 
-
-    /* Next, collect some necessary global information. */
-    [&]() -> void {
-        for(auto &&[__var,__vec] : use_map) {
-            __vec.set_impl_ptr(new reliance);
-            if (auto __global = dynamic_cast <IR::global_variable *> (__var)) {
-                /* If global string pointer, pls just continue. */
-                std::string_view __view = __global->name;
-                if(__view.substr(0,5) == "@str.") continue;
-
-                auto &__ref = __info.used_global_var[__global];
-                for(auto __node : __vec) {
-                    if (dynamic_cast <IR::load_stmt *> (__node))
-                        __ref |= function_info::LOAD;
-                    else if (dynamic_cast <IR::store_stmt *> (__node))
-                        __ref |= function_info::STORE;
-                    if (__ref == function_info::BOTH) break;
+                for(auto __use : __stmt->get_use()) {
+                    if (auto *__var = dynamic_cast <IR::non_literal *> (__use)) {
+                        auto &__vec = use_map[__var];
+                        if(!__vec.get_impl_ptr())
+                            __vec.set_impl_ptr(new reliance);
+                    }
                 }
+
+                auto __def = __stmt->get_def();
+                if (!__def) continue;
+                auto &__ref = use_map[__def];
+                __ref.def_node = __stmt;
             }
         }
     }();
-
 
     /* Leak information initialization. */
     [&]() -> void {
@@ -150,9 +149,6 @@ info_collector::info_collector <0> (function_info &__info,std::false_type) {
         for(auto *__arg : __info.func->args) {
             auto &__ref = __arg->state;
             auto &__vec = use_map[__arg];
-            /* If not used, of course safe. */
-            if (__vec.empty()) { __ref = IR::function_argument::DEAD; continue; }
-
             /* If only used in function as dead argument. */
             __ref = __vec.get_impl_ptr <reliance> ()->rely_flag;
         }

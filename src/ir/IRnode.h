@@ -27,7 +27,7 @@ struct hidden_impl {
     { impl = reinterpret_cast <void *> (__val); }
 
     /* Get the hidden implement pointer. */
-    template <class T>
+    template <class T = void>
     auto get_impl_ptr() const noexcept { return static_cast <T *> (impl); }
 
     template <class T>
