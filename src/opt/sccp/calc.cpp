@@ -123,11 +123,8 @@ void constant_calculator::visitBinary(IR::binary_stmt *__node) {
             case IR::binary_stmt::SUB:  /* x - x = 0 */
             case IR::binary_stmt::SREM: /* x % x = 0 */
             case IR::binary_stmt::ASHR: /* x >> x = 0 */
-                return set_result(__zero);
-
             case IR::binary_stmt::XOR:  /* x ^ x = 0 */
-                return __input_0->get_value_type().name() == "i1" ?
-                    set_result(IR::create_boolean(0)) : set_result(__zero);
+                return set_result(__zero);
 
             case IR::binary_stmt::SDIV: /* x / x = 1 */
                 return set_result(__one1);
