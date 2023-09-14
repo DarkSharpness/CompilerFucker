@@ -65,6 +65,14 @@ void IRbuilder::visitFunctionExpr(AST::function_expr *ctx) {
 
 
 void IRbuilder::visitUnaryExpr(AST::unary_expr *ctx) {
+    if(ctx->op == "-") { /* Negative. */
+        if (auto *__int = dynamic_cast <AST::literal_constant *> (ctx->expr)) {
+            __int->name.insert(__int->name.begin(),'-');
+            /* This is intended to avoid the input of -2147483648. */
+            return static_cast <void>
+                (result = create_integer(std::stoi(__int->name)));
+        }
+    }
     visit(ctx->expr);
     if(ctx->op[1]) { /* ++ or -- */
         /* Load into memory from a variable. */
@@ -102,7 +110,6 @@ void IRbuilder::visitUnaryExpr(AST::unary_expr *ctx) {
             top->emplace_new(__cmp);
             return static_cast <void> (result = __cmp->dest);
         }
-
 
         auto *__bin = new binary_stmt;
         __bin->op   = ctx->op[0] == '-' ? binary_stmt::SUB : binary_stmt::XOR;

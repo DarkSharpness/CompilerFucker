@@ -209,9 +209,6 @@ struct literal_constant : expression {
         else std::cerr << name;
     }
 
-    /* Test whether the number is given integer. */
-    bool is_integer(int n) noexcept { return type == NUMBER && n == std::stoi(name); }
-
     void accept(ASTvisitorbase *__p) override { return __p->visitLiteralConstant(this); }
     ~literal_constant() override = default;
 };
