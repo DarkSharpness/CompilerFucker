@@ -49,6 +49,18 @@ void print_info(const function_info &__info,std::ostream &__os = std::cerr) {
             default: __os << "??";
         } __os << '\n';
     }
+    __os << "Local temporary:\n";
+    for(auto &[__var,__use] : __info.use_map) {
+        __os << __var->data() << " : ";
+        auto __ptr = __use.get_impl_ptr <reliance> ();
+        switch(__ptr->rely_flag) {
+            case IR::function_argument::DEAD : __os << "Not used!";  break;
+            case IR::function_argument::USED : __os << "Just used!"; break;
+            case IR::function_argument::LEAK : __os << "Leaked!";    break;
+            default: __os << "??";
+        } __os << '\n';
+
+    }
 
     const char *__msg[4] = { "NONE","IN ONLY","OUT ONLY","IN AND OUT" };
     __os << "Inout state: " << __msg[__info.func->inout_state];

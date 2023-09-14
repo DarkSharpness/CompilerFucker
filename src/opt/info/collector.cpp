@@ -40,24 +40,21 @@ info_collector::info_collector <0> (function_info &__info,std::false_type) {
                 /* Collect the inout information. */
                 if (auto __call  = dynamic_cast <IR::call_stmt *> (__stmt)) {
                     auto __called = __call->func;
-                    if (!__info.called_func.insert(__called).second) continue;
-                    __info.func->inout_state |= __called->inout_state;
+                    if (__info.called_func.insert(__called).second)
+                        __info.func->inout_state |= __called->inout_state;
                 }
 
-                for(auto __use : __stmt->get_use()) {
-                    if (auto *__var = dynamic_cast <IR::non_literal *> (__use)) {
-                        auto &__vec = use_map[__var];
-                        if(!__vec.get_impl_ptr())
-                            __vec.set_impl_ptr(new reliance);
-                    }
-                }
+                for(auto __use : __stmt->get_use())
+                    if (auto *__var = dynamic_cast <IR::non_literal *> (__use))
+                        use_map.try_emplace(__var);
 
                 auto __def = __stmt->get_def();
-                if (!__def) continue;
-                auto &__ref = use_map[__def];
-                __ref.def_node = __stmt;
+                if (__def) use_map[__def].def_node = __stmt;
             }
         }
+
+        /* Init all reliance. */
+        for(auto &&[__,__vec] : use_map) __vec.set_impl_ptr(new reliance);
     }();
 
     /* Leak information initialization. */
@@ -149,8 +146,11 @@ info_collector::info_collector <0> (function_info &__info,std::false_type) {
         for(auto *__arg : __info.func->args) {
             auto &__ref = __arg->state;
             auto &__vec = use_map[__arg];
-            /* If only used in function as dead argument. */
-            __ref = __vec.get_impl_ptr <reliance> ()->rely_flag;
+            auto *__ptr = __vec.get_impl_ptr <reliance> ();
+            if (!__ptr) __vec.set_impl_ptr(new reliance);
+
+            /* If no such ptr, then it is not used! */
+            __ref = !__ptr ? IR::function_argument::DEAD : __ptr->rely_flag;
         }
     }();
 }
@@ -342,6 +342,23 @@ void function_graph::resolve_dependency(std::deque <function_info> &__array) {
             if (__tmp  != __dep->state) {
                 __dep->state = __tmp;
                 work_list.push_back(__dep);
+            }
+        }
+    }
+
+    /* Update all usage information. */
+    for(auto &__info : __array) {
+        for(auto &&[__var,__vec] : __info.use_map) {
+            auto *__ptr = __vec.get_impl_ptr <reliance> ();
+            if (!(__ptr->rely_flag & IR::function_argument::FUNC)) continue;
+            __ptr->rely_flag ^= IR::function_argument::FUNC;
+            for(auto [__func,__bits] : __ptr->rely_func) {
+                auto *__args = __func->args.data();
+                size_t __beg = __bits._Find_first();
+                while(__beg != __bits.size()) {
+                    __ptr->rely_flag |= __args[__beg]->state;
+                    __beg = __bits._Find_next(__beg);
+                }
             }
         }
     }

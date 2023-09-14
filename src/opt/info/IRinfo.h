@@ -45,7 +45,6 @@ struct reliance {
     /* Whether the information has leaked (Stored / returned out) */
     uint8_t rely_flag = const_space::DEAD;
 
-
     bool is_leak() const noexcept { return rely_flag & LEAK_BIT; }
     bool is_used() const noexcept { return rely_flag & USED_BIT; }
  

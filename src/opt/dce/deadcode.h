@@ -1,7 +1,6 @@
 #pragma once
 
 #include "optnode.h"
-#include "mem2reg.h"
 #include <stack>
 #include <queue>
 #include <unordered_set>
