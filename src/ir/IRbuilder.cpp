@@ -91,18 +91,26 @@ void IRbuilder::visitUnaryExpr(AST::unary_expr *ctx) {
         auto *__tmp = dynamic_cast <literal *> (result);
         if (( __tmp = const_folder(ctx->op)(__tmp))) return void(result = __tmp); 
         if(ctx->op[0] == '+') return;
+        if(ctx->op[0] == '!') {
+            auto *__cmp = new compare_stmt;
+            __cmp->op   = compare_stmt::EQ;
+            __cmp->lvar = result;
+            __cmp->rvar = __false__;
+            __cmp->dest = top->create_temporary(
+                wrapper {&__boolean_class__,0},"not."
+            );
+            top->emplace_new(__cmp);
+            return static_cast <void> (result = __cmp->dest);
+        }
+
 
         auto *__bin = new binary_stmt;
         __bin->op   = ctx->op[0] == '-' ? binary_stmt::SUB : binary_stmt::XOR;
         __bin->dest = top->create_temporary(
-            wrapper { ctx->op[0] == '!' ? 
-                (dark::IR::typeinfo *)&__boolean_class__ :
-                (dark::IR::typeinfo *)&__integer_class__,0
-            } ,
+            wrapper { (dark::IR::typeinfo *)&__integer_class__,0 },
             string_join(binary_stmt::str[__bin->op],'.')
         );
-        __bin->lvar = ctx->op[0] == '-' ? (definition *)__zero__ : 
-                      ctx->op[0] == '!' ? (definition *)__true__ : __neg1__;
+        __bin->lvar = ctx->op[0] == '-' ? __zero__ : __neg1__;
         __bin->rvar = result;
         top->emplace_new(__bin);
         result = __bin->dest;
