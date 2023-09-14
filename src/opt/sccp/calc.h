@@ -5,6 +5,7 @@
 
 namespace dark::OPT {
 
+
 struct constant_calculator final : IR::IRvisitorbase {
     void *data; /* This argument is responsible for passing the params. */
     using array_type = std::vector<IR::definition *>;
@@ -16,13 +17,16 @@ struct constant_calculator final : IR::IRvisitorbase {
     explicit operator IR::definition *()
     { return static_cast <IR::definition *> (data); }
 
+    void set_array(array_type &__vec)
+    { data = static_cast <void *> (&__vec); }
+
     void set_result(IR::definition *__def) 
     { data = static_cast <void *> (__def); }
  
     /* Work out the const folding result. */
     [[nodiscard]] inline IR::definition *
-        work(IR::node *__ctx,const std::vector <IR::definition *> &__vec) {
-        data = static_cast <void *> (const_cast <array_type *> (&__vec));
+        work(IR::node *__ctx,array_type &__vec) {
+        set_array(__vec);
         visit(__ctx);
         return static_cast <IR::definition *> (*this);
     }
