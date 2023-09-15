@@ -16,11 +16,14 @@ local_optimizer::local_optimizer(IR::function *__func,node *) {
 void local_optimizer::optimize(IR::block_stmt *__block) {
     use_info.clear();
     mem_info.clear();
-    remove_set.clear();
+    binary_map.clear();
 
     for(auto __stmt : __block->stmt) {
-        if (auto __bin = dynamic_cast <IR::binary_stmt *> (__stmt))
-        { update_bin(__bin); continue; }
+        if (auto __bin = dynamic_cast <IR::binary_stmt *> (__stmt)) {
+            /* Tries to replace the old expression. */
+            if (!update_bin(__bin)) replace_binary(__bin);
+            continue;       
+        }
         // if (auto __cmp = dynamic_cast <IR::compare_stmt *> (__stmt))
         // { update_cmp(__cmp); continue; }
         // if (auto __load = dynamic_cast <IR::load_stmt *> (__stmt))
@@ -126,6 +129,9 @@ local_optimizer::usage_info *
 bool local_optimizer::update_bin(IR::binary_stmt *__stmt) {
     usage_info __pool[2]; /* Cache pool. */
 
+    auto *__lhs = get_use_info(__stmt->lvar);
+    auto *__rhs = get_use_info(__stmt->rvar);
+
     /* Replace a negative with its positive value. */
     auto &&__update_neg = [&](usage_info *__old,bool __index)
         -> usage_info * {
@@ -135,14 +141,10 @@ bool local_optimizer::update_bin(IR::binary_stmt *__stmt) {
         return std::addressof(__pool[__index] = __iter->second);
     };
 
-    auto *__lhs = get_use_info(__stmt->lvar);
-    auto *__rhs = get_use_info(__stmt->rvar);
-
     /* Try to update the usage info. */
     auto &&__reload = [&](usage_info *__ptr) -> void {
         if ( __ptr->new_def) __ptr = get_use_info(__ptr->new_def);
         if (!__ptr->new_def) __ptr->new_def = __ptr->def_node->get_def();
-        if (!__ptr->new_def) throw;
     };
 
     auto &&__work_neg_lr = [&]() -> void {
@@ -346,136 +348,6 @@ bool local_optimizer::update_bin(IR::binary_stmt *__stmt) {
         }
     };
 
-
-    /**
-     * ---------------------------
-     * Main body of the function.
-     * ---------------------------
-    */
-
-
-    /* Swap the constant to the right if possible. */
-    if (auto __lit = dynamic_cast <IR::integer_constant *> (__lhs->new_def)) {
-        switch(__stmt->op) {
-            /* Symmetric case: swap to right hand side. */
-            case IR::binary_stmt::ADD:
-            case IR::binary_stmt::MUL:
-            case IR::binary_stmt::AND:
-            case IR::binary_stmt::OR:
-            case IR::binary_stmt::XOR:
-                std::swap(__lhs,__rhs);
-                std::swap(__stmt->lvar,__stmt->rvar);
-        }
-    }
-
-    if (__lhs->neg_flag && __rhs->neg_flag) {
-        __work_neg_lr(); __reload(__lhs); __reload(__rhs);
-    } else if (__lhs->neg_flag) {
-        __work_neg_l();  __reload(__lhs);
-    } else if (__rhs->neg_flag) {
-        __work_neg_r();  __reload(__rhs);
-    }
-
-    runtime_assert("No negative now!",!__lhs->neg_flag,!__rhs->neg_flag);
-
-    /* Try constant calculation first. */
-    if (__try_const(__lhs->new_def,__rhs->new_def)) return true;
-
-    /* Strength reduction and replacement. */
-    IR::integer_constant *__lit;
-    if (__lit = dynamic_cast <IR::integer_constant *> (__rhs->new_def)) {
-        switch(__stmt->op) {
-            case IR::binary_stmt::SUB:
-                __stmt->op = IR::binary_stmt::ADD;
-                __rhs->new_def = __lit = IR::create_integer(-__lit->value);
-                break;
-            case IR::binary_stmt::MUL:
-                if (is_pow_of_2(__lit->value)) {
-                    __stmt->op = IR::binary_stmt::SHL;
-                    __rhs->new_def = __lit = IR::create_integer(
-                        __builtin_ctz(__lit->value)
-                    );
-                }
-        }
-    } else if (__lhs->new_def == __rhs->new_def
-            && __stmt->op     == __stmt->ADD) {
-        __stmt->op = IR::binary_stmt::SHL;
-        __rhs->new_def = __lit = IR::create_integer(1);
-    }
-
-    __stmt->lvar = __lhs->new_def;
-    __stmt->rvar = __rhs->new_def;
-
-    /* The binary is updated. So visit down recursively. */
-    if (__lit && __merge_operator(__lit,__lhs->def_node)) {
-        /* Try constant calculation again. */
-        if (__try_const(__stmt->lvar,__stmt->rvar)) return true;
-        else return update_bin(__stmt);
-    }
-
-    /**
-     * Special case in merging operators.
-     * (C1 - X) + C2    --> (C1 + C2) - X
-     * C1 - (X + C2)    --> (C1 - C2) - X
-     * C1 - (C2 - X)    --> (C1 - C2) + X
-     * 
-     * (0 - X) / X      --> 0 + -1 = -1
-     * (0 - X) % X      --> 0 + 0 = 0
-     * X / (0 - X)      --> 0 + -1 = -1
-     * X % (0 - X)      --> 0 + 0 = 0
-     * 
-     * Special case for non-constant test.
-     * 
-     *  Symmetric case:
-     * (X ^ Y) ^ X      --> Y + 0 = Y
-     * (X | Y) & X      --> X + 0 = X
-     * (X & Y) | X      --> X + 0 = X
-     * (X | Y) | X      --> X | Y
-     * (X & Y) & X      --> X & Y
-     * (X - Y) + Y      --> X + 0 = X
-     * 
-     *  Non-symmetric case:
-     * (X + Y) - X      --> Y + 0 = Y
-     * (X - Y) - X      --> 0 - Y = (-Y)
-     * X - (X - Y)      --> Y + 0 = Y
-     * X - (X + Y)      --> 0 - Y = (-Y)
-     * (X * Y) / X      --> Y + 0 = Y
-     * (X * Y) % X      --> 0 + 0 = 0
-     * 
-     * Negative generation rule:
-     * 0 - X    --> (-X)
-     * X * (-1) --> (-X)
-     * X / (-1) --> (-X)
-    */
-    if ([__stmt](IR::integer_constant * __lit,IR::node *__node) -> bool {
-        if (!__lit || __stmt->op != IR::binary_stmt::SUB) return false;
-        const auto *__temp = dynamic_cast <IR::binary_stmt *> (__node);
-        if (!__temp) return false;
-
-        /* C1 - (X + C2)    --> (C1 - C2) - X   */
-        if (auto __tmp = dynamic_cast <IR::integer_constant *> (__temp->rvar);
-            __tmp != nullptr && __temp->op == IR::binary_stmt::ADD) {
-            __stmt->op   = IR::binary_stmt::SUB;
-            __stmt->lvar = IR::create_integer(
-                __lit->value - __tmp->value
-            ); return true;
-        }
-
-        /* C1 - (C2 - X)    --> (C1 - C2) + X   */
-        if (auto __tmp = dynamic_cast <IR::integer_constant *> (__temp->lvar);
-            __tmp != nullptr && __temp->op == IR::binary_stmt::SUB) {
-            __stmt->op = IR::binary_stmt::ADD;
-            __stmt->lvar = IR::create_integer(
-                __lit->value - __tmp->value
-            ); return true;
-        }
-        return false;
-    } (dynamic_cast <IR::integer_constant *> (__lhs->new_def),__rhs->def_node)) {
-        /* Try constant calculation again. */
-        if (__try_const(__stmt->lvar,__stmt->rvar)) return true;
-        else return update_bin(__stmt);
-    }
-
     /* Special case for non-constant test. */
     auto &&__merge_symmetric = [__stmt]
         (IR::binary_stmt *__temp,IR::temporary *__def,uint32_t __state) -> bool {
@@ -577,6 +449,100 @@ bool local_optimizer::update_bin(IR::binary_stmt *__stmt) {
         }
         return false;
     };
+
+    /**
+     * ---------------------------
+     * Main body of the function.
+     * ---------------------------
+    */
+
+    /* Swap the constant to the right if possible. */
+    if (auto __lit = dynamic_cast <IR::integer_constant *> (__lhs->new_def)) {
+        switch(__stmt->op) {
+            /* Symmetric case: swap to right hand side. */
+            case IR::binary_stmt::ADD:
+            case IR::binary_stmt::MUL:
+            case IR::binary_stmt::AND:
+            case IR::binary_stmt::OR:
+            case IR::binary_stmt::XOR:
+                std::swap(__lhs,__rhs);
+                std::swap(__stmt->lvar,__stmt->rvar);
+        }
+    }
+
+    if (__lhs->neg_flag && __rhs->neg_flag) {
+        __work_neg_lr(); __reload(__lhs); __reload(__rhs);
+    } else if (__lhs->neg_flag) {
+        __work_neg_l();  __reload(__lhs);
+    } else if (__rhs->neg_flag) {
+        __work_neg_r();  __reload(__rhs);
+    }
+
+    /* Try constant calculation first. */
+    if (__try_const(__lhs->new_def,__rhs->new_def)) return true;
+
+    /* Strength reduction and replacement. */
+    IR::integer_constant *__lit;
+    if (__lit = dynamic_cast <IR::integer_constant *> (__rhs->new_def)) {
+        switch(__stmt->op) {
+            case IR::binary_stmt::SUB:
+                __stmt->op = IR::binary_stmt::ADD;
+                __rhs->new_def = __lit = IR::create_integer(-__lit->value);
+                break;
+            case IR::binary_stmt::MUL:
+                if (is_pow_of_2(__lit->value)) {
+                    __stmt->op = IR::binary_stmt::SHL;
+                    __rhs->new_def = __lit = IR::create_integer(
+                        __builtin_ctz(__lit->value)
+                    );
+                }
+        }
+    } else if (__lhs->new_def == __rhs->new_def
+            && __stmt->op     == __stmt->ADD) {
+        __stmt->op = IR::binary_stmt::SHL;
+        __rhs->new_def = __lit = IR::create_integer(1);
+    }
+
+    __stmt->lvar = __lhs->new_def;
+    __stmt->rvar = __rhs->new_def;
+
+    if (replace_binary(__stmt)) return true;
+
+    /* The binary is updated. So visit down recursively. */
+    if (__lit && __merge_operator(__lit,__lhs->def_node)) {
+        /* Try constant calculation again. */
+        if (__try_const(__stmt->lvar,__stmt->rvar)) return true;
+        else return update_bin(__stmt);
+    }
+
+    if ([__stmt](IR::integer_constant * __lit,IR::node *__node) -> bool {
+        if (!__lit || __stmt->op != IR::binary_stmt::SUB) return false;
+        const auto *__temp = dynamic_cast <IR::binary_stmt *> (__node);
+        if (!__temp) return false;
+
+        /* C1 - (X + C2)    --> (C1 - C2) - X   */
+        if (auto __tmp = dynamic_cast <IR::integer_constant *> (__temp->rvar);
+            __tmp != nullptr && __temp->op == IR::binary_stmt::ADD) {
+            __stmt->op   = IR::binary_stmt::SUB;
+            __stmt->lvar = IR::create_integer(
+                __lit->value - __tmp->value
+            ); return true;
+        }
+
+        /* C1 - (C2 - X)    --> (C1 - C2) + X   */
+        if (auto __tmp = dynamic_cast <IR::integer_constant *> (__temp->lvar);
+            __tmp != nullptr && __temp->op == IR::binary_stmt::SUB) {
+            __stmt->op = IR::binary_stmt::ADD;
+            __stmt->lvar = IR::create_integer(
+                __lit->value - __tmp->value
+            ); return true;
+        }
+        return false;
+    } (dynamic_cast <IR::integer_constant *> (__lhs->new_def),__rhs->def_node)) {
+        /* Try constant calculation again. */
+        if (__try_const(__stmt->lvar,__stmt->rvar)) return true;
+        else return update_bin(__stmt);
+    }
 
     if (__merge_lhs() || __merge_rhs()) {
         /* Try constant calculation again. */
