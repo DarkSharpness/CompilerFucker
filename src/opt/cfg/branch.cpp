@@ -80,6 +80,7 @@ branch_compressor::branch_compressor(IR::function *__func,node *__entry) {
                 /* Relinking! */
                 auto __next = __iter->second;
                 for(auto __prev : __node->prev) {
+                    __next->prev.push_back(__prev);
                     auto *&__last = __prev->block->stmt.back();
                     if (auto *__jump = dynamic_cast <IR::jump_stmt *> (__last)) {
                         __jump->dest = __next->block;
