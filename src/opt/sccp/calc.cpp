@@ -27,6 +27,19 @@ void constant_calculator::visitCompare(IR::compare_stmt *__node) {
         }
     }
 
+    /* Special judge! */
+    auto __zero = IR::create_boolean(0);
+    auto __one1 = IR::create_boolean(1);
+
+    if (__input_0 == __zero && __node->op == IR::compare_stmt::NE)
+        return set_result(__input_1);
+    if (__input_1 == __zero && __node->op == IR::compare_stmt::NE)
+        return set_result(__input_0);
+    if (__input_0 == __one1 && __node->op == IR::compare_stmt::EQ)
+        return set_result(__input_1);
+    if (__input_1 == __one1 && __node->op == IR::compare_stmt::EQ)
+        return set_result(__input_0);
+
     auto __lvar = dynamic_cast <IR::literal *> (__input_0);
     auto __rvar = dynamic_cast <IR::literal *> (__input_1);
     if(!__lvar || !__rvar) return set_result(nullptr);
