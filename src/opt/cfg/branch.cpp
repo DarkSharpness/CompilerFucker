@@ -40,8 +40,8 @@ branch_cutter::branch_cutter(IR::function *__func,node *__entry) {
 
 
 /**
- * @brief Update the branch prev -> node to prev->next.
- * It will modify informatio with prev only.
+ * @brief Update the branch prev -> node to prev -> next.
+ * It will modify information with prev only.
  */
 void branch_compressor::update_branch
     (IR::branch_stmt *__br,node *__prev,node *__node,node *__next) {
