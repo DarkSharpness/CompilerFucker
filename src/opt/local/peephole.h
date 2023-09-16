@@ -32,16 +32,9 @@ struct local_optimizer final : IR::IRvisitorbase {
      * Store after load : Nothing will happen.
      */
     struct memory_info {
-        IR::node *last = nullptr;   /* Last memory node. */
+        IR::memory_stmt *last = nullptr;   /* Last memory node.      */
+        bool corrupted        = false;     /* Whether no sure store. */
     };
-
-    /* The def-use map of all temporaries. */
-    std::unordered_map <IR::temporary *,std::vector <IR::node *>> use_map;
-
-    /* Use information. */
-    std::unordered_map <IR::temporary * , usage_info>  use_info;
-    /* Memory information. */
-    std::unordered_map <IR::non_literal *,memory_info> mem_info; 
 
     struct custom_info {
         size_t op;
@@ -63,6 +56,17 @@ struct local_optimizer final : IR::IRvisitorbase {
             return info.op + (size_t)info.lhs + (size_t)info.rhs;
         }
     };
+
+    struct usage_data : std::vector <IR::node *> {
+        IR::node *def_node = nullptr;
+    };
+
+    /* The def-use map of all temporaries. */
+    std::unordered_map <IR::temporary *,usage_data> use_map;
+    /* Use information. */
+    std::unordered_map <IR::temporary * , usage_info>  use_info;
+    /* Memory information. */
+    std::unordered_map <IR::non_literal *,memory_info> mem_info; 
 
     std::unordered_map <custom_info,IR::definition *,custom_hash>
         common_map; /* Map used for common sub-expression elimination. */
@@ -95,8 +99,22 @@ struct local_optimizer final : IR::IRvisitorbase {
         } return false;
     }
 
+    /**
+     * @brief Try to remove one temporary.
+    */
+    template <class T>
+    auto try_remove(T *__stmt) -> std::enable_if_t
+        <std::is_base_of_v <IR::node,T>, void> {
+        auto *__def = __stmt->get_def();
+        auto *__new = get_def_value(__def);
+        if (__def == __new) return;
+        for(auto __use : use_map[__def])
+            __use->update(__def,__new);
+        remove_set.insert(__stmt);
+    }
+
     /* Just update a value. */
-    IR::definition *get_def_value(IR::definition *__def) {
+    inline IR::definition *get_def_value(IR::definition *__def) {
         auto __tmp = get_use_info(__def);
         if (!__tmp->neg_flag)
             return __tmp->new_def ? : __def;
@@ -105,7 +123,7 @@ struct local_optimizer final : IR::IRvisitorbase {
     }
 
     usage_info *get_use_info(IR::definition *);
-
+    bool may_share_address(IR::non_literal *,IR::non_literal *);
     bool update_bin(IR::binary_stmt *);
 
     void visitFunction(IR::function *) override {}
