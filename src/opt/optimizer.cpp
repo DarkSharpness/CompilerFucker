@@ -75,6 +75,57 @@ void SSAbuilder::try_optimize(std::vector <IR::function>  &global_functions) {
     /* A variable holding optimization state. */
     const auto __optimize_state = optimize_options::get_state();
 
+    /* Split a block of only phis and return. This can help tail optimization. */
+    auto &&__help_tail_opt = [this](IR::function *__func)-> void {
+        std::vector <IR::block_stmt *> __qwq; /* New block list. */
+        for(auto __block : __func->stmt) {
+            auto __node = __block->get_impl_ptr <node> ();
+            auto &__vec = __block->stmt;
+            if (__vec.size() == 2) {
+                auto *__phi = dynamic_cast <IR::phi_stmt *>    (__vec[0]);
+                auto *__ret = dynamic_cast <IR::return_stmt *> (__vec[1]);
+                if (!__phi || !__ret) continue;
+                if (__ret->rval != __phi->dest) {
+                    warning("This shouldn't happen!");
+                    continue;
+                }
+
+                __node->prev.clear();
+
+                /* Relinking! */
+                for(auto [__val,__from] : __phi->cond) {
+                    auto *__prev  = __from->get_impl_ptr <node> ();
+
+                    /* Creating new block. */
+                    auto *__temp  = new IR::block_stmt; 
+                    __temp->label = __func->create_label("phi-ret");
+                    __ret = new IR::return_stmt;
+                    __ret->func   = __func;
+                    __ret->rval   = __val;
+                    __temp->stmt  = { __ret };
+                    __qwq.push_back(__temp);
+
+                    /* Create a block. */
+                    auto *__next  = create_node(__temp);
+                    __next->prev  = {__prev};
+                    __temp->set_impl_ptr(__next);
+
+                    auto *&__last = __prev->block->stmt.back();
+                    if (auto *__jump = dynamic_cast <IR::jump_stmt *> (__last)) {
+                        __jump->dest = __temp;
+                        __prev->next[0] = __next;
+                    } else { /* Branch case now. */
+                        auto *__br = safe_cast <IR::branch_stmt *> (__last);
+                        branch_compressor::update_branch(__br,__prev,__node,__next);
+                    }
+                }
+            }
+        }
+
+        __func->stmt.insert(__func->stmt.end(),__qwq.begin(),__qwq.end());
+    };
+
+
     /* First pass : simple optimization. */
     for(auto &__func : global_functions) {
         auto *__entry = create_node(__func.stmt.front());
@@ -96,6 +147,7 @@ void SSAbuilder::try_optimize(std::vector <IR::function>  &global_functions) {
         }
 
         if (__optimize_state.enable_CFG) {
+            __help_tail_opt(&__func);
             branch_compressor   {&__func,__entry};
             deadcode_eliminator {&__func,__entry};
             branch_compressor   {&__func,__entry};
@@ -107,7 +159,11 @@ void SSAbuilder::try_optimize(std::vector <IR::function>  &global_functions) {
         /* Peephole optimization. */
         if(__optimize_state.enable_PEEP) {
             local_optimizer     {&__func,__entry};
-            deadcode_eliminator {&__func,__entry};
+            if (__optimize_state.enable_SCCP) {
+                constant_propagatior{&__func,__entry};
+                branch_cutter       {&__func,__entry};
+            }
+            deadcode_eliminator {&__func,__entry};   
         }
 
         /* Aggressive deadcode elemination. */
@@ -132,6 +188,7 @@ void SSAbuilder::try_optimize(std::vector <IR::function>  &global_functions) {
 
         /* Final simplification after DCE and PEEP. */
         if (__optimize_state.enable_CFG) {
+            __help_tail_opt(&__func);
             branch_compressor   {&__func,__entry};
             deadcode_eliminator {&__func,__entry};
         }
