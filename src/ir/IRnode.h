@@ -207,7 +207,11 @@ struct call_stmt final : statement {
 };
 
 
-struct load_stmt final : statement {
+/* A tagging for type_safe! */
+struct memory_stmt : statement {};
+
+
+struct load_stmt final : memory_stmt {
     non_literal *src;
     temporary   *dst;
  
@@ -230,7 +234,7 @@ struct load_stmt final : statement {
 };
 
 
-struct store_stmt final : statement {
+struct store_stmt final : memory_stmt {
     definition  *src;
     non_literal *dst;
 
