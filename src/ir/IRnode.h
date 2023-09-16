@@ -49,7 +49,7 @@ using statement = node;
 struct phi_stmt;
 
 /* Block statement is not a statement! */
-struct block_stmt : hidden_impl {
+struct block_stmt final : hidden_impl {
     std::string label;
     std::vector <statement *> stmt; /* Statements */
 
@@ -63,7 +63,7 @@ struct block_stmt : hidden_impl {
 };
 
 
-struct compare_stmt : statement {
+struct compare_stmt final : statement {
     using c_string = char[4];
     enum : unsigned char {
         EQ = 0,
@@ -101,7 +101,7 @@ struct compare_stmt : statement {
 };
 
 
-struct binary_stmt : statement {
+struct binary_stmt final : statement {
     using c_string = char [8];
     enum : unsigned char {
         ADD  = 0,
@@ -156,7 +156,7 @@ struct binary_stmt : statement {
 
 
 /* Unconditional jump. */
-struct jump_stmt : statement {
+struct jump_stmt final : statement {
     block_stmt *dest;
 
     /* br label <dest> */
@@ -172,7 +172,7 @@ struct jump_stmt : statement {
 
 
 /* Conditional branch. */
-struct branch_stmt : statement {
+struct branch_stmt final : statement {
     definition *cond;  /* The condition. */
     block_stmt *br[2]; /* Label with a name. */
 
@@ -189,7 +189,7 @@ struct branch_stmt : statement {
 };
 
 
-struct call_stmt : statement {
+struct call_stmt final : statement {
     function  *func;
     temporary *dest = nullptr; /* For the sake of safety. */
     std::vector <definition *> args;
@@ -207,7 +207,7 @@ struct call_stmt : statement {
 };
 
 
-struct load_stmt : statement {
+struct load_stmt final : statement {
     non_literal *src;
     temporary   *dst;
  
@@ -230,7 +230,7 @@ struct load_stmt : statement {
 };
 
 
-struct store_stmt : statement {
+struct store_stmt final : statement {
     definition  *src;
     non_literal *dst;
 
@@ -254,7 +254,7 @@ struct store_stmt : statement {
 };
 
 
-struct return_stmt : statement {
+struct return_stmt final : statement {
     function   *func = nullptr;
     definition *rval = nullptr;
 
@@ -272,7 +272,7 @@ struct return_stmt : statement {
 };
 
 
-struct allocate_stmt : statement {
+struct allocate_stmt final : statement {
     variable *dest; /* Destination must be local! */
 
     /* <result> = alloca <type> */
@@ -286,7 +286,7 @@ struct allocate_stmt : statement {
 };
 
 
-struct get_stmt : statement {
+struct get_stmt final : statement {
     inline static constexpr ssize_t NPOS = -1;
     temporary  *dst;            /* Result pointer. */
     definition *src;            /* Source pointer. */
@@ -314,7 +314,7 @@ struct get_stmt : statement {
 };
 
 
-struct phi_stmt : statement {
+struct phi_stmt final : statement {
     using pair_t = struct {
         definition *value;
         block_stmt *label;
@@ -347,7 +347,7 @@ struct phi_stmt : statement {
 };
 
 
-struct unreachable_stmt : statement {
+struct unreachable_stmt final : statement {
     unreachable_stmt(unreachable_stmt *) {}
     std::string data() const override { return "unreachable\n"; }
     void accept(IRvisitorbase *v) override { return v->visitUnreachable(this); }
