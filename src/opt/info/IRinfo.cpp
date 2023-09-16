@@ -3,19 +3,23 @@
 namespace dark {
 
 /**
- * @return Whether a function call is related to global variable
+ * @brief Whether a function call is related to global variable
  * or side effective to the data.
+ * @return 0 If no side effect 
+ *      || 1 ~ 3 If builtin IO-function.
+        || 4 If all potential side effects. (No func visited yet).
+        || 5 If partial side effects. (All func_info are collected.)
  */
-bool IR::function::is_side_effective() const {
+size_t IR::function::is_side_effective() const {
     /* Only those linked to inout are side effective. */ 
     if (is_builtin) return inout_state;
 
     /* No function info has been collected: error! */
     auto __ptr = get_impl_ptr <OPT::function_info> ();
-    if (!__ptr || !__ptr->real_info) return true;
+    if (!__ptr || !__ptr->real_info) return 4;
 
     warning("Not implemented yet.");
-    return true;
+    return 5;
 }
 
 }
