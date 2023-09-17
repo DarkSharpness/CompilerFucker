@@ -32,8 +32,18 @@ struct local_optimizer final : IR::IRvisitorbase {
      * Store after load : Nothing will happen.
      */
     struct memory_info {
-        IR::memory_stmt *last = nullptr;   /* Last memory node.      */
-        bool corrupted        = false;     /* Whether no sure store. */
+        IR::memory_stmt *last = nullptr; /* Last memory node.           */
+        size_t corrupted      = 0b00;    /* bit 0: load | bit 1: store. */
+
+        void reset(IR::memory_stmt *__stmt) noexcept {
+            last = __stmt;
+            corrupted = 0b00;
+        }
+        void corrupt_reset() noexcept { corrupted = 0b00; }
+        void set_load()  noexcept { corrupted |= 0b01; }
+        void set_store() noexcept { corrupted |= 0b10; }
+        bool corrupt_load()  const noexcept { return corrupted & 0b01; }
+        bool corrupt_store() const noexcept { return corrupted & 0b10; }
     };
 
     struct custom_info {

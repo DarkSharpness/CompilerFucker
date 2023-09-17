@@ -182,11 +182,24 @@ void local_optimizer::visitCall(IR::call_stmt *__call) {
 }
 
 void local_optimizer::visitLoad(IR::load_stmt *__load) {
-    auto &__vec = mem_info[__load->src];
-    if (!__vec.last || __vec.corrupted)
-        return static_cast <void> (__vec = {__load,false});
+    if (__load->is_undefined_behavior()) return;
+    for(auto &&[__var,__vec] : mem_info) {
+        if (__var == __load->src) continue;
+        if (!dynamic_cast <IR::store_stmt *> (__vec.last)) continue;
+        if (__vec.corrupt_load()) continue;
 
+        /* This will only affect store after store */
+        if (may_share_address(__var,__load->src)) __vec.set_load();
+    }
+
+    auto &__vec = mem_info[__load->src];
+
+    /* If corrupt store, nothing shall be done. */
+    if (!__vec.last || __vec.corrupt_store()) return __vec.reset(__load);
+
+    __vec.corrupt_reset();
     remove_set.insert(__load);
+
     /* Load after store. */
     if (auto __store = dynamic_cast <IR::store_stmt *> (__vec.last)) {
         for(auto __use : use_map[__load->dst])
@@ -203,32 +216,29 @@ void local_optimizer::visitStore(IR::store_stmt *__store) {
     /* First of all, all unsafe memory operation will be affected. */
     for(auto &&[__var,__vec] : mem_info) {
         if (__var == __store->dst) continue;
-        /**
-         * If not identical, check the type!
-         * Only if the type is identical,
-         * and the memory may be overlapping,
-         * the memory operation will be affected.
-         * 
-        */
-        if (may_share_address(__var,__store->dst))
-            __vec.corrupted = true;
+        if (__vec.corrupt_store()) continue;
+
+        /* This will affect everything except store after after. */
+        if (may_share_address(__var,__store->dst)) __vec.set_store();
     }
 
     auto &__vec = mem_info[__store->dst];
-    if (!__vec.last) return static_cast <void> (__vec = {__store,false});
+    if (!__vec.last) return __vec.reset(__store);
 
     /* Store after load. */
     if (auto __load = dynamic_cast <IR::load_stmt *> (__vec.last)) {
-        /* Useless store: Eliminate it if not corrupted. */
-        if (__load->dst == __store->src && !__vec.corrupted)
-            return static_cast <void> (remove_set.insert(__store));
+        /* Special case load and store are identical. */
+        if (__load->dst == __store->src && !__vec.corrupt_store()) {
+            remove_set.insert(__store);
+            return __vec.corrupt_reset();
+        }
     } else { /* Store after store. */
         auto __prev = safe_cast <IR::store_stmt *> (__vec.last);
         /* Useless previous store: Eliminate it! */
-        remove_set.insert(__prev);
+        if (!__vec.corrupt_load()) remove_set.insert(__prev);
     }
 
-    __vec = {__store,false};
+    return __vec.reset(__store);
 }
 
 void local_optimizer::visitReturn(IR::return_stmt *) {}
