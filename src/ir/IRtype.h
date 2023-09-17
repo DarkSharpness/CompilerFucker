@@ -187,6 +187,10 @@ inline bool operator == (const wrapper &lhs,const wrapper &rhs) {
     }
 }
 
+/* A simple wrapper of operator == */
+inline bool operator != (const wrapper &lhs,const wrapper &rhs)
+{ return !(lhs == rhs); }
+
 
 /* A definition can be variable / literal / temporary. */
 struct definition {

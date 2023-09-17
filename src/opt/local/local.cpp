@@ -11,11 +11,101 @@ namespace dark::OPT {
  * Those generated from call are dangerous! It may share the
  * address with any other variables.
  * 
+ * @return 0 if not identical
+ *      || 1 if identical
+ *      || 2 if possibly identical
  */
-bool local_optimizer::may_share_address
+size_t local_optimizer::may_share_address
     (IR::non_literal *__lhs,IR::non_literal *__rhs) {
-    if (!(__lhs->type == __rhs->type)) return false;
-    else return true;
+    if (__lhs == __rhs) return 1;
+    if (__lhs->type != __rhs->type) return 0;
+    auto __result =
+        get_min_max(get_address_info(__lhs),get_address_info(__rhs));
+    switch(static_cast <unsigned> (__result.min)) {
+        case 0: return 0; /* global     */
+        case 1: return 2; /* phi case   */
+        case 2: return 0; /* allocated  */
+        case 3: return 2; /* loaded out */
+        case 4: /* From get elementptr. */
+            if (__result.max != __result.min) return 0;
+            else break;
+        case 5: return 2; /* result from function call */
+        case 6: /* From function arguments. */
+            if (__result.max == __result.min) return 2;
+        case 7: return 0; /* Malloc special case. */
+        default: throw error("Unexpected");
+    }
+
+    /* Both from get-elementptr. */
+    auto *__get_lhs = safe_cast <IR::get_stmt *>
+        (use_map.at(safe_cast <IR::temporary *> (__lhs)).def_node);
+    auto *__get_rhs = safe_cast <IR::get_stmt *>
+        (use_map.at(safe_cast <IR::temporary *> (__rhs)).def_node);
+
+    /* The same member access. */
+    if (__get_lhs->mem != __get_rhs->mem) return 0;
+
+    /* From same source type. */
+    if (__get_lhs->src->get_value_type()
+    !=  __get_rhs->src->get_value_type()) return 0;
+
+    if (__get_lhs->idx != __get_rhs->idx) {
+        if (dynamic_cast <IR::literal *> (__get_lhs->idx)
+        &&  dynamic_cast <IR::literal *> (__get_rhs->idx))
+            return 0;
+        /* From the possibly identical index. */
+        auto __lvar = dynamic_cast
+            <IR::non_literal *> (__get_lhs->src);
+        auto __rvar = dynamic_cast
+            <IR::non_literal *> (__get_rhs->src);
+        if (!__lvar || !__rvar) return 0;
+        return may_share_address(__lvar,__rvar) ? 2 : 0;
+    } else {
+        /* From identical index.  */
+        auto __lvar = dynamic_cast
+            <IR::non_literal *> (__get_lhs->src);
+        auto __rvar = dynamic_cast
+            <IR::non_literal *> (__get_rhs->src);
+        if (!__lvar || !__rvar) return 0;
+        return may_share_address(__lvar,__rvar);            
+    }
+}
+
+local_optimizer::address_type
+    local_optimizer::get_address_info(IR::non_literal *__var) {
+    auto [__iter,__result] = addr_map.try_emplace(__var);
+    if (!__result) return __iter->second;
+    /* Build up the address info. */
+    
+    if (dynamic_cast <IR::function_argument *> (__var))
+        return __iter->second = address_type::ARGV;
+    if (dynamic_cast <IR::global_variable *> (__var))
+        return __iter->second = address_type::GLOBAL;
+    if (dynamic_cast <IR::local_variable *> (__var))
+        return __iter->second = address_type::LOCAL;
+
+    auto *__def = safe_cast <IR::temporary *> (__var);
+    auto *__stmt = use_map.at(__def).def_node;
+
+    if (auto __call = dynamic_cast <IR::call_stmt *> (__stmt)) {
+        if (__call->func->is_builtin) {
+            auto &&__name = __call->func->name;
+            if (__name == "__new_array4__"
+            ||  __name == "__new_array1__"
+            ||  __name == "malloc")
+                return __iter->second = address_type::NEW;
+        }
+
+        /*  */
+        return __iter->second = address_type::CALL;
+    } else if (auto __load = dynamic_cast <IR::load_stmt *> (__stmt)) {
+        return __iter->second = address_type::LOAD;
+    } else if (auto __phi = dynamic_cast <IR::phi_stmt *> (__stmt)) {
+        return __iter->second = address_type::PHI;
+    } else {
+        auto __get = safe_cast <IR::get_stmt *> (__stmt);
+        return __iter->second = address_type::GET;
+    }
 }
 
 
@@ -101,7 +191,6 @@ void local_optimizer::visitLoad(IR::load_stmt *__load) {
     if (auto __store = dynamic_cast <IR::store_stmt *> (__vec.last)) {
         for(auto __use : use_map[__load->dst])
             __use->update(__load->dst,__store->src);
-        __vec.last = __load;
     } else { /* Load after load. */
         auto __prev = safe_cast <IR::load_stmt *> (__vec.last);
         for(auto __use : use_map[__load->dst])

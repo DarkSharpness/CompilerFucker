@@ -61,15 +61,42 @@ struct local_optimizer final : IR::IRvisitorbase {
         IR::node *def_node = nullptr;
     };
 
+    enum class address_type : unsigned {
+        GLOBAL  = 0, /* global variable */
+        PHI     = 1, /* result from a phi stmt. */
+        LOCAL   = 2, /* local variable. */
+        LOAD    = 3, /* load from memory. */ 
+        GET     = 4, /* get from another pointer. */    
+        CALL    = 5, /* result from a function-call. */
+        ARGV    = 6, /* function argument. */
+        NEW     = 7, /* from malloc */
+    };
+
+    auto get_min_max(address_type __lhs,address_type __rhs) {
+        struct my_pair {
+            address_type min;
+            address_type max;
+        };
+        if (static_cast <unsigned> (__lhs) < static_cast <unsigned> (__rhs))
+            return my_pair {__lhs,__rhs};
+        else
+            return my_pair {__rhs,__lhs};
+    }
+
+    address_type get_address_info(IR::non_literal *__var);
+
     /* The def-use map of all temporaries. */
     std::unordered_map <IR::temporary *,usage_data> use_map;
     /* Use information. */
-    std::unordered_map <IR::temporary * , usage_info>  use_info;
+    std::unordered_map <IR::temporary *,usage_info> use_info;
     /* Memory information. */
     std::unordered_map <IR::non_literal *,memory_info> mem_info; 
 
     std::unordered_map <custom_info,IR::definition *,custom_hash>
         common_map; /* Map used for common sub-expression elimination. */
+
+     /* Mapping of address information. */
+    std::unordered_map <IR::non_literal *,address_type> addr_map; 
 
     std::vector <IR::definition *> __cache;
     constant_calculator calc;
@@ -123,7 +150,7 @@ struct local_optimizer final : IR::IRvisitorbase {
     }
 
     usage_info *get_use_info(IR::definition *);
-    bool may_share_address(IR::non_literal *,IR::non_literal *);
+    size_t may_share_address(IR::non_literal *,IR::non_literal *);
     bool update_bin(IR::binary_stmt *);
 
     void visitFunction(IR::function *) override {}
