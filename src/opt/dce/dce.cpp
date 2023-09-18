@@ -60,7 +60,7 @@ deadcode_eliminator::deadcode_eliminator(IR::function *__func,node *) {
         } else if(auto __call = dynamic_cast <IR::call_stmt *> (__node)) {
             auto __func = __call->func;
             /* In this pass, only builtin function without inout are safe. */
-            return __func->is_builtin && !__func->inout_state;
+            return !__func->is_side_effective();
         } else if(dynamic_cast <IR::return_stmt *> (__node)) {
             return false;
         } else if(dynamic_cast <IR::jump_stmt *> (__node)) {

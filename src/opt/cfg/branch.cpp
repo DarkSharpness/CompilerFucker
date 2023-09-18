@@ -124,8 +124,8 @@ branch_compressor::branch_compressor(IR::function *__func,node *__entry) {
     /* Remove useless temporary for branches. */
     auto &&__remove = [&](IR::node *__stmt) -> void {
         if (auto __call = dynamic_cast <IR::call_stmt *> (__stmt)) {
-            if (!__call->func->is_builtin || !__call->func->inout_state)
-                return; /* Side effective call stmt can't be removed. */
+            /* Side effective call stmt can't be removed. */
+            if (__call->func->is_side_effective()) return;
         } if (!__stmt) return; /* Empty case. */
 
         /* Otherwise, for an unused node, it should be recycled! */
@@ -136,10 +136,8 @@ branch_compressor::branch_compressor(IR::function *__func,node *__entry) {
 
         /* Erase from last can be faster. */
         __vec.erase(std::find(__vec.rbegin(),__vec.rend(),__stmt).base() - 1);
-        if (__vec.size() == 1) {
-            __vec = {__vec.back()}; /* Only leave the control flow. */
+        if (__vec.size() == 1)/* Only leave the control flow. */
             work_list.push_back(__ref.block->data);
-        }
     };
 
     /* Compress useless branches. */
