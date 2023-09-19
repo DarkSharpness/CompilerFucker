@@ -161,11 +161,9 @@ void SSAbuilder::try_optimize(std::vector <IR::function>  &global_functions) {
             local_optimizer     {&__func,__entry};
             deadcode_eliminator {&__func,__entry};   
             local_optimizer     {&__func,__entry};
-            if (__optimize_state.enable_SCCP) {
-                constant_propagatior{&__func,__entry};
-                branch_cutter       {&__func,__entry};
-            }
-            deadcode_eliminator {&__func,__entry};   
+            constant_propagatior{&__func,__entry};
+            branch_cutter       {&__func,__entry};
+            deadcode_eliminator {&__func,__entry};
         }
 
         /* Aggressive deadcode elemination. */

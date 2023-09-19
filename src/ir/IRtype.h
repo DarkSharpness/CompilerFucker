@@ -308,8 +308,8 @@ struct string_constant : literal {
 
 
 struct pointer_constant : literal {
-    const variable *var;
-    explicit pointer_constant(variable *__ptr) : var(__ptr) {}
+    const global_variable *var;
+    explicit pointer_constant(global_variable *__ptr) : var(__ptr) {}
     std::string  type_data() const override { return "global ptr"; }
     wrapper get_value_type() const override { return var ? ++var->type : wrapper {&__null_class__,0}; }
     std::string  data()      const override { return var ? var->name : "null"; }
@@ -372,7 +372,7 @@ inline boolean_constant *create_boolean(bool __n) {
     return __pool + __n;
 }
 
-inline pointer_constant *create_pointer(variable *__ptr) {
+inline pointer_constant *create_pointer(global_variable *__ptr) {
     static std::set <pointer_constant> __pool;
     return const_cast <pointer_constant *> (&*__pool.emplace(__ptr).first);
 }

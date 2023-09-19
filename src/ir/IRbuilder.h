@@ -196,9 +196,9 @@ struct IRbuilder : AST::ASTvisitorbase {
     }
 
     /* Create a string constant and return the variable to it. */
-    variable *create_string(const std::string &__name) {
+    global_variable *create_string(const std::string &__name) {
         static size_t __cnt = 0;
-        static std::map <std::string,variable *> __map;
+        static std::map <std::string,global_variable *> __map;
         auto [__iter,__result] = __map.insert({__name,nullptr});
         if(!__result) return __iter->second;
 

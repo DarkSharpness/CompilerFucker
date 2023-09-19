@@ -12,14 +12,8 @@
 #include "IRbuilder.h"
 #include "IRbase.h"
 
-#include "ASMnode.h"
-#include "ASMbuilder.h"
-#include "ASMvalidator.h"
-#include "ASMallocator.h"
-#include "ASMcounter.h"
-#include "ASMvisitor.h"
-
 #include "mem2reg.h"
+#include "ASMbuilder.h"
 
 int main(int argc, const char* argv<::>) <%
     try {
@@ -48,10 +42,6 @@ int main(int argc, const char* argv<::>) <%
             dark::OPT::SSAbuilder {Hastin.global_variables,Hastin.global_functions};
         Hastin.debug_print(std::cout);
 
-        // dark::ASM::ASMbuilder AbelCat   (Hastin.global_variables,Hastin.global_functions);
-        // dark::ASM::ASMvalidator Latte   (AbelCat.global_info);
-        // dark::ASM::ASMcounter SmartHeHe (AbelCat.global_info);
-        // dark::ASM::ASMvisitor Chayso    (AbelCat.global_info);
     } catch(dark::error &err) {
         return 1;
     } catch(std::exception &err) {
