@@ -53,7 +53,7 @@ inline bool is_pow_of_2(int __val) noexcept
  * C1 - (X + C2)    --> (C1 - C2) - X
  * C1 - (C2 - X)    --> (C1 - C2) + X
  * 
- * Maybe I will write this:
+ * Maybe I will write this: (Actually not).
  * (0 - X) / X      --> 0 + -1 = -1
  * (0 - X) % X      --> 0 + 0 = 0
  * X / (0 - X)      --> 0 + -1 = -1
@@ -267,6 +267,7 @@ bool local_optimizer::update_bin(IR::binary_stmt *__stmt) {
             case IR::binary_stmt::SDIV:
                 if (__op == IR::binary_stmt::MUL) {
                     if(__lval % __rvar->value == 0) {
+                        __stmt->op   = IR::binary_stmt::MUL;
                         __stmt->lvar = __def;
                         auto __tmp = __lval / __rvar->value;
                         /* Strength reduction. */
@@ -307,7 +308,7 @@ bool local_optimizer::update_bin(IR::binary_stmt *__stmt) {
         if (__stmt->op == IR::binary_stmt::ADD) {
             if (__temp->op == IR::binary_stmt::SUB && (__state & 0b10)) {
                 __stmt->op = IR::binary_stmt::SUB;
-                __stmt->lvar = __temp->rvar;
+                __stmt->lvar = __temp->lvar;
                 __stmt->rvar = IR::create_integer(0);
                 return true;
             } return false;
@@ -352,11 +353,13 @@ bool local_optimizer::update_bin(IR::binary_stmt *__stmt) {
         /* LHS case. */
         if (__stmt->op == IR::binary_stmt::SUB) {
             if (__temp->op == IR::binary_stmt::ADD) {
+                /* (X + Y) - Y --> X  */
                 __stmt->op   = IR::binary_stmt::ADD;
                 __stmt->lvar = __state & 0b1 ? __temp->rvar : __temp->lvar;
                 __stmt->rvar = IR::create_integer(0);
                 return true;
             } else if (__temp->op == IR::binary_stmt::SUB && (__state & 0b1)) {
+                /* (X - Y) - X --> (-X)  */
                 __stmt->op   = IR::binary_stmt::SUB;
                 __stmt->lvar = IR::create_integer(0);
                 __stmt->rvar = __temp->rvar;
@@ -364,11 +367,13 @@ bool local_optimizer::update_bin(IR::binary_stmt *__stmt) {
             }
         } if (__temp->op == IR::binary_stmt::MUL) {
             if (__stmt->op == IR::binary_stmt::SDIV) {
+                /* (X * Y) / Y --> X */
                 __stmt->op   = IR::binary_stmt::ADD;
                 __stmt->lvar = __state & 0b1 ? __temp->rvar : __temp->lvar;
                 __stmt->rvar = IR::create_integer(0);
                 return true;
             } else if (__stmt->op == IR::binary_stmt::SREM) {
+                /* (X * Y) % Y --> 0 */
                 __stmt->op   = IR::binary_stmt::ADD;
                 __stmt->lvar = __stmt->rvar = IR::create_integer(0);
                 return true;
@@ -388,11 +393,13 @@ bool local_optimizer::update_bin(IR::binary_stmt *__stmt) {
         /* LHS case. */
         if (__stmt->op == IR::binary_stmt::SUB) {
             if (__temp->op == IR::binary_stmt::ADD) {
+                /* X - (X + Y) --> (-Y) */
                 __stmt->op   = IR::binary_stmt::SUB;
                 __stmt->lvar = IR::create_integer(0);
                 __stmt->rvar = __state & 0b1 ? __temp->rvar : __temp->lvar;
                 return true;
             } else if (__temp->op == IR::binary_stmt::SUB && (__state & 0b1)) {
+                /* X - (X - Y) --> Y */
                 __stmt->op   = IR::binary_stmt::ADD;
                 __stmt->lvar = __temp->rvar;
                 __stmt->rvar = IR::create_integer(0);
@@ -523,19 +530,20 @@ bool local_optimizer::update_bin(IR::binary_stmt *__stmt) {
             case IR::binary_stmt::XOR:
                 std::swap(__stmt->lvar,__stmt->rvar);
         }
-    }
 
-    /* Generate negative information. */
-    if (__lit = dynamic_cast <IR::integer_constant *> (__stmt->rvar)) {
+        /* (0 - X) --> (-X) */
         if (__lit->value == 0 && __stmt->op == __stmt->SUB)
             return __generate_neg(__info);
-        else if (__lit->value == -1 &&
+    }
+
+    /* X * (-1) = X / (-1) = (-X) */
+    if (__lit = dynamic_cast <IR::integer_constant *> (__stmt->rvar);
+        __lit && __lit->value == -1 && 
         (__stmt->op == __stmt->MUL || __stmt->op == __stmt->SDIV)) {
-            __stmt->op  = __stmt->SUB;
-            __stmt->rvar = __stmt->lvar;
-            __stmt->lvar = IR::create_integer(0);
-            return __generate_neg(__info);
-        }
+        __stmt->op  = __stmt->SUB;
+        __stmt->rvar = __stmt->lvar;
+        __stmt->lvar = IR::create_integer(0);
+        return __generate_neg(__info);
     }
 
     __info.neg_flag = false;
