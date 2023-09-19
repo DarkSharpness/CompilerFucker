@@ -277,7 +277,7 @@ struct return_stmt final : statement {
 
 
 struct allocate_stmt final : statement {
-    variable *dest; /* Destination must be local! */
+    local_variable *dest; /* Destination must be local! */
 
     /* <result> = alloca <type> */
     std::string data() const override;

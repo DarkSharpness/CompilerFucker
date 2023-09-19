@@ -790,8 +790,8 @@ store_stmt *IRbuilder::visitFunctionParam(AST::identifier *__p) {
     __store->src  = __var; /* Variable in the param */
 
     auto *__alloc = new allocate_stmt;
-    __alloc->dest = __var = new local_variable;
-    __store->dst  = __var;
+    __store->dst  = __var = __alloc->dest = new local_variable;
+
     top->emplace_new(__alloc);
 
     __var->name = __p->unique_name + ".addr";
