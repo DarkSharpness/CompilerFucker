@@ -4,20 +4,11 @@
 
 namespace dark::ASM {
 
-struct value_type {
+
+struct Register {
     virtual std::string data() const = 0;
-    virtual ~value_type() = default;
+    virtual ~Register() = default;
 };
-
-struct immediate : value_type {
-    const int value;
-    explicit immediate(int __value) : value(__value) {}
-    std::string data() const override { return std::to_string(value); }
-    ~immediate() override = default;
-};
-
-
-struct Register : value_type {};
 
 
 struct physical_register : Register {
@@ -114,20 +105,6 @@ struct virtual_register : Register {
 };
 
 
-/* Create a immediate value.  */
-inline immediate *get_immediate(int __value) {
-    struct my_hash {
-        size_t operator()(const immediate &__imm)
-        const noexcept { return __imm.value; }
-    };
-    struct my_equal {
-        bool operator() (const immediate &__imm1,const immediate &__imm2)
-        const noexcept { return __imm1.value == __imm2.value; }
-    };
-    static std::unordered_set <immediate,my_hash,my_equal> __set;
-    return const_cast <immediate *> (&*__set.emplace(__value).first);
-}
-
 
 /* Create a physical register. */
 inline physical_register *get_physical(size_t __n) {
@@ -171,12 +148,16 @@ inline physical_register *get_physical(size_t __n) {
 
 struct function;
 
+
 struct global_address {
+    Register *reg; /* Register with high part of address. */
     IR::global_variable *var; /* Global variable. */
     std::string data() const {
-        return string_join("%lo(",var->name,')'); 
+        if (reg == nullptr) return var->name;
+        return string_join("%lo(",var->name,"), ",reg->data());
     }
 };
+
 
 struct stack_address {
     function *func;
@@ -184,6 +165,7 @@ struct stack_address {
     ssize_t  index;
     std::string data() const;
 };
+
 
 struct pointer_address {
     Register * reg;
@@ -193,42 +175,53 @@ struct pointer_address {
             std::to_string(offset),'(',reg->data(),')'
         );
     }
+
+    pointer_address operator += (ssize_t __offset) {
+        offset += __offset; return *this;
+    }
 };
 
-struct address_type {
+
+/**
+ * @brief It has 2 special cases.
+ * Global address: It is the immediate value of the global variable.
+ * It can be used in load/store with respect to the register.
+ * 
+ * 
+ */
+struct value_type {
     union {
-        stack_address   stack;
         global_address  global;
         pointer_address pointer;
     };
-    enum : unsigned char {
-        STACK, /* In stack. At given stack place. */
+    enum : bool {
         GLOBAL, /* Global variable.                */
         POINTER, /* In pointer with given bias.     */
     } type;
 
-    explicit address_type(stack_address __stack)
-    noexcept : stack(__stack), type(STACK) {}
+    explicit value_type(nullptr_t) {}
 
-    explicit address_type(global_address __global)
+    value_type(global_address __global)
     noexcept : global(__global), type(GLOBAL) {}
 
-    explicit address_type(pointer_address __pointer)
+    value_type(pointer_address __pointer)
     noexcept : pointer(__pointer), type(POINTER) {}
 
     std::string data() const {
         switch(type) {
-            case STACK:   return stack.data();
             case GLOBAL:  return global.data();
             case POINTER: return pointer.data();
         } throw error("?");
     }
 
     void get_use(std::vector <Register *> &__use) const {
-        if (type == POINTER)
-            __use.push_back(pointer.reg);
+        static_assert( /* This is necessary ! */
+            offsetof(global_address,reg) == offsetof(pointer_address,reg)
+        );
+        __use.push_back(pointer.reg);
     }
 };
+
 
 }
 
