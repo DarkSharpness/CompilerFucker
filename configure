@@ -11,5 +11,5 @@ bash build.bash
 cmake -B bin
 cmake --build bin -j 22
 
-clang -emit-llvm -fno-builtin-printf -fno-builtin-memcpy -fno-builtin-malloc -fno-builtin-strlen -O2 --target=riscv32 lib/builtin.c -S -o bin/builtin.ll
+clang -emit-llvm -fno-builtin-printf -fno-builtin-memcpy -fno-builtin-malloc -fno-builtin-strlen -O3 --target=riscv32 lib/builtin.c -S -o bin/builtin.ll
 llc --march=riscv32 -mattr=+m,+a bin/builtin.ll -opaque-pointers -o bin/builtin.s
