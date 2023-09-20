@@ -173,13 +173,6 @@ void SSAbuilder::try_optimize(std::vector <IR::function>  &global_functions) {
             /* Now, all exit have no prev. */
             build_virtual_exit(&__func,&__exit);
             dominate_maker {&__exit,true};
-            for(auto __block : __func.stmt) {
-                auto *__node = __block->get_impl_ptr <node> ();
-                std::cerr << __node->block->label << " : ";
-                for(auto __temp : __node->fro)
-                    std::cerr << __temp->block->label << " ";
-                std::cerr << '\n';
-            }
             reverse_CFG(&__func);
             aggressive_eliminator(&__func,__entry);
             rebuild_CFG(&__func);
@@ -196,8 +189,6 @@ void SSAbuilder::try_optimize(std::vector <IR::function>  &global_functions) {
         /* After first pass of optimization, collect information! */
         info_collector {info_list.emplace_back(&__func),std::false_type{}};
 
-        std::cerr << __func.name << " finished!\n";
-        std::cerr << "--------------------------------\n";
     }
 
     /* Spread the data recursively! */

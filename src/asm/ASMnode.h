@@ -356,7 +356,9 @@ struct block {
         string_join(".L.",std::to_string(label_count++),'.',__name)
     } {}
 
-    void emplace_back(node *__p) { expression.push_back(__p); }
+    void emplace_back(node *__p) {
+        expression.push_back(__p);
+    }
 
     std::string data() const {
         std::vector <std::string> buf;
@@ -386,6 +388,37 @@ struct block {
 };
 
 
+/**
+ * @brief Stack frame.
+ * 
+ * ..........
+ * Argument 9
+ * Argument 8 (arg of this function)
+ * 
+ * -------------
+ * ------------- (old sp)
+ * 
+ * Callee save register 1
+ * 
+ * -------------
+ * 
+ * Spilled register 1
+ * 
+ * -------------
+ * 
+ * local variable (from malloc -> alloc)
+ * 
+ * -------------
+ * 
+ * Argument 8 (arg of function called)
+ * 
+ * ------------- (new sp)
+ * -------------
+ * Temporary space
+ * ..........
+ * 
+ * 
+ */
 struct function {
     std::string name;
     IR::function *func_ptr;
@@ -399,9 +432,12 @@ struct function {
     /* A map from variable to its address in stack. */
     std::unordered_map <IR::variable *,ssize_t>  var_map;
     std::unordered_map <size_t,virtual_register> vir_map;
+    std::unordered_set <physical_register *> callee_save;
 
     /* Vector of all blocks. */
     std::vector <block *> blocks;
+
+    bool save_ra = false; /* Whether there are non-tail function calls. */
 
     /* Emplace a new block to the back. */
     void emplace_back(block *__p) { blocks.push_back(__p); }
@@ -426,7 +462,9 @@ struct function {
     void init_arg_offset() noexcept
     { arg_offset = max_arg_size > 8 ? (max_arg_size - 8) << 2 : 0; }
 
+    size_t   get_stack_space() const;
     void print(std::ostream &) const;
+    std::string  return_data() const;
 };
 
 
@@ -436,10 +474,11 @@ struct call_function final : register_node {
         TAIL = 1,
     } op;
 
-    function *func; /* Function name. */
+    function *tail; /* Function name. */
+    function *func; /* Tail function. */
     Register *dest;
 
-    explicit call_function(function *__func) noexcept : op(CALL),func(__func) {}
+    explicit call_function(function *__func) noexcept : op(CALL),tail(__func) {}
 
     void get_use(std::vector <Register *> & __vec) const override {}
 
@@ -452,9 +491,12 @@ struct call_function final : register_node {
 
 
 struct ret_expression final : register_node {
+    function *func;
     Register *rval;
 
-    explicit ret_expression(Register * __rval) noexcept : rval(__rval) {}
+    explicit ret_expression
+        (function *__func,Register * __rval)
+    noexcept : func(__func), rval(__rval) {}
 
     void get_use(std::vector <Register *> & __vec)
     const override { __vec.push_back(rval); }

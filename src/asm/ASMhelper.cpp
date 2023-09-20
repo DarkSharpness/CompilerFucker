@@ -93,13 +93,12 @@ block *ASMbuilder::get_edge(IR::block_stmt *prev,IR::block_stmt *next) {
     block *__temp = nullptr;
     if (__ref.key[0] == nullptr) {
         __ref.key[0] = next;
-        __ref.val[0] = __temp = get_virtual_block <1> (prev);
+        __ref.val[0] = __temp = get_virtual_block <4> (prev);
     } else if (__ref.key[1] == nullptr) {
         __ref.key[1] = next;
-        __ref.val[1] = __temp = get_virtual_block <2> (prev);
+        __ref.val[1] = __temp = get_virtual_block <8> (prev);
     } else runtime_assert("WTF ???");
 
-    top_asm->emplace_back(__temp);
     /* Only expression: jump to the target block after usage. */
     __temp->expression = { new jump_expression {
         link( link(get_block(prev), __temp ), get_block(next))}
@@ -109,14 +108,15 @@ block *ASMbuilder::get_edge(IR::block_stmt *prev,IR::block_stmt *next) {
 
 
 void ASMbuilder::resolve_phi(phi_info &__ref) {
-    auto *__jump = top_block->expression[0];
+    runtime_assert("die",top_block->expression.size() == 1);
+    auto *__jump = safe_cast <jump_expression *> (top_block->expression[0]);
     struct node_data {
         virtual_register *in {nullptr};
         value_type       val {nullptr};
         size_t           out    {0};
     };
 
-    std::unordered_map <virtual_register *,node_data> __map;
+    std::unordered_map <virtual_register *, node_data> __map;
     __map.reserve(__ref.use.size() << 1 | 1);
 
     top_block->expression.clear();
@@ -157,8 +157,9 @@ void ASMbuilder::resolve_phi(phi_info &__ref) {
         }
     }
 
-    if (!__map.empty()) throw error("As expected!");
     top_block->emplace_back(__jump);
+
+    if (!__map.empty()) throw error("As expected!");
 }
 
 

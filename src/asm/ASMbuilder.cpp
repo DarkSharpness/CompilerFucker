@@ -6,8 +6,19 @@ namespace dark::ASM {
 /* Pre-scanning part. */
 void ASMbuilder::pre_scanning(IR::function *__func) {
     size_t __count = 0;
+    IR::call_stmt *__flag = nullptr; /* Whether tail-callable */
     for(auto __p : __func->stmt) {
         for(auto __stmt : __p->stmt) {
+            if (auto *__ret = dynamic_cast <IR::return_stmt *> (__stmt);
+                __ret != nullptr && __flag != nullptr) {
+                /* Try to tail-call. */
+                if (!__ret->rval || __ret->rval == __flag->dest) {
+                    tail_call_set.insert(__flag);
+                    tail_call_set.insert(__ret);
+                } continue;
+            }
+
+            __flag = nullptr;
             for(auto __use : __stmt->get_use()) ++use_map[__use].count;
             if (auto __def = __stmt->get_def()) use_map[__def].def = __stmt;
             if (auto __get = dynamic_cast <IR::get_stmt *> (__stmt)) {
@@ -23,6 +34,7 @@ void ASMbuilder::pre_scanning(IR::function *__func) {
                 offset_map[__alloc->dest] = top_asm->allocate(__alloc->dest);
             } else if(auto __call = dynamic_cast <IR::call_stmt *> (__stmt)) {
                 top_asm->update_size(__call->func->args.size());
+                __flag = __call;
             } else if (auto __br = dynamic_cast <IR::branch_stmt *> (__stmt)) {
                 --use_map[__br->cond].count;
             }
@@ -37,14 +49,18 @@ void ASMbuilder::pre_scanning(IR::function *__func) {
 void ASMbuilder::create_entry(IR::function *__func) {
     top_block = get_block(__func->stmt[0]);
     for (size_t i = 0 ; i < __func->args.size() ; ++i) {
-        auto *__dest = get_virtual(__func->args[i]);
+        auto *__arg = __func->args[i]; 
+        auto *__dst = get_virtual(__arg);
+        if (__arg->state == __arg->DEAD)
+            continue; /* Dead arguments. */
+
         if (i < 8) {
             top_block->emplace_back(new move_register {
-                get_physical(10 + i), __dest
+                get_physical(10 + i), __dst
             });
         } else { /* Excessive arguments in stack. */
             top_block->emplace_back(new load_memory {
-                load_memory::WORD, __dest,
+                load_memory::WORD, __dst,
                 {stack_address {top_asm,ssize_t(7 - i)}}
             });
         }
@@ -57,7 +73,6 @@ void ASMbuilder::visitBlock(IR::block_stmt *__block) {
     top_block = get_block(__block);
     top_asm->emplace_back(top_block);
     for(auto __p : __block->stmt) visit(__p);
-    top_block->analyze();
 }
 
 
@@ -68,14 +83,26 @@ void ASMbuilder::visitFunction(IR::function *__func) {
     pre_scanning(__func);
     for(auto __p : __func->stmt) visitBlock(__p);
     for(auto &__ref : phi_map) {
-        top_block = __ref.first;
+        auto &__name = __ref.first->name;
+        top_asm->emplace_back(top_block = __ref.first);
         resolve_phi(__ref.second);
     }
+    use_map.clear();
+    phi_map.clear();
+    temp_map.clear();
+    offset_map.clear();
+    branch_map.clear();
+    getelement_map.clear();
 }
 
 
 void ASMbuilder::visitInit(IR::initialization *init) {
-    warning("Not implemented!");
+    auto *__var = init->dest;
+    auto *__lit = init->lite;
+    if (auto __str = dynamic_cast <IR::string_constant *> (__lit))
+        global_info.rodata_list.push_back(*init);
+    else
+        global_info.data_list.push_back(*init);
 }
 
 
@@ -333,6 +360,10 @@ void ASMbuilder::visitCall(IR::call_stmt *__stmt) {
         get_virtual(__stmt->dest) : nullptr;
 
     for (size_t i = 0 ; i < __stmt->args.size() ; ++i) {
+        auto *__arg = __stmt->func->args[i];
+        /* Do nothing to dead arguments. */
+        if (__arg->state == __arg->DEAD) continue;
+
         if (i < 8) {
             top_block->emplace_back(try_assign(
                 get_physical(i + 10), get_value(__stmt->args[i])
@@ -346,6 +377,11 @@ void ASMbuilder::visitCall(IR::call_stmt *__stmt) {
     }
 
     top_block->emplace_back(__call);
+    /* Tail call doesn't require saveing ra. */
+    if (tail_call_set.count(__stmt)) {
+        __call->op   = call_function::TAIL;
+        __call->func = top_asm;
+    } else top_asm->save_ra = true; 
 }
 
 
@@ -368,8 +404,9 @@ void ASMbuilder::visitStore(IR::store_stmt *__stmt) {
 
 
 void ASMbuilder::visitReturn(IR::return_stmt *__stmt) {
+    if (tail_call_set.count(__stmt)) return;
     top_block->emplace_back(new ret_expression {
-        __stmt->rval ? force_register(__stmt->rval) : nullptr
+        top_asm, __stmt->rval ? force_register(__stmt->rval) : nullptr
     });
 }
 
@@ -421,7 +458,7 @@ void ASMbuilder::visitPhi(IR::phi_stmt *__stmt) {
 
 
 void ASMbuilder::visitUnreachable(IR::unreachable_stmt *__stmt) {
-    return top_block->emplace_back(new ret_expression {nullptr});
+    return top_block->emplace_back(new ret_expression {top_asm,nullptr});
 }
 
 

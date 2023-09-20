@@ -3,6 +3,8 @@
 
 namespace dark::ASM {
 
+
+/* Work out the reverse post-order. */
 ASMorder::ASMorder(function *__func) {
     std::unordered_set <block *> __visited;
     auto &&__vec  = __func->blocks;

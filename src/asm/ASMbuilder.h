@@ -34,13 +34,14 @@ struct ASMbuilder final : IR::IRvisitorbase {
     block          *top_block; /* Top ASM block statement. */
 
     std::unordered_map <IR::definition *, usage_info> use_map;
-    std::unordered_map <IR::function   *, function> func_map;
+    std::unordered_map <IR::function *, function> func_map;
     std::unordered_map <IR::block_stmt *,   block > block_map;
-    std::unordered_map <IR::non_literal  *, virtual_register *> temp_map;
+    std::unordered_map <IR::non_literal *, virtual_register *> temp_map;
     std::unordered_map <IR::temporary *, getelement_info> getelement_map;
     std::unordered_map <IR::local_variable *, ssize_t>    offset_map;
     std::unordered_map <IR::block_stmt *,branch_node>     branch_map;
     std::unordered_map <block *,phi_info> phi_map;
+    std::unordered_set <IR::node *> tail_call_set;
 
     global_information global_info;
 
@@ -63,6 +64,8 @@ struct ASMbuilder final : IR::IRvisitorbase {
         if(__ans->name.empty()) {
             __ans->name = __func->name;
             __ans->func_ptr = __func;
+            /* Save ra by default. It will be used last. */
+            __ans->callee_save.insert(get_physical(1));
         } return __ans;
     }
 
