@@ -1,11 +1,15 @@
 #include "ASMbuilder.h"
+#include "ASMorder.h"
 
 namespace dark::ASM {
 
 /* Pre-scanning part. */
 void ASMbuilder::pre_scanning(IR::function *__func) {
+    size_t __count = 0;
     for(auto __p : __func->stmt) {
         for(auto __stmt : __p->stmt) {
+            for(auto __use : __stmt->get_use()) ++use_map[__use].count;
+            if (auto __def = __stmt->get_def()) use_map[__def].def = __stmt;
             if (auto __get = dynamic_cast <IR::get_stmt *> (__stmt)) {
                 /* The offset is a certain value. */
                 if (auto __idx = dynamic_cast <IR::integer_constant *> (__get->idx)) {
@@ -19,26 +23,29 @@ void ASMbuilder::pre_scanning(IR::function *__func) {
                 offset_map[__alloc->dest] = top_asm->allocate(__alloc->dest);
             } else if(auto __call = dynamic_cast <IR::call_stmt *> (__stmt)) {
                 top_asm->update_size(__call->func->args.size());
+            } else if (auto __br = dynamic_cast <IR::branch_stmt *> (__stmt)) {
+                --use_map[__br->cond].count;
             }
         }
     }
+
+    top_asm->vir_map.reserve(__count);
     top_asm->init_arg_offset();
 }
 
 
 void ASMbuilder::create_entry(IR::function *__func) {
-    top_block = get_virtual_block <4> (__func->stmt.front());
-    top_asm->emplace_back(top_block);
+    top_block = get_block(__func->stmt[0]);
     for (size_t i = 0 ; i < __func->args.size() ; ++i) {
         auto *__dest = get_virtual(__func->args[i]);
         if (i < 8) {
             top_block->emplace_back(new move_register {
-                __dest, get_physical(10 + i)
+                get_physical(10 + i), __dest
             });
         } else { /* Excessive arguments in stack. */
             top_block->emplace_back(new load_memory {
-                load_memory::WORD,get_virtual(),
-                address_type {stack_address {top_asm,ssize_t(7 - i)}}
+                load_memory::WORD, __dest,
+                {stack_address {top_asm,ssize_t(7 - i)}}
             });
         }
     }
@@ -50,6 +57,7 @@ void ASMbuilder::visitBlock(IR::block_stmt *__block) {
     top_block = get_block(__block);
     top_asm->emplace_back(top_block);
     for(auto __p : __block->stmt) visit(__p);
+    top_block->analyze();
 }
 
 
@@ -59,16 +67,177 @@ void ASMbuilder::visitFunction(IR::function *__func) {
     create_entry(__func);
     pre_scanning(__func);
     for(auto __p : __func->stmt) visitBlock(__p);
+    for(auto &__ref : phi_map) {
+        top_block = __ref.first;
+        resolve_phi(__ref.second);
+    }
 }
 
 
 void ASMbuilder::visitInit(IR::initialization *init) {
-    runtime_assert("Not implemented!");
+    warning("Not implemented!");
 }
 
 
 void ASMbuilder::visitCompare(IR::compare_stmt *__stmt) {
+    /* Not used outside comparing. */
+    if (use_map[__stmt->dest].count <= 0) return;
 
+    /* Ensurance : no constant on lhs. */
+    auto *__lhs = dynamic_cast <IR::literal *> (__stmt->lvar);
+    auto *__rhs = dynamic_cast <IR::literal *> (__stmt->rvar);
+
+    /* Constant folding! */
+    if (__lhs && __rhs) {
+        bool __ans = 0;
+        auto __lval = __lhs->get_constant_value();
+        auto __rval = __rhs->get_constant_value();
+        switch (__stmt->op) {
+            case __stmt->EQ: __ans = __lval == __rval; break;
+            case __stmt->NE: __ans = __lval != __rval; break;
+            case __stmt->LT: __ans = __lval <  __rval; break;
+            case __stmt->LE: __ans = __lval <= __rval; break;
+            case __stmt->GT: __ans = __lval >  __rval; break;
+            case __stmt->GE: __ans = __lval >= __rval; break;
+        }
+        /* Load immediate -> addi zero  */
+        return top_block->emplace_back(new arith_immediat {
+            arith_base::ADD, get_physical(0), __ans, get_virtual(__stmt->dest)
+        });
+    }
+
+    /* Formalize those cases. */
+    switch(__stmt->op) {
+        case __stmt->EQ:
+        case __stmt->NE:
+            /* Swap constant to right if possible. */
+            if (__lhs) {
+                std::swap(__lhs,__rhs);
+                std::swap(__stmt->lvar,__stmt->rvar);
+            } break;
+
+        case __stmt->LE:
+            std::swap(__lhs,__rhs);
+            std::swap(__stmt->lvar,__stmt->rvar);
+            __stmt->op == __stmt->GE;
+            break;
+
+        case __stmt->GT:
+            std::swap(__lhs,__rhs);
+            std::swap(__stmt->lvar,__stmt->rvar);
+            __stmt->op == __stmt->LT;
+    }
+
+    /* Boolean true of false. */
+    if (__stmt->lvar->get_value_type().size() == 1) {
+        if (__rhs) {
+            if (__rhs->get_constant_value() == __stmt->op) {
+                /* x == 0 || x != 1 */
+                top_block->emplace_back(new bool_convert {
+                    bool_convert::EQZ,
+                    force_register(__stmt->lvar),
+                    get_virtual(__stmt->dest)
+                });
+            } else {
+                /* x == 1 || x != 0 */
+                top_block->emplace_back(new bool_convert {
+                    bool_convert::NEZ,
+                    force_register(__stmt->lvar),
+                    get_virtual(__stmt->dest)
+                });
+            } 
+        } else {
+            auto *__vir = get_virtual(__stmt->dest);
+            auto *__tmp = __stmt->op == __stmt->EQ ? create_virtual() : __vir;
+            top_block->emplace_back(new arith_register {
+                arith_base::XOR,
+                force_register(__stmt->lvar),
+                force_register(__stmt->rvar),
+                __tmp
+            });
+            /* x == y --> x != y */
+            if (__stmt->op == __stmt->EQ) {
+                top_block->emplace_back(new bool_convert {
+                    bool_convert::EQZ, __tmp, __vir
+                });
+            }
+        } return;
+    }
+
+
+    /* X < C */
+    if (__stmt->op == __stmt->LT && __rhs) {
+        return top_block->emplace_back(new slt_immediat {
+            force_register(__stmt->lvar), __rhs->get_constant_value(),
+            get_virtual(__stmt->dest)
+        });
+    }
+
+    /* C >= X --> X < C + 1 */
+    if (__stmt->op == __stmt->GE && __lhs) {
+        return top_block->emplace_back(new slt_immediat {
+            force_register(__stmt->rvar), __lhs->get_constant_value() + 1,
+            get_virtual(__stmt->dest)
+        });
+    }
+
+    /* X >= C --> !(X < C) */
+    if (__stmt->op == __stmt->GE && __rhs) {
+        auto *__tmp = create_virtual();
+        top_block->emplace_back(new slt_immediat {
+            force_register(__stmt->rvar),
+            __lhs->get_constant_value(), __tmp
+        });
+        return top_block->emplace_back(new bool_convert {
+            bool_convert::EQZ, __tmp, get_virtual(__stmt->dest)
+        });
+    }
+
+    /* X xor C case.  */
+    if (__rhs) { /* This may go wrong when compare 2 strings. */
+        auto *__vir = get_virtual(__stmt->dest);
+        auto *__tmp = __stmt->op == __stmt->EQ ? create_virtual() : __vir;
+        top_block->emplace_back(new arith_immediat {
+            arith_base::XOR,
+            force_register(__stmt->lvar),
+            __rhs->get_constant_value(), __tmp
+        });
+        /* x == y --> x != y */
+        if (__stmt->op == __stmt->EQ) {
+            top_block->emplace_back(new bool_convert {
+                bool_convert::EQZ, __tmp, __vir
+            });
+        } return;
+    }
+
+    auto *__lval = force_register(__stmt->lvar);
+    auto *__rval = force_register(__stmt->rvar);
+    auto *__dest = get_virtual(__stmt->dest);
+
+    bool __not = false;
+    if (__stmt->op == __stmt->EQ) {
+        __not = true; __stmt->op = __stmt->NE;
+    }
+    if (__stmt->op == __stmt->GE) {
+        __not = true; __stmt->op = __stmt->LT;
+    }
+    auto *__temp = __not ? create_virtual() : __dest;
+
+    if (__stmt->op == __stmt->LE) {
+        top_block->emplace_back(new slt_register {
+            __lval,__rval,__temp
+        });
+    } else {
+        top_block->emplace_back(new arith_register {
+            arith_base::XOR,__lval,__rval,__temp
+        });
+    }
+
+    if (__not) {
+        top_block->emplace_back(new bool_convert {
+            bool_convert::EQZ,__temp,__dest
+        });
+    }
 }
 
 
@@ -94,17 +263,18 @@ void ASMbuilder::visitBinary(IR::binary_stmt *__stmt) {
             case __stmt->OR:   __ans = __lhs->value | __rhs->value; break;
             case __stmt->XOR:  __ans = __lhs->value ^ __rhs->value; break;
         }
-        return top_block->emplace_back(new load_immediate {
-            get_virtual(__stmt->dest),__ans
+        /* Load immediate -> addi zero  */
+        return top_block->emplace_back(new arith_immediat {
+            arith_base::ADD, get_physical(0), __ans, get_virtual(__stmt->dest)
         });
     }
 
-    virtual_register *__lval = get_virtual(__stmt->lvar);
-    virtual_register *__dest = get_virtual(__stmt->dest);
+    auto *__lval = force_register(__stmt->lvar);
+    auto *__dest = get_virtual(__stmt->dest);
 
-    if (__rhs) {
+    if (__rhs) { /* Use immediate command instead. */
         if (__rhs->value == 0 && __stmt->op == __stmt->ADD)
-            return top_block->emplace_back(new move_register {__dest,__lval});
+            return top_block->emplace_back(new move_register {__lval,__dest});
 
         switch (__stmt->op) {
             case __stmt->ADD:
@@ -120,7 +290,7 @@ void ASMbuilder::visitBinary(IR::binary_stmt *__stmt) {
         }
     }
 
-    virtual_register *__rval = get_virtual(__stmt->rvar);
+    auto *__rval = force_register(__stmt->rvar);
 
     top_block->emplace_back(new arith_register {
         static_cast <decltype(arith_base::op)> (__stmt->op),
@@ -137,20 +307,45 @@ void ASMbuilder::visitJump(IR::jump_stmt *__stmt) {
 
 
 void ASMbuilder::visitBranch(IR::branch_stmt *__stmt) {
-    top_block->emplace_back(new branch_expression {
-        get_virtual(__stmt->cond),
-        get_edge(top_stmt,__stmt->br[0]),
-        get_edge(top_stmt,__stmt->br[1])
-    });
+    auto &__ref = use_map[__stmt->cond];
+    auto *__br  = dynamic_cast <IR::compare_stmt *> (__ref.def); 
+    if (__ref.count > 0 || !__br) { 
+        return top_block->emplace_back(new branch_expression {
+            force_register(__stmt->cond),
+            get_edge(top_stmt,__stmt->br[0]),
+            get_edge(top_stmt,__stmt->br[1])
+        });
+    } else {
+        return top_block->emplace_back(new branch_expression {
+            static_cast <decltype (branch_expression::op)> (__br->op),
+            force_register(__br->lvar),
+            force_register(__br->rvar),
+            get_edge(top_stmt,__stmt->br[0]),
+            get_edge(top_stmt,__stmt->br[1])
+        });
+    }
 }
 
 
 void ASMbuilder::visitCall(IR::call_stmt *__stmt) {
     auto *__call = new call_function {get_function(__stmt->func)};
+    __call->dest = __stmt->dest && use_map[__stmt->dest].count > 0 ?
+        get_virtual(__stmt->dest) : nullptr;
 
-    for(auto __p : __stmt->args)
-        __call->args.push_back(get_value(__p));
+    for (size_t i = 0 ; i < __stmt->args.size() ; ++i) {
+        if (i < 8) {
+            top_block->emplace_back(try_assign(
+                get_physical(i + 10), get_value(__stmt->args[i])
+            ));
+        } else { /* Excessive arguments in stack. */
+            top_block->emplace_back(new store_memory {
+                memory_base::WORD, force_register(__stmt->args[i]),
+                pointer_address{ get_physical(2), ssize_t(i - 8) << 2 }
+            });
+        }
+    }
 
+    top_block->emplace_back(__call);
 }
 
 
@@ -167,13 +362,15 @@ void ASMbuilder::visitStore(IR::store_stmt *__stmt) {
     auto __type = __stmt->src->get_value_type().size() == 4 ?
         memory_base::WORD : memory_base::BYTE;
     top_block->emplace_back(new store_memory {
-        __type, get_virtual(__stmt->src), get_value(__stmt->dst)
+        __type, force_register(__stmt->src), get_value(__stmt->dst)
     });
 }
 
 
 void ASMbuilder::visitReturn(IR::return_stmt *__stmt) {
-    top_block->emplace_back(new ret_expression {get_value(__stmt->rval)});
+    top_block->emplace_back(new ret_expression {
+        __stmt->rval ? force_register(__stmt->rval) : nullptr
+    });
 }
 
 
@@ -185,18 +382,17 @@ void ASMbuilder::visitGet(IR::get_stmt *__stmt) {
     size_t __unit = (--__stmt->dst->type).size();
 
     /* The offset is a certain value. */
-    if (auto __idx = dynamic_cast <IR::integer_constant *> (__stmt->idx))
-        return;
+    if (auto __idx = dynamic_cast <IR::integer_constant *> (__stmt->idx)) return;
 
     if ((__unit != 4 && __unit != 1) ||  __stmt->mem != __stmt->NPOS)
         runtime_assert("Not supported!");
 
-    auto *__idx = get_virtual(__stmt->idx);
-    auto *__src = get_virtual(__stmt->src);
-    auto *__dst = get_virtual(__stmt->dst);
+    auto *__idx = force_register(__stmt->idx);
+    auto *__src = force_register(__stmt->src);
+    auto *__dst = force_register(__stmt->dst);
 
     if (__unit == 4) {
-        auto *__vir = get_virtual();
+        auto *__vir = create_virtual();
         top_block->emplace_back(new arith_immediat {
             arith_base::SLL,__idx,2,__vir
         });
@@ -209,13 +405,23 @@ void ASMbuilder::visitGet(IR::get_stmt *__stmt) {
 }
 
 
-void ASMbuilder::visitPhi(IR::phi_stmt *__stmt) {}
+void ASMbuilder::visitPhi(IR::phi_stmt *__stmt) {
+    auto *__dest = get_virtual(__stmt->dest);
+    auto *__temp = top_block;
+
+    for(auto [__value,__label] : __stmt->cond) {
+        top_block = get_edge(__label,top_stmt);
+        auto &__ref = phi_map[top_block];
+        __ref.def.push_back(__dest);
+        __ref.use.push_back(get_value(__value));
+    }
+
+    top_block = __temp;
+}
 
 
 void ASMbuilder::visitUnreachable(IR::unreachable_stmt *__stmt) {
-    return top_block->emplace_back(new ret_expression {
-        pointer_address { get_physical({0}),0 }
-    });
+    return top_block->emplace_back(new ret_expression {nullptr});
 }
 
 

@@ -160,7 +160,7 @@ struct slt_register final : register_node {
 
 
 /* Register related. */
-struct slt_immediat final : register_node {
+struct slt_immediat final : immediat_node {
     Register *lval;
     ssize_t   rval;
     Register *dest;
@@ -246,27 +246,6 @@ struct bool_not final : register_node {
 };
 
 
-/* Load one immediate. */
-struct load_immediate final : immediat_node {
-    Register *dest;
-    ssize_t   rval;
-
-    explicit load_immediate(Register *__dest, ssize_t __rval)
-    noexcept : dest(__dest), rval(__rval) {}
-
-    void get_use(std::vector <Register *> &) const override {}
-
-    Register *get_def() const override { return dest; }
-
-    std::string data() const override {
-        return string_join(__indent,
-            "addi ", dest->data(), ", zero, ", std::to_string(rval)
-        );
-    }
-    ~load_immediate() override = default;
-};
-
-
 /**
  * @brief Load a global variable address.
  * If used in load, it will be 
@@ -292,7 +271,7 @@ struct load_symbol final : register_node {
     std::string data() const override {
         if (op == HIGH) {
             return string_join(__indent,
-                "auipc ", dest->data(), ", %hi(", var->name, ")"
+                "lui ", dest->data(), ", %hi(", var->name, ")"
             );
         } else if (op == FULL) {
             return string_join(__indent,
@@ -364,8 +343,13 @@ struct block {
     inline static size_t label_count = 0;
 
     std::string name;
-    dummy_expression phi;
     std::vector <node *> expression;
+
+    std::unordered_set <virtual_register *> use;
+    std::unordered_set <virtual_register *> def;
+
+    std::vector <block *> prev;
+    std::vector <block *> next;
 
     explicit block (std::string __name)
     noexcept : name {
@@ -384,6 +368,21 @@ struct block {
         }
         return string_join_array(buf.begin(),buf.end());
     }
+
+    void analyze() {
+        std::vector <Register *> __vec;
+        for(auto &__p : expression) {
+            __vec.clear();
+            __p->get_use(__vec);
+            for (auto &__q : __vec) {
+                if (auto __vir = dynamic_cast <virtual_register *>(__q);
+                    __vir && !def.count(__vir)) use.insert(__vir);
+            }
+            auto __def = __p->get_def();
+            if (auto __vir = dynamic_cast <virtual_register *>(__def))
+                def.insert(__vir);
+        }
+    }
 };
 
 
@@ -394,12 +393,12 @@ struct function {
     ssize_t max_arg_size = -1; /* Maximum function arguments. */
     size_t  arg_offset   = 0;  /* Offset = max(max_arg_size - 8,0) << 2 */
 
-    size_t vir_count = 0; /* Count of virtual registers. */
     size_t var_count = 0; /* Count of alloca space.      */
     size_t stk_count = 0; /* Count of stack spill.       */
 
     /* A map from variable to its address in stack. */
-    std::unordered_map <IR::variable *,ssize_t> var_map;
+    std::unordered_map <IR::variable *,ssize_t>  var_map;
+    std::unordered_map <size_t,virtual_register> vir_map;
 
     /* Vector of all blocks. */
     std::vector <block *> blocks;
@@ -413,8 +412,10 @@ struct function {
         return var_count + arg_offset;
     }
 
+    /* Tries to create a virtual register in the inner pool. */
     virtual_register *create_virtual() {
-        return new virtual_register(vir_count++);
+        const size_t __n = vir_map.size();
+        return &vir_map.try_emplace(__n,__n).first->second;
     }
 
     /* Pass in one called function. */
@@ -425,6 +426,7 @@ struct function {
     void init_arg_offset() noexcept
     { arg_offset = max_arg_size > 8 ? (max_arg_size - 8) << 2 : 0; }
 
+    void print(std::ostream &) const;
 };
 
 
@@ -435,14 +437,13 @@ struct call_function final : register_node {
     } op;
 
     function *func; /* Function name. */
-    std::vector <value_type> args; /* Arguments. */
+    Register *dest;
 
     explicit call_function(function *__func) noexcept : op(CALL),func(__func) {}
 
-    void get_use(std::vector <Register *> & __vec)
-    const override { for (auto &__p : args) __p.get_use(__vec); }
+    void get_use(std::vector <Register *> & __vec) const override {}
 
-    Register *get_def() const override { return nullptr; }
+    Register *get_def() const override { return dest; }
 
     std::string data() const override;
 
@@ -451,12 +452,12 @@ struct call_function final : register_node {
 
 
 struct ret_expression final : register_node {
-    value_type addr;
+    Register *rval;
 
-    explicit ret_expression(value_type __addr) noexcept : addr(__addr) {}
+    explicit ret_expression(Register * __rval) noexcept : rval(__rval) {}
 
     void get_use(std::vector <Register *> & __vec)
-    const override { return addr.get_use(__vec); }
+    const override { __vec.push_back(rval); }
     Register *get_def() const override { return nullptr; }
 
     /* Have much to be done! */
@@ -483,20 +484,47 @@ struct jump_expression final : node {
 
 /* An IR-like branch. It should be reduced to others. */
 struct branch_expression final : node {
-    Register *cond;
+    using c_string = char[8];
+    enum : unsigned char {
+        EQ = 0,
+        NE = 1,
+        GT = 2,
+        GE = 3,
+        LT = 4,
+        LE = 5,
+    } op;
+    inline static constexpr c_string str[6] = {
+        [EQ] = {'b','e','q'},
+        [NE] = {'b','n','e'},
+        [GT] = {'b','g','t'},
+        [GE] = {'b','g','e'},
+        [LT] = {'b','l','t'},
+        [LE] = {'b','l','e'},
+    };
+
+    Register *lvar;
+    Register *rvar;
     block *bran[2];
 
+    /* Default compare with 0. */
     explicit branch_expression(Register *__cond, block *__b0, block *__b1)
-    noexcept : cond{__cond} { bran[0] = __b0; bran[1] = __b1; }
+    noexcept : op(NE), lvar{__cond}, rvar{get_physical(0)}
+    { bran[0] = __b0; bran[1] = __b1; }
 
-    void get_use(std::vector <Register *> & __vec)
-    const override { if (cond) __vec.push_back(cond); }
+    /* Compare 2 branches. */
+    explicit branch_expression
+        (decltype(op) __op, Register *__lvar, Register *__rvar, block *__b0, block *__b1)
+    noexcept : op(__op), lvar(__lvar), rvar(__rvar) { bran[0] = __b0; bran[1] = __b1; }
+
+    void get_use(std::vector <Register *> & __vec) const override
+    { __vec.push_back(lvar); __vec.push_back(rvar); }
+
     Register *get_def() const override { return nullptr; }
 
     std::string data() const override {
         return string_join(__indent,
-            "bnez ", cond->data(), ", ", bran[0]->name,
-            "\n", __indent, "j ", bran[1]->name
+            str[op], ' ', lvar->data(), ", ", rvar->data(), ", ", bran[0]->name,
+            '\n', __indent, "j ", bran[1]->name
         );
     }
 

@@ -204,12 +204,38 @@ void SSAbuilder::try_optimize(std::vector <IR::function>  &global_functions) {
     for (auto &__info : info_list) function_graph::tarjan(__info);
     function_graph::work_topo(info_list);
     function_graph::resolve_dependency(info_list);
-    for (auto &__info : info_list) print_info(__info);
+    // for (auto &__info : info_list) print_info(__info);
 
     /* Second pass: using collected information to optimize. */
     for(auto &__func : global_functions) {
 
     }
+
+    auto __replace_undefined = [](IR::function *__func) {
+        IR::undefined *__undef[3] = {
+            IR::create_undefined({},1),
+            IR::create_undefined({},2),
+            IR::create_undefined({},3)
+        };
+        IR::definition *__new[3] = {
+            IR::create_pointer(0),
+            IR::create_integer(0),
+            IR::create_boolean(0),
+        };
+
+        for(auto __block : __func->stmt) {
+            for(auto __stmt : __block->stmt) {
+                for(size_t i = 0 ; i < 3 ; ++i)
+                    __stmt->update(__undef[i],__new[i]);
+            }
+        }
+    };
+
+    /* Final pass: replace all undefined. */
+    for(auto &__func : global_functions)
+        __replace_undefined(&__func);
+
+
 }
 
 void SSAbuilder::reset_CFG(IR::function *__func) {

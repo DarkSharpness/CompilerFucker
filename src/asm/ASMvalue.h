@@ -168,7 +168,7 @@ struct stack_address {
 
 
 struct pointer_address {
-    Register * reg;
+    Register * reg; /* The real register holder. */
     ssize_t offset;
     std::string data() const {
         return string_join(
@@ -191,15 +191,20 @@ struct pointer_address {
  */
 struct value_type {
     union {
+        stack_address   stack;
         global_address  global;
         pointer_address pointer;
     };
-    enum : bool {
+    enum : unsigned char {
+        STACK = 0,
         GLOBAL, /* Global variable.                */
         POINTER, /* In pointer with given bias.     */
-    } type;
+    } type = STACK;
 
     explicit value_type(nullptr_t) {}
+
+    value_type(stack_address __stack)
+    noexcept : stack(__stack), type(STACK) {}
 
     value_type(global_address __global)
     noexcept : global(__global), type(GLOBAL) {}
@@ -209,16 +214,17 @@ struct value_type {
 
     std::string data() const {
         switch(type) {
+            case STACK:   return stack.data();
             case GLOBAL:  return global.data();
             case POINTER: return pointer.data();
-        } throw error("?");
+        } throw error("?!!");
     }
 
     void get_use(std::vector <Register *> &__use) const {
-        static_assert( /* This is necessary ! */
+        static_assert( /* This is necessary !!!!!!!!! */
             offsetof(global_address,reg) == offsetof(pointer_address,reg)
         );
-        __use.push_back(pointer.reg);
+        if (type != STACK) __use.push_back(pointer.reg);
     }
 };
 
