@@ -175,7 +175,85 @@ void constant_calculator::visitBranch(IR::branch_stmt *) {
     return set_result(nullptr);
 }
 
-void constant_calculator::visitCall(IR::call_stmt *) {
+IR::string_constant *
+    constant_calculator::try_get_string(IR::definition *__def) {
+    static IR::string_constant __undef { "" };
+    if (!__def) return nullptr;
+    if (dynamic_cast <IR::undefined *> (__def)) return &__undef;
+    auto __var = dynamic_cast <IR::string_constant *> (__def);
+    if (__var) return __var;
+    if (auto __glo = dynamic_cast <IR::global_variable *> (__def)) {
+        __var = dynamic_cast <IR::string_constant *> (__glo->const_val);
+        return __var;
+    } else  return nullptr;
+}
+
+void constant_calculator::visitCall(IR::call_stmt *__call) {
+    auto &&__input = get_array();
+    auto __func = __call->func;
+    auto &&__builtin_pure = [&](std::string_view __name) -> IR::definition * {
+        if (__name == "strcmp") {
+            runtime_assert("strcmp() need 2 arguments!",__input.size() == 2);
+            auto __input_0 = __input[0];
+            auto __input_1 = __input[1];
+            auto __lval = try_get_string(__input_0);
+            auto __rval = try_get_string(__input_1);
+            if (__lval && __rval) {
+                return IR::create_integer(
+                    std::strcmp(__lval->context.data(),
+                                __rval->context.data()));
+            } else return nullptr;
+        }
+
+        if (__name == "__String_ord__") {
+            runtime_assert("__String_ord__() need 2 arguments!",__input.size() == 2);
+            auto __input_0 = __input[0];
+            auto __input_1 = __input[1];
+            auto __lval = try_get_string(__input_0);
+            auto __rval = dynamic_cast <IR::integer_constant *> (__input_1);
+            if (__lval && __rval) {
+                auto __index = __rval->value;
+                if (__index < 0 || __index >= __lval->context.size())
+                    return IR::create_undefined({},2);
+                else return IR::create_integer(__lval->context[__index]);
+            } else return nullptr;
+        }
+
+        if (__name == "strlen") {
+            runtime_assert("strlen() need 1 argument!",__input.size() == 1);
+            auto __input_0 = __input[0];
+            auto __lval = try_get_string(__input_0);
+            if (__lval) return IR::create_integer(__lval->context.size());
+            else return nullptr;
+        }
+
+        if (__name == "__string_add__") {
+            runtime_assert("__string_add__() need 2 arguments!",__input.size() == 2);
+            auto __input_0 = __input[0];
+            auto __input_1 = __input[1];
+            auto __lval = try_get_string(__input_0);
+            auto __rval = try_get_string(__input_1);
+            if (__lval && __rval) {
+                auto *__lit    = new IR::string_constant {
+                    __lval->context + __rval->context
+                };
+                auto *__global = &generated.emplace_back();
+                __global->name = "@str.generated." + std::to_string(generated.size());
+                __global->type = {&IR::__string_class__ ,1};
+                __global->const_val = __lit;
+                return __global;
+            } else return nullptr;
+        }
+
+        return nullptr;
+    };
+
+    if (__func->is_builtin)
+        return set_result(__builtin_pure(__func->name));
+    else if (__func->is_pure_function()) {
+        /* Only pure function with no dependency. */
+
+    }
     return set_result(nullptr);
 }
 

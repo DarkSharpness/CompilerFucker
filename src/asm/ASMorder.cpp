@@ -4,10 +4,10 @@
 namespace dark::ASM {
 
 
-/* Work out the reverse post-order. */
+/* Work out the visit-order. */
 ASMorder::ASMorder(function *__func) {
     std::unordered_set <block *> __visited;
-    auto &&__vec  = __func->blocks;
+    auto && __vec = __func->blocks;
     auto *__entry = __vec[0];
     __vec.clear();
     auto &&__dfs  = [&](auto &&__self, block *__block) -> void {
@@ -21,8 +21,6 @@ ASMorder::ASMorder(function *__func) {
     /* Label them all! */
     std::reverse(__vec.begin(), __vec.end());
     size_t __cnt = 0;
-
-
 }
 
 

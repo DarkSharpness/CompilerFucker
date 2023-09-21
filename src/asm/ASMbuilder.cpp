@@ -92,7 +92,9 @@ void ASMbuilder::visitFunction(IR::function *__func) {
     temp_map.clear();
     offset_map.clear();
     branch_map.clear();
+    tail_call_set.clear();
     getelement_map.clear();
+    ASMorder {top_asm};
 }
 
 

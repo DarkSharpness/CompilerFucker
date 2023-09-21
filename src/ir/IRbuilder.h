@@ -162,6 +162,7 @@ struct IRbuilder : AST::ASTvisitorbase {
     }
 
     function *get_string_add() { return &builtin_function[12]; }
+    function *get_string_cmp() { return &builtin_function[22]; }
     function *get_string_cmp(decltype(compare_stmt::op) __op)
     { return &builtin_function[13 + __op]; }
 
@@ -182,18 +183,7 @@ struct IRbuilder : AST::ASTvisitorbase {
     { return "%" + std::to_string(__n); }
 
     /* Test whether the function is global. */
-    static bool is_global_function(std::string_view __name) {
-        /* Special case for built-in functions. */
-        if(__name.substr(0,2) == "__")
-            return __name[2] >= 'a' && __name[2] <= 'z';
-
-        /* This is a special case for strlen */
-        if(__name == "strlen") return false;
-
-        auto __n = __name.find('.');
-        /* No '.' or '.' at the beginning. */
-        return __n == std::string_view::npos || __n == 0;
-    }
+    static bool is_global_function(std::string_view);
 
     /* Create a string constant and return the variable to it. */
     global_variable *create_string(const std::string &__name) {
@@ -208,11 +198,23 @@ struct IRbuilder : AST::ASTvisitorbase {
         auto *__var = new global_variable;
         __var->name = "@str." + std::to_string(__cnt++);
         __var->type = {class_map["string"],1};
+        __var->const_val  = __str;
 
         __iter->second    = __var;
         string_map[__var] = __name;
         global_variables.push_back({__var,__str});
         return __var;
+    }
+
+    /* Help to generate better code. */
+    string_constant *find_match_string(global_variable *__var) {
+        auto __beg = global_variables.crbegin();
+        auto __end = global_variables.crend();
+        for(; __beg != __end ; ++__beg) {
+            auto [__tmp,__lit] = *__beg;
+            if (__tmp == __var)
+                return safe_cast <string_constant *> (__lit);
+        } throw error("No matched string is found");
     }
 
     /* Create a jump statement. */

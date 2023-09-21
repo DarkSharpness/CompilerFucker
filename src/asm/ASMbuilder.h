@@ -17,16 +17,25 @@ struct ASMbuilder final : IR::IRvisitorbase {
         IR::block_stmt *key[2] = {};
         block          *val[2] = {};
     };
-
     struct phi_info {
         std::vector <virtual_register *> def;
         std::vector <value_type>         use;
     };
-
     struct usage_info {
         IR::node *def = nullptr;
         ssize_t count = 0;
     };
+
+    ASMbuilder(std::vector <IR::initialization> &global_variables,
+               std::vector <IR::function>       &global_functions) {
+        for(auto &&__var : global_variables) visitInit(&__var);
+
+        for(auto &&__func : global_functions) visitFunction(&__func);
+
+        for(auto &&__func : global_functions)
+            global_info.function_list.push_back(&func_map.at(&__func));
+    }
+
 
     IR::function   *top_func;  /* Top IR  function. */
     function       *top_asm;   /* Top ASM function. */
@@ -34,12 +43,12 @@ struct ASMbuilder final : IR::IRvisitorbase {
     block          *top_block; /* Top ASM block statement. */
 
     std::unordered_map <IR::definition *, usage_info> use_map;
-    std::unordered_map <IR::function *, function> func_map;
-    std::unordered_map <IR::block_stmt *,   block > block_map;
-    std::unordered_map <IR::non_literal *, virtual_register *> temp_map;
+    std::unordered_map <IR::function *,function>     func_map;
+    std::unordered_map <IR::block_stmt *,block >    block_map;
+    std::unordered_map <IR::non_literal *, virtual_register *>  temp_map;
     std::unordered_map <IR::temporary *, getelement_info> getelement_map;
-    std::unordered_map <IR::local_variable *, ssize_t>    offset_map;
-    std::unordered_map <IR::block_stmt *,branch_node>     branch_map;
+    std::unordered_map <IR::local_variable *, ssize_t>        offset_map;
+    std::unordered_map <IR::block_stmt *,branch_node>        branch_map;
     std::unordered_map <block *,phi_info> phi_map;
     std::unordered_set <IR::node *> tail_call_set;
 
@@ -92,17 +101,6 @@ struct ASMbuilder final : IR::IRvisitorbase {
 
     void create_entry(IR::function *);
     void pre_scanning(IR::function *);
-
-    ASMbuilder(std::vector <IR::initialization> &global_variables,
-               std::vector <IR::function>       &global_functions) {
-        for(auto &&__var : global_variables) visitInit(&__var);
-
-        for(auto &&__func : global_functions) visitFunction(&__func);
-
-        for(auto &&__func : global_functions)
-            global_info.function_list.push_back(&func_map.at(&__func));
-        
-    }
 
     void visitBlock(IR::block_stmt *) override;
     void visitFunction(IR::function *) override;

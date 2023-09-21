@@ -169,7 +169,7 @@ struct class_type : typeinfo {
 
 inline void_type __void_class__{};
 inline null_type __null_class__{};
-
+inline string_type __string_class__{};
 inline integer_type <1>  __boolean_class__ {};
 inline integer_type <32> __integer_class__ {};
 
@@ -234,18 +234,18 @@ struct literal : definition {
 
 /* Variables are pointers to value. */
 struct variable : non_literal {
-    virtual size_t variable_type() const noexcept = 0;
     ~variable() override = default;
 };
 
 /* Variables are pointers to value. */
 struct local_variable : variable {
-    size_t variable_type() const noexcept override { return 0; }
     ~local_variable() override = default;
 };
 
 struct global_variable : variable {
-    size_t variable_type() const noexcept override { return 1; }
+    /* If constantly initialized, this is the variable's value. */
+    IR::literal *const_val = nullptr;
+    bool is_const() const noexcept { return const_val; }
     ~global_variable() override = default;
 };
 
@@ -254,11 +254,9 @@ struct function_argument : variable {
     static constexpr uint8_t USED = 0b001; /* Value used in some expression(s). */
     static constexpr uint8_t LEAK = 0b011; /* Value stored/return out.          */
     static constexpr uint8_t FUNC = 0b100; /* Value used in function call.      */
-
     /* The state of a given argument(Dead/Alive/Leaked.) */
     uint8_t state = USED;
 
-    size_t variable_type() const noexcept override { return 2; }
     ~function_argument() override = default;
 };
 

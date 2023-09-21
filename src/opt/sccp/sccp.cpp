@@ -39,6 +39,7 @@ bool constant_propagatior::may_go_constant(IR::node *__node) {
     if (dynamic_cast <IR::binary_stmt  *> (__node)) return true;
     if (dynamic_cast <IR::compare_stmt *> (__node)) return true;
     if (dynamic_cast <IR::phi_stmt *>     (__node)) return true;
+    if (dynamic_cast <IR::call_stmt *>    (__node)) return true;
     return false;
 }
 
@@ -134,7 +135,8 @@ IR::definition *constant_propagatior::get_value(IR::definition *__def) {
 
     if (!__tmp) /* Only temporaries can be remapped. */
         return dynamic_cast <IR::undefined *> (__def)
-            || dynamic_cast <IR::literal *>   (__def) ? __def : nullptr;
+            || dynamic_cast <IR::literal *>   (__def)
+            || dynamic_cast <IR::variable *>  (__def) ? __def : nullptr;
 
     /* Find the value in the temporary map. */
     auto __new = use_map[__tmp].new_def;

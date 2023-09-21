@@ -801,7 +801,41 @@ store_stmt *IRbuilder::visitFunctionParam(AST::identifier *__p) {
 }
 
 
+bool IRbuilder::is_global_function(std::string_view __name) {
+    /* Special case for built-in functions. */
+    if(__name.substr(0,2) == "__")
+        return __name[2] >= 'a' && __name[2] <= 'z';
+
+    /**
+     * This is a special case for strlen.
+     * In Mx, strlen is called as member:
+     * ---------------------------------
+     * string str;
+     * str.size(); // a.k.a strlen(str)
+     * ---------------------------------
+    */
+    if(__name == "strlen") return false;
+
+    auto __n = __name.find('.');
+    /* No '.' or '.' at the beginning. */
+    return __n == std::string_view::npos || __n == 0;
+}
+
+
+/* Make all those basic builtin functions and argument.s */
 void IRbuilder::make_basic(scope *__string,scope *__array) {
+    /**
+     * "%d"     used in scanf, sscanf and sprintf
+     * "%d\n"   used in printf only
+     * "%s"     used in scanf and printf only
+     * "%s\n"   should not be used (replaced by puts)
+    */
+
+    create_string("%d");
+    create_string("%d\n");
+    create_string("%s");
+    create_string("%s\n");
+
     /**
      * __array__::size(this)                = 0
      * string::length(this)                 = 1
@@ -818,16 +852,17 @@ void IRbuilder::make_basic(scope *__string,scope *__array) {
      * ::__string__add__(string a,string b) = 12
      * ::__string__cmp__(string a,string b) = 13 ~ 18
      * ::new(int a,int b)                   = 19 ~ 21
+     * strcmp(string lhs,string rhs)        = 22
     */
 
-    wrapper __str = {class_map["string"] = new string_type {} ,1};
+    wrapper __str = {class_map["string"] = & __string_class__ ,1};
     wrapper __i32 = {class_map["int"]    = &__integer_class__ ,0};
     wrapper __voi = {class_map["void"]   = &   __void_class__ ,0};
     wrapper __boo = {class_map["bool"]   = &__boolean_class__ ,0};
     wrapper __nul = {class_map["null"]   = &   __null_class__ ,0};
 
-    builtin_function.resize(22);
-    for(size_t i = 0 ; i < 22 ; ++i)
+    builtin_function.resize(23);
+    for(size_t i = 0 ; i < 23 ; ++i)
         builtin_function[i].is_builtin = true;
 
     builtin_function[0].type = __i32;
@@ -852,6 +887,7 @@ void IRbuilder::make_basic(scope *__string,scope *__array) {
     builtin_function[19].type = __nul;
     builtin_function[20].type = __nul;
     builtin_function[21].type = __nul;
+    builtin_function[22].type = __i32;
 
     builtin_function[0].name = "__Array_size__";
     builtin_function[1].name = "strlen";
@@ -875,7 +911,9 @@ void IRbuilder::make_basic(scope *__string,scope *__array) {
     builtin_function[19].name = "__new_array1__";
     builtin_function[20].name = "__new_array4__";
     builtin_function[21].name = "malloc";
+    builtin_function[22].name = "strcmp";
 
+    /* Special inout state for those functions. */
     builtin_function[5].inout_state = function::OUT;
     builtin_function[6].inout_state = function::OUT;
     builtin_function[7].inout_state = function::OUT;
@@ -887,8 +925,6 @@ void IRbuilder::make_basic(scope *__string,scope *__array) {
     __ptr__->type  = __nul;
     auto *__int__  = new function_argument;
     __int__->type  = __i32;
-    auto *__bool__ = new function_argument;
-    __bool__->type = __boo;
 
     builtin_function[0].args = {__ptr__};
     builtin_function[1].args = {__ptr__};
@@ -912,6 +948,7 @@ void IRbuilder::make_basic(scope *__string,scope *__array) {
     builtin_function[19].args = {__int__};
     builtin_function[20].args = {__int__};
     builtin_function[21].args = {__int__};
+    builtin_function[22].args = {__ptr__,__ptr__};
 
     auto *__builtin = builtin_function.data();
     function_map[__array->find("size")]             = __builtin + 0;
@@ -927,7 +964,6 @@ void IRbuilder::make_basic(scope *__string,scope *__array) {
     function_map[global_scope->find("getInt")]      = __builtin + 10;
     function_map[global_scope->find("toString")]    = __builtin + 11;
 
-    runtime_assert("How can this happen......Fuck!",function_map.find(nullptr) == function_map.end());
 }
 
 
@@ -936,7 +972,44 @@ void IRbuilder::visitStringBinary(AST::binary_expr *ctx) {
     if(ctx->op == "+") {
         __call->func = get_string_add();
     } else {
-        decltype (compare_stmt::op) __op =
+        __call->func = get_string_cmp();
+    }
+
+    visit(ctx->lval);
+    __call->args.push_back(result);
+    visit(ctx->rval);
+    __call->args.push_back(result);
+    auto __lhs = dynamic_cast <global_variable *> (__call->args[0]);
+    auto __rhs = dynamic_cast <global_variable *> (__call->args[1]);
+    /* 2 global string literal : just fold the result! */
+    if (__lhs && __rhs && __lhs->is_const() && __rhs->is_const()) {
+        delete __call;
+        auto &&__lstr = find_match_string(__lhs)->context;
+        auto &&__rstr = find_match_string(__rhs)->context;
+        if (ctx->op == "+") {
+            result = create_string(__lstr + __rstr);
+        } else {
+            bool __ans =
+                ctx->op == "==" ? __lstr == __rstr :
+                ctx->op == "!=" ? __lstr != __rstr :
+                ctx->op == ">"  ? __lstr >  __rstr :
+                ctx->op == ">=" ? __lstr >= __rstr :
+                ctx->op == "<"  ? __lstr <  __rstr :
+                ctx->op == "<=" ? __lstr <= __rstr :
+                    throw error("Unknown operator!");
+            result = create_boolean(__ans);
+        } return;
+    }
+    top->emplace_new(__call);
+
+    if (ctx->op == "+") {
+        __call->dest = top->create_temporary(wrapper {class_map["string"],1});
+        result = __call->dest;
+    } else {
+        __call->dest = top->create_temporary(wrapper {class_map["int"],0});
+        /* After called, compare it with 0. */
+        auto *__cmp = new compare_stmt;
+        __cmp->op =
             ctx->op == "==" ? compare_stmt::EQ :
             ctx->op == "!=" ? compare_stmt::NE :
             ctx->op == ">"  ? compare_stmt::GT :
@@ -944,19 +1017,12 @@ void IRbuilder::visitStringBinary(AST::binary_expr *ctx) {
             ctx->op == "<"  ? compare_stmt::LT :
             ctx->op == "<=" ? compare_stmt::LE :
                 throw error("Unknown operator!");
-        __call->func = get_string_cmp(__op);
+        __cmp->lvar = __call->dest;
+        __cmp->rvar = __zero__;
+        __cmp->dest = top->create_temporary(wrapper {class_map["bool"],0});
+        top->emplace_new(__cmp);
+        result = __cmp->dest;
     }
-    visit(ctx->lval);
-    __call->args.push_back(result);
-    visit(ctx->rval);
-    __call->args.push_back(result);
-    top->emplace_new(__call);
-    __call->dest = top->create_temporary(
-        ctx->op == "+" ? wrapper {class_map["string"],1}
-                       : wrapper {class_map["bool"],0},
-        "call."
-    );
-    result = __call->dest;
 }
 
 

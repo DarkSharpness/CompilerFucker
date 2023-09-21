@@ -2,14 +2,19 @@
 
 #include "optnode.h"
 #include <vector>
+#include <deque>
 
 namespace dark::OPT {
 
 
 struct constant_calculator final : IR::IRvisitorbase {
+    inline static std::deque <IR::global_variable> generated{};
     void *data; /* This argument is responsible for passing the params. */
+
     using array_type = std::vector<IR::definition *>;
     explicit constant_calculator() = default;
+
+    IR::string_constant *try_get_string(IR::definition *def);
 
     const array_type &get_array()
     { return *static_cast <const array_type *> (data); }

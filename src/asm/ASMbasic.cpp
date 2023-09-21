@@ -57,7 +57,7 @@ void global_information::print(std::ostream &__os) const {
 void function::print(std::ostream &__os) const {
     __os << __indent << ".globl " << name << '\n';
     __os << name << ":\n";
-    __os << "# " << name << ".prework\n";
+    __os << "# " << name << ".prework:\n";
 
     size_t n = 0;
     /* Save those callee save registers. */
