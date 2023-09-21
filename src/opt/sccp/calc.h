@@ -11,6 +11,21 @@ struct constant_calculator final : IR::IRvisitorbase {
     inline static std::deque <IR::global_variable> generated{};
     void *data; /* This argument is responsible for passing the params. */
 
+    static IR::global_variable *generate_string(std::string __str) {
+        for(auto &__glo : generated) {
+            auto &__tmp = safe_cast <IR::string_constant *> 
+                (__glo.const_val)->context;
+            if (__tmp == __str) return &__glo;
+        }
+
+        auto *__lit = new IR::string_constant {std::move(__str)};
+        auto *__global = &generated.emplace_back();
+        __global->name = "@str.gen." + std::to_string(generated.size());
+        __global->type = {&IR::__string_class__ ,1};
+        __global->const_val = __lit;
+        return __global;
+    }
+
     using array_type = std::vector<IR::definition *>;
     explicit constant_calculator() = default;
 

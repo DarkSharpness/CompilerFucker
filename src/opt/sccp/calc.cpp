@@ -180,11 +180,8 @@ IR::string_constant *
     static IR::string_constant __undef { "" };
     if (!__def) return nullptr;
     if (dynamic_cast <IR::undefined *> (__def)) return &__undef;
-    auto __var = dynamic_cast <IR::string_constant *> (__def);
-    if (__var) return __var;
     if (auto __glo = dynamic_cast <IR::global_variable *> (__def)) {
-        __var = dynamic_cast <IR::string_constant *> (__glo->const_val);
-        return __var;
+        return dynamic_cast <IR::string_constant *> (__glo->const_val);
     } else  return nullptr;
 }
 
@@ -234,14 +231,50 @@ void constant_calculator::visitCall(IR::call_stmt *__call) {
             auto __lval = try_get_string(__input_0);
             auto __rval = try_get_string(__input_1);
             if (__lval && __rval) {
-                auto *__lit    = new IR::string_constant {
-                    __lval->context + __rval->context
-                };
-                auto *__global = &generated.emplace_back();
-                __global->name = "@str.generated." + std::to_string(generated.size());
-                __global->type = {&IR::__string_class__ ,1};
-                __global->const_val = __lit;
-                return __global;
+                return generate_string(__lval->context + __rval->context);
+            } else return nullptr;
+        }
+
+        if (__name == "__String_parseInt__") {
+            runtime_assert("__String_parseInt__() need 1 argument!",__input.size() == 1);
+            auto __input_0 = __input[0];
+            auto __lval = try_get_string(__input_0);
+            if (__lval) {
+                try {
+                    return IR::create_integer(stoi(__lval->context));
+                } catch(...) {
+                    return IR::create_undefined({},2);
+                }
+            } else return nullptr;
+        }
+
+        if (__name == "__toString__") {
+            runtime_assert("__toString__() need 1 argument!",__input.size() == 1);
+            auto __input_0 = __input[0];
+            auto __lval = dynamic_cast <IR::integer_constant *> (__input_0);
+            if (__lval) {
+                try {
+                    return generate_string(std::to_string(__lval->value));
+                } catch(...) {
+                    return IR::create_undefined({},1);
+                }
+            } else return nullptr;
+        }
+    
+        if (__name == "__String_substring__") {
+            runtime_assert("__String_substring__() need 3 arguments!",__input.size() == 3);
+            auto __input_0 = __input[0];
+            auto __input_1 = __input[1];
+            auto __input_2 = __input[2];
+            auto __lval = try_get_string(__input_0);
+            auto __lpos = dynamic_cast <IR::integer_constant *> (__input_1);
+            auto __rpos = dynamic_cast <IR::integer_constant *> (__input_2);
+            if (__lval && __lpos && __rpos) {
+                auto __l = __lpos->value;
+                auto __r = __rpos->value;
+                if (__l < 0 || __r < 0 || __l > __r || __r > __lval->context.size())
+                    return IR::create_undefined({},3);
+                else return generate_string(__lval->context.substr(__l,__r - __l));
             } else return nullptr;
         }
 
@@ -317,7 +350,16 @@ IR::definition *merge_definition(IR::definition *__lhs,IR::definition *__rhs) {
     if (dynamic_cast <IR::undefined *> (__lhs)) return __rhs;
     if (dynamic_cast <IR::undefined *> (__rhs)) return __lhs;
     if (__lhs == __rhs) return __lhs;
-    else                return nullptr;
+    else {
+        auto __lvar = dynamic_cast <IR::global_variable *> (__lhs);
+        auto __rvar = dynamic_cast <IR::global_variable *> (__rhs);
+        if (__lvar && __rvar) {
+            /* Special comparation for string_constants. */
+            auto __lstr = dynamic_cast <IR::string_constant *> (__lvar->const_val);
+            auto __rstr = dynamic_cast <IR::string_constant *> (__rvar->const_val);
+            if (__lstr && __rstr && __lstr->context == __rstr->context) return __lvar;
+        }
+    } return nullptr;
 }
 
 

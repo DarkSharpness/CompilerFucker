@@ -143,7 +143,7 @@ void SSAbuilder::try_optimize(std::vector <IR::function>  &global_functions) {
         if (__optimize_state.enable_SCCP) {
             constant_propagatior{&__func,__entry};
             branch_cutter       {&__func,__entry};
-            deadcode_eliminator {&__func,__entry};   
+            deadcode_eliminator {&__func,__entry};
         }
 
         if (__optimize_state.enable_CFG) {
@@ -228,6 +228,13 @@ void SSAbuilder::try_optimize(std::vector <IR::function>  &global_functions) {
 
 
 }
+
+
+void SSAbuilder::update_pool(std::vector <IR::initialization> &global_variables) {
+    auto &__range = constant_calculator::generated;
+    for(auto &__var : __range) global_variables.push_back({&__var,__var.const_val});
+}
+
 
 void SSAbuilder::reset_CFG(IR::function *__func) {
     for(auto __block : __func->stmt) {
