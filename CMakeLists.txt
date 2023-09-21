@@ -22,9 +22,6 @@ include_directories(src/opt/local)
 include_directories(src/opt/inline)
 
 
-
-
-
 file(GLOB_RECURSE sources src/*.cpp)
 add_executable(mxc ${sources})
 
