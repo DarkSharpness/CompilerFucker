@@ -319,7 +319,7 @@ bool function_graph::work_topo(std::deque <function_info> &__array) {
     } else {
         /* Merge it normally. */
         runtime_assert("Global init cannot be recursive.",!__init->self_call());
-
+        __init_pair.first->merge_between_SCC(*__init);
         return false;
     }
 

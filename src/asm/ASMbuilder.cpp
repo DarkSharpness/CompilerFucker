@@ -356,8 +356,17 @@ void ASMbuilder::visitBranch(IR::branch_stmt *__stmt) {
 
 void ASMbuilder::visitCall(IR::call_stmt *__stmt) {
     auto *__call = new call_function {get_function(__stmt->func)};
-    __call->dest = __stmt->dest && use_map[__stmt->dest].count > 0 ?
-        get_virtual(__stmt->dest) : nullptr;
+
+    /* Tail call doesn't require saveing ra. */
+    if (tail_call_set.count(__stmt)) {
+        __call->op   = call_function::TAIL;
+        __call->self = top_asm;
+        __call->dest = nullptr;
+    } else {
+        top_asm->save_ra = true;
+        __call->dest = __stmt->dest && use_map[__stmt->dest].count > 0 ?
+            get_virtual(__stmt->dest) : nullptr;
+    }
 
     for (size_t i = 0 ; i < __stmt->args.size() ; ++i) {
         auto *__arg = __stmt->func->args[i];
@@ -377,11 +386,6 @@ void ASMbuilder::visitCall(IR::call_stmt *__stmt) {
     }
 
     top_block->emplace_back(__call);
-    /* Tail call doesn't require saveing ra. */
-    if (tail_call_set.count(__stmt)) {
-        __call->op   = call_function::TAIL;
-        __call->func = top_asm;
-    } else top_asm->save_ra = true; 
 }
 
 

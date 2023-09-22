@@ -31,9 +31,9 @@ struct hidden_impl {
     auto get_impl_ptr() const noexcept { return static_cast <T *> (impl); }
 
     template <class T>
-    auto get_impl_val() const noexcept
+    auto get_impl_val() noexcept
     -> std::enable_if_t <sizeof(T) <= sizeof(void *),T &>
-    { return static_cast <T &> (impl); }
+    { return *(reinterpret_cast <T *> (&impl)); }
 
 };
 

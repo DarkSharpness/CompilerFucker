@@ -8,6 +8,7 @@ namespace dark::ASM {
 
 /* Linear scan allocator. */
 struct ASMallocator {
+    ASMliveanalyser *__data;
     ASMallocator(function *);
 };
 

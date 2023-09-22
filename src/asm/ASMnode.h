@@ -10,15 +10,16 @@ inline constexpr char __indent[8] = "    ";
 
 struct dummy_expression final {
     enum : unsigned char {
-        NOP = 0,
-        DEF = 1,
-        USE = 2,
+        DEF = 0,
+        USE = 1,
     } op;
     std::vector <value_type> addrs;
+    explicit dummy_expression (decltype(op) __op)
+    noexcept : op(__op) {}
 };
 
 
-struct node {
+struct node : hidden_impl {
     virtual std::string data() const = 0;
     virtual ~node() = default;
     virtual void get_use(std::vector <Register *> &) const = 0;
@@ -27,6 +28,15 @@ struct node {
 
 struct register_node : node {};
 struct immediat_node : node {};
+struct function_node : node {
+    /* Just dummy use of some registers. */
+    dummy_expression dummy_use {dummy_expression::USE};
+    enum : bool {
+        CALL = 0,
+        TAIL = 1,
+    } op;
+    explicit function_node(decltype(op) __op) noexcept : op(__op) {}
+};
 
 struct arith_base {
     using c_string = char [8];
@@ -339,7 +349,7 @@ struct store_memory final : register_node, memory_base {
 };
 
 
-struct block {
+struct block : hidden_impl {
     inline static size_t label_count = 0;
 
     std::string name;
@@ -348,8 +358,14 @@ struct block {
     std::unordered_set <virtual_register *> use;
     std::unordered_set <virtual_register *> def;
 
+    std::unordered_set <virtual_register *> livein;
+    std::unordered_set <virtual_register *> liveout;
+
     std::vector <block *> prev;
     std::vector <block *> next;
+
+    /* Default as 1 if not specially setted. */
+    size_t loop_factor = 1;
 
     explicit block (std::string __name)
     noexcept : name {
@@ -371,20 +387,6 @@ struct block {
         return string_join_array(buf.begin(),buf.end());
     }
 
-    void analyze() {
-        std::vector <Register *> __vec;
-        for(auto &__p : expression) {
-            __vec.clear();
-            __p->get_use(__vec);
-            for (auto &__q : __vec) {
-                if (auto __vir = dynamic_cast <virtual_register *>(__q);
-                    __vir && !def.count(__vir)) use.insert(__vir);
-            }
-            auto __def = __p->get_def();
-            if (auto __vir = dynamic_cast <virtual_register *>(__def))
-                def.insert(__vir);
-        }
-    }
 };
 
 
@@ -429,6 +431,9 @@ struct function {
     size_t var_count = 0; /* Count of alloca space.      */
     size_t stk_count = 0; /* Count of stack spill.       */
 
+    /* Every function dummy defines all arguments. */
+    dummy_expression dummy_def {dummy_expression::DEF};
+
     /* A map from variable to its address in stack. */
     std::unordered_map <IR::variable *,ssize_t>  var_map;
     std::unordered_map <size_t,virtual_register> vir_map;
@@ -468,20 +473,16 @@ struct function {
 };
 
 
-struct call_function final : register_node {
-    enum : bool {
-        CALL = 0,
-        TAIL = 1,
-    } op;
-
-    function *tail; /* Function name. */
-    function *func; /* Tail function. */
+struct call_function final : function_node {
+    function *func; /* Function name. */
+    function *self; /* Self function. */
     Register *dest;
 
-    explicit call_function(function *__func) noexcept : op(CALL),tail(__func) {}
+
+    explicit call_function(function *__func)
+    noexcept : function_node {CALL}, func(__func) {}
 
     void get_use(std::vector <Register *> & __vec) const override {}
-
     Register *get_def() const override { return dest; }
 
     std::string data() const override;
@@ -489,6 +490,23 @@ struct call_function final : register_node {
     ~call_function() override = default;
 };
 
+
+/* This is customized for builtin functions. */
+struct call_builtin final : function_node {
+    function *func; /* Function name. */
+    function *self; /* Tail function. */
+    Register *dest;
+
+    explicit call_builtin(function *__func)
+    noexcept : function_node {CALL}, self(__func) {}
+
+    void get_use(std::vector <Register *> & __vec) const override {}
+    Register *get_def() const override { return dest; }
+
+    std::string data() const override;
+
+    ~call_builtin() override = default;
+};
 
 struct ret_expression final : register_node {
     function *func;

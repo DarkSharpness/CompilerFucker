@@ -19,15 +19,20 @@ std::string ret_expression::data() const {
 }
 
 std::string call_function::data() const {
-    if (op == TAIL)
-        return string_join(func->return_data(),__indent, "tail ", tail->name);
+    if (op == TAIL) {
+        /* No calling convention worry. Simplified to a jump. */
+        if (self == func)
+            return string_join(__indent, "j ", func->blocks[0]->name);
+        else
+            return string_join(self->return_data(),__indent, "tail ", func->name);
+    }
 
     std::string __suffix;
     /* Need to move to target register. */
     if (dest && dest != get_physical(10))
         __suffix = string_join('\n', __indent, "mv ", dest->data(), ", a0");
 
-    return string_join(__indent,"call ",tail->name, __suffix);
+    return string_join(__indent,"call ",func->name, __suffix);
 }
 
 void global_information::print(std::ostream &__os) const {
