@@ -154,7 +154,7 @@ struct global_address {
     IR::global_variable *var; /* Global variable. */
     std::string data() const {
         if (reg == nullptr) return var->name;
-        return string_join("%lo(",var->name,"), ",reg->data());
+        return string_join("%lo(",var->name,")(",reg->data(),')');
     }
 };
 

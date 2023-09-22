@@ -320,7 +320,7 @@ struct store_memory final : register_node, memory_base {
     };
 
     Register    *from;
-    value_type addr;
+    value_type   addr;
 
     explicit store_memory
         (decltype(op) __op, Register *__from, value_type __addr)

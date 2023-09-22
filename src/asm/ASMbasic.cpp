@@ -13,7 +13,7 @@ std::string ret_expression::data() const {
 
     /* Need to move to target register. */
     if (rval && rval != get_physical(10))
-        __prefix = string_join(__indent, "mv a0 ", rval->data(), '\n');
+        __prefix = string_join(__indent, "mv a0, ", rval->data(), '\n');
 
     return string_join(__prefix,func->return_data(),__indent, "ret");
 }
@@ -25,7 +25,7 @@ std::string call_function::data() const {
     std::string __suffix;
     /* Need to move to target register. */
     if (dest && dest != get_physical(10))
-        __suffix = string_join('\n', __indent, "mv ", dest->data(), " a0");
+        __suffix = string_join('\n', __indent, "mv ", dest->data(), ", a0");
 
     return string_join(__indent,"call ",tail->name, __suffix);
 }
@@ -67,7 +67,7 @@ void function::print(std::ostream &__os) const {
 
     /* Move the stack pointer. */
     n = get_stack_space();
-    __os << __indent << "addi sp sp, -" << n << "\n\n";
+    __os << __indent << "addi sp, sp, -" << n << "\n\n";
 
     for(auto __block : blocks) __os << __block->data() << '\n';
     __os << '\n';
@@ -81,7 +81,7 @@ std::string function::return_data() const {
 
     /* Restore the stack pointer. */
     size_t n = get_stack_space();
-    __buf.push_back(string_join(__indent, "addi sp sp ", std::to_string(n),'\n'));
+    __buf.push_back(string_join(__indent, "addi sp, sp, ", std::to_string(n),'\n'));
 
     /* Save those callee save registers. */
     n = 0;
