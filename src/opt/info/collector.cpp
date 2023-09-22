@@ -214,9 +214,9 @@ void function_graph::tarjan(function_info &__info) {
  * @brief After tarjan, use the DAG to help build data within.
  * @param __array Array of real data inside.
  */
-void function_graph::work_topo(std::deque <function_info> &__array) {
+bool function_graph::work_topo(std::deque <function_info> &__array) {
     /* Do nothing. */
-    if (!scc_count) return;
+    if (!scc_count) return false;
 
     /* Since there won't be too many functions, this is not a bad hash. */
     struct my_hash {
@@ -240,12 +240,18 @@ void function_graph::work_topo(std::deque <function_info> &__array) {
      * ----------------------------------------------
     */
 
+    std::pair <function_info *,IR::function *> __init_pair = {{},{}};
+
     /* Find the real info holder. */
     for(auto &__info : __array) {
         if (__info.dfn == __info.low)
             real_info[__info.scc] = &__info;
         for(auto *__func : __info.called_func) {
             if (__func->is_builtin) continue;
+            /* Global initer. */
+            if (__func->name == ".__global__init__") {
+                __init_pair = {&__info,__func}; continue;
+            }
             auto &__next = *__func->get_impl_ptr <function_info> ();
             size_t __id1 = __info.scc;
             size_t __id2 = __next.scc;
@@ -295,7 +301,27 @@ void function_graph::work_topo(std::deque <function_info> &__array) {
             __info->recursive_func.erase(__info->func);
         }
 
+    /**
+     * Specially, deal with the case of main-function calling .__global_init__
+     * If no-input, we can work out the state of the init in theory.
+     * Therefore, we can remove the call to the init function.
+     * Specially, those array init cannot be replaced.
+     * If global init only calls builtin non-IO function, we can remove the call!
+     * We may force inline it and remove all non-array init.
+     * For array init, we may not replace it.
+     * 
+    */
+    if (!__init_pair.second) return false;
+    auto __init = __init_pair.second->get_impl_ptr <function_info> ();
+    if (__init->recursive_func.empty() && !__init_pair.second->inout_state) {
+        /* Try to simulate and replace all global variable load/store with local ones. */
+        return true;
+    } else {
+        /* Merge it normally. */
+        runtime_assert("Global init cannot be recursive.",!__init->self_call());
 
+        return false;
+    }
 
 }
 

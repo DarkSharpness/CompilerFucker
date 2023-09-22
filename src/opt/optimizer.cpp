@@ -193,7 +193,9 @@ void SSAbuilder::try_optimize(std::vector <IR::function>  &global_functions) {
 
     /* Spread the data recursively! */
     for (auto &__info : info_list) function_graph::tarjan(__info);
-    function_graph::work_topo(info_list);
+    if (function_graph::work_topo(info_list)) {
+        std::cerr << "TODO!!\n";
+    }
     function_graph::resolve_dependency(info_list);
     // for (auto &__info : info_list) print_info(__info);
 

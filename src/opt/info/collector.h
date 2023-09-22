@@ -20,7 +20,7 @@ struct function_graph {
     inline static size_t dfn_count = 0;
 
     static void tarjan(function_info &);
-    static void work_topo(std::deque <function_info> &);
+    static bool work_topo(std::deque <function_info> &);
     static void resolve_dependency(std::deque <function_info> &);
 
 };
