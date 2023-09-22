@@ -1,11 +1,12 @@
-#include "ASMorder.h"
+#include "ASManalyser.h"
+
 #include <algorithm>
 
 namespace dark::ASM {
 
 
-/* Work out the visit-order. */
-ASMorder::ASMorder(function *__func) {
+/* Make the order of blocks in one function. */
+void ASMliveanalyser::make_order(function *__func) {
     std::unordered_set <block *> __visited;
     auto && __vec = __func->blocks;
     auto *__entry = __vec[0];
@@ -22,6 +23,7 @@ ASMorder::ASMorder(function *__func) {
     std::reverse(__vec.begin(), __vec.end());
     size_t __cnt = 0;
 }
+
 
 
 }

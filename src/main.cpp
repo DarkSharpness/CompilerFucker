@@ -14,6 +14,7 @@
 
 #include "mem2reg.h"
 #include "ASMbuilder.h"
+#include "ASMallocator.h"
 
 bool type = false;
 
@@ -51,12 +52,13 @@ int main(int argc, const char* argv<::>) <%
 
         if (dark::OPT::optimize_options::get_state().is_enabled() > 0)
             dark::OPT::SSAbuilder {Hastin.global_variables,Hastin.global_functions};
-        if (!type)
-            Hastin.debug_print(std::cout);
+        if (!type) Hastin.debug_print(std::cout);
 
         dark::ASM::ASMbuilder YYU {Hastin.global_variables,Hastin.global_functions};
-        if (type)
-            YYU.global_info.print(std::cout);
+        for(auto __func : YYU.global_info.function_list)
+            dark::ASM::ASMallocator {__func};
+
+        if (type) YYU.global_info.print(std::cout);
 
     } catch(dark::error &err) {
         return 1;
