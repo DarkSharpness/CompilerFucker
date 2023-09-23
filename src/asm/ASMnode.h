@@ -8,12 +8,11 @@ namespace dark::ASM {
 inline constexpr char __indent[8] = "    ";
 
 
-struct dummy_expression final {
+struct dummy_expression final : std::vector <value_type> {
     enum : unsigned char {
         DEF = 0,
         USE = 1,
     } op;
-    std::vector <value_type> addrs;
     explicit dummy_expression (decltype(op) __op)
     noexcept : op(__op) {}
 };
@@ -31,11 +30,23 @@ struct immediat_node : node {};
 struct function_node : node {
     /* Just dummy use of some registers. */
     dummy_expression dummy_use {dummy_expression::USE};
+    function *func; /* Function name. */
+    function *self; /* Tail function. */
+    Register *dest;
     enum : bool {
         CALL = 0,
         TAIL = 1,
     } op;
-    explicit function_node(decltype(op) __op) noexcept : op(__op) {}
+
+    void get_use(std::vector <Register *> & __vec)
+    const override final {
+        for (auto __p : dummy_use) __p.get_use(__vec);
+    }
+
+    Register *get_def() const override final { return dest; }
+
+    explicit function_node(function *__func,decltype(op) __op)
+    noexcept : func(__func), op(__op) {}
 };
 
 struct arith_base {
@@ -337,7 +348,7 @@ struct store_memory final : register_node, memory_base {
     noexcept : memory_base {__op}, from(__from), addr(__addr) {}
 
     void get_use(std::vector <Register *> & __vec)
-    const override { return addr.get_use(__vec); }
+    const override { __vec.push_back(from); addr.get_use(__vec); }
     Register *get_def() const override { return nullptr; }
 
     std::string data() const override {
@@ -365,16 +376,14 @@ struct block : hidden_impl {
     std::vector <block *> next;
 
     /* Default as 1 if not specially setted. */
-    size_t loop_factor = 1;
+    double loop_factor = 1;
 
     explicit block (std::string __name)
     noexcept : name {
         string_join(".L.",std::to_string(label_count++),'.',__name)
     } {}
 
-    void emplace_back(node *__p) {
-        expression.push_back(__p);
-    }
+    void emplace_back(node *__p) { expression.push_back(__p); }
 
     std::string data() const {
         std::vector <std::string> buf;
@@ -474,37 +483,18 @@ struct function {
 
 
 struct call_function final : function_node {
-    function *func; /* Function name. */
-    function *self; /* Self function. */
-    Register *dest;
-
-
     explicit call_function(function *__func)
-    noexcept : function_node {CALL}, func(__func) {}
-
-    void get_use(std::vector <Register *> & __vec) const override {}
-    Register *get_def() const override { return dest; }
-
+    noexcept : function_node {__func,CALL} {}
     std::string data() const override;
-
     ~call_function() override = default;
 };
 
 
 /* This is customized for builtin functions. */
 struct call_builtin final : function_node {
-    function *func; /* Function name. */
-    function *self; /* Tail function. */
-    Register *dest;
-
     explicit call_builtin(function *__func)
-    noexcept : function_node {CALL}, self(__func) {}
-
-    void get_use(std::vector <Register *> & __vec) const override {}
-    Register *get_def() const override { return dest; }
-
+    noexcept : function_node {__func,CALL} {}
     std::string data() const override;
-
     ~call_builtin() override = default;
 };
 

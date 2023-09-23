@@ -11,7 +11,7 @@ struct Register {
 };
 
 
-struct physical_register : Register {
+struct physical_register final : Register {
     enum {
         zero    = 0, /* Hardwired zero */
         ra      = 1, /* Return address */
@@ -91,7 +91,7 @@ struct physical_register : Register {
 };
 
 
-struct virtual_register : Register {
+struct virtual_register final : Register {
     size_t index;
     explicit virtual_register(size_t __index) : index(__index) {}
     std::string data() const override {
@@ -103,6 +103,39 @@ struct virtual_register : Register {
     }
     ~virtual_register() override = default;
 };
+
+
+/* A temporary holder of the value register. */
+struct temporary_register final : Register {
+    physical_register * const reg;    
+    const int offset;
+    explicit temporary_register(physical_register * __reg,int __value)
+    : reg(__reg), offset(__value) {}
+    std::string data() const override {
+        return string_join(
+            '(' , reg->data() , " + " , std::to_string(offset) , ')'
+        );
+    }
+    ~temporary_register() override = default;
+};
+
+
+/* Constants can be loaded easily as a constant expression. */
+inline temporary_register *get_constant(physical_register * __reg,int __val) {
+    struct my_hash {
+        size_t operator() (const temporary_register &__val) const noexcept
+        { return __val.offset ^ std::hash <void *> () (__val.reg); }
+    };
+    struct my_equal {
+        bool operator()(const temporary_register &__lhs,
+                        const temporary_register &__rhs) const noexcept
+        { return __lhs.offset == __rhs.offset && __lhs.reg == __rhs.reg; }
+    };
+    static std::unordered_set <temporary_register,my_hash,my_equal> __pool;
+    auto && [__iter,__result] = __pool.emplace(__reg,__val);
+    return const_cast <temporary_register *> (&*__pool.emplace(__reg,__val).first);
+};
+
 
 
 
@@ -150,12 +183,10 @@ struct function;
 
 
 struct global_address {
-    Register *reg; /* Register with high part of address. */
+    /* Now , it becomes useless...... */
+    Register * reg = nullptr;
     IR::global_variable *var; /* Global variable. */
-    std::string data() const {
-        if (reg == nullptr) return var->name;
-        return string_join("%lo(",var->name,")(",reg->data(),')');
-    }
+    std::string data() const { return var->name; }
 };
 
 
@@ -186,7 +217,6 @@ struct pointer_address {
  * @brief It has 2 special cases.
  * Global address: It is the immediate value of the global variable.
  * It can be used in load/store with respect to the register.
- * 
  * 
  */
 struct value_type {

@@ -22,7 +22,7 @@ std::string call_function::data() const {
     if (op == TAIL) {
         /* No calling convention worry. Simplified to a jump. */
         if (self == func)
-            return string_join(__indent, "j ", func->blocks[0]->name);
+            return string_join(__indent, "j .", func->name,".prework.end");
         else
             return string_join(self->return_data(),__indent, "tail ", func->name);
     }
@@ -74,6 +74,12 @@ void function::print(std::ostream &__os) const {
     n = get_stack_space();
     __os << __indent << "addi sp, sp, -" << n << "\n\n";
 
+    /* This marks the ending of prework. */
+    __os << '.' << name << ".prework.end:\n";
+
+    /* TODO: deal with the dummy defs in the function. */
+
+    __os << "# End of all entry work.\n";
     for(auto __block : blocks) __os << __block->data() << '\n';
     __os << '\n';
 }

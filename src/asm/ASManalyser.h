@@ -4,20 +4,15 @@
 
 namespace dark::ASM {
 
-struct ASMliveanalyser {
+struct ASMlifeanalyser {
     struct usage_info {
-        int use_beg = INT32_MAX;    /* Beginning of usage.  */
-        int use_end = INT32_MIN;    /* Ending of usage.     */
-        int blk_beg = INT32_MAX;    /* Beginning of block. */
-        int blk_end = INT32_MIN;    /* Ending of block. */
-
         /**
          * Weight of usage. It is computed as below:
          * A spilled use is counted as 1.
          * 
          * Weight inside one loop is multipled by 10.
         */
-        size_t use_weight = 0;
+        double use_weight = 0;
 
         /**
          * Weight of call. (Due to calling convention).
@@ -28,22 +23,23 @@ struct ASMliveanalyser {
          * 
          * Weight inside one loop is multipled by 10.
         */
-        size_t call_weight = 0;
+        double call_weight = 0;
+
+        /* Length of live interval. */
+        size_t life_length = 0;
+
+        using live_interval = std::pair <int, int>;
 
         /* All function call that may bring a cost to it. */
         std::vector <function_node *> save_set;
+        /* All intervals that the virtual is dead. */
+        std::vector < live_interval > live_set;
 
-        void init_save_set();
-        /* Whether this argument live through the function. */
+        void init_set();
         bool need_saving(function_node *) const noexcept;
-
-        /* Update the init block count and beg/end order. */
-        void update(int __blk,int __ord) {
-            if (__ord < use_beg) use_beg = __ord;
-            if (__ord > use_end) use_end = __ord;
-            if (__blk < blk_beg) blk_beg = __blk;
-            if (__blk > blk_end) blk_end = __blk;
-        }
+        int  get_state(int) const noexcept;
+        int  get_begin()    const noexcept;
+        int  get_end()      const noexcept;
 
         double distance_factor(int) const noexcept;
         double get_spill_weight(int) const noexcept;
@@ -54,11 +50,12 @@ struct ASMliveanalyser {
     std::unordered_map <virtual_register *, usage_info> usage_map;
 
     /* Analyze one function. */
-    ASMliveanalyser(function *);
+    ASMlifeanalyser(function *);
 
     static void init_count(std::vector <block *> &);
     static void make_order(function *);
 
+    void debug_print(std::ostream &,function *);
 };
 
 }

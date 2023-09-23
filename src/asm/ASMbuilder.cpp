@@ -54,9 +54,8 @@ void ASMbuilder::create_entry(IR::function *__func) {
             continue; /* Dead arguments. */
 
         if (i < 8) {
-            top_block->emplace_back(new move_register {
-                get_physical(10 + i), __dst
-            });
+            /* Just store to the pointer address. */
+            top_asm->dummy_def.push_back({pointer_address {__dst}});
         } else { /* Excessive arguments in stack. */
             top_block->emplace_back(new load_memory {
                 load_memory::WORD, __dst,
@@ -355,14 +354,18 @@ void ASMbuilder::visitBranch(IR::branch_stmt *__stmt) {
 
 
 void ASMbuilder::visitCall(IR::call_stmt *__stmt) {
+    if (__stmt->func->is_builtin) {
+        /* Special judge! */
+    }
+
     auto *__call = new call_function {get_function(__stmt->func)};
 
-    /* Tail call doesn't require saveing ra. */
+    /* Tail call doesn't require saving ra. */
     if (tail_call_set.count(__stmt)) {
         __call->op   = call_function::TAIL;
         __call->self = top_asm;
         __call->dest = nullptr;
-    } else {
+    } else { /* Non-tail call requires saving ra. */
         top_asm->save_ra = true;
         __call->dest = __stmt->dest && use_map[__stmt->dest].count > 0 ?
             get_virtual(__stmt->dest) : nullptr;
@@ -373,11 +376,9 @@ void ASMbuilder::visitCall(IR::call_stmt *__stmt) {
         /* Do nothing to dead arguments. */
         if (__arg->state == __arg->DEAD) continue;
 
-        if (i < 8) {
-            top_block->emplace_back(try_assign(
-                get_physical(i + 10), get_value(__stmt->args[i])
-            ));
-        } else { /* Excessive arguments in stack. */
+        if (i < 8) { /* Dummy reordering of those arguments. */
+            __call->dummy_use.push_back(pointer_address {get_physical(i + 10),0});
+        } else { /* Excessive arguments stored to stack. */
             top_block->emplace_back(new store_memory {
                 memory_base::WORD, force_register(__stmt->args[i]),
                 pointer_address{ get_physical(2), ssize_t(i - 8) << 2 }
@@ -402,13 +403,6 @@ void ASMbuilder::visitStore(IR::store_stmt *__stmt) {
     auto __type = __stmt->src->get_value_type().size() == 4 ?
         memory_base::WORD : memory_base::BYTE;
     auto __addr = get_value(__stmt->dst);
-    if (__addr.type == __addr.GLOBAL) {
-        auto *__vir = create_virtual();
-        __addr.global.reg = __vir;
-        top_block->emplace_back(new load_symbol {
-            load_symbol::HIGH, __vir, __addr.global.var
-        });
-    }
     top_block->emplace_back(new store_memory {
         __type, force_register(__stmt->src), __addr
     });
@@ -451,6 +445,7 @@ void ASMbuilder::visitGet(IR::get_stmt *__stmt) {
     top_block->emplace_back(new arith_register {
         arith_base::ADD, __idx, __src,__dst
     });
+
 }
 
 

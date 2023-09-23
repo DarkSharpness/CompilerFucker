@@ -65,6 +65,10 @@ Register *ASMbuilder::force_register(IR::definition *__def) {
         if (__use.pointer.offset == 0)
             return __use.pointer.reg;
         else { /* Need to be calculated out. */
+            /* Constant value case: Use temporary register. */
+            if (auto __reg = dynamic_cast <physical_register *> (__use.pointer.reg))
+                return get_constant(__reg,__use.pointer.offset);
+
             auto *__reg = create_virtual();
             top_block->emplace_back(new arith_immediat {
                 arith_base::ADD, __use.pointer.reg,

@@ -22,8 +22,8 @@ int main(int argc, const char* argv<::>) <%
     if(argc > 1) {
         std::string_view __v = argv[1];
         --argc , ++argv;
-        if (__v == "-s") { type = true; }
-        else if (__v != "-ll") {
+        if (__v == "-ll") { type = true; }
+        else if (__v != "-s") {
             std::cerr << "Unknown option: " << __v << std::endl;
             return 1;
         }
@@ -52,13 +52,13 @@ int main(int argc, const char* argv<::>) <%
 
         if (dark::OPT::optimize_options::get_state().is_enabled() > 0)
             dark::OPT::SSAbuilder {Hastin.global_variables,Hastin.global_functions};
-        if (!type) Hastin.debug_print(std::cout);
+        if (type) Hastin.debug_print(std::cout);
 
         dark::ASM::ASMbuilder YYU {Hastin.global_variables,Hastin.global_functions};
-        for(auto __func : YYU.global_info.function_list)
-            dark::ASM::ASMallocator {__func};
+        // for(auto __func : YYU.global_info.function_list)
+            // dark::ASM::ASMallocator {__func};
 
-        if (type) YYU.global_info.print(std::cout);
+        if (!type) YYU.global_info.print(std::cout);
 
     } catch(dark::error &err) {
         return 1;
