@@ -402,9 +402,11 @@ void ASMbuilder::visitLoad(IR::load_stmt *__stmt) {
 void ASMbuilder::visitStore(IR::store_stmt *__stmt) {
     auto __type = __stmt->src->get_value_type().size() == 4 ?
         memory_base::WORD : memory_base::BYTE;
-    auto __addr = get_value(__stmt->dst);
+    /* Must special judge on store_memory. */
+    /* When generating final ASM, we should reassign a
+       temporary as address if necessary. */
     top_block->emplace_back(new store_memory {
-        __type, force_register(__stmt->src), __addr
+        __type, force_register(__stmt->src), get_value(__stmt->dst)
     });
 }
 

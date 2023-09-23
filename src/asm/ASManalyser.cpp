@@ -223,7 +223,7 @@ ASMlifeanalyser::ASMlifeanalyser(function *__func) {
                 /* All live across function will bring some cost. */
                 for(auto [__vir,___] : __live) {
                     auto &__ref = usage_map[__vir];
-                    __ref.call_weight += __factor;
+                    __ref.call_weight += __factor * 1.5;
                     __ref.save_set.push_back(__call);
                 }
             }

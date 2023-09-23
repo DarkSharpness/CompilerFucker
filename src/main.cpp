@@ -55,8 +55,8 @@ int main(int argc, const char* argv<::>) <%
         if (type) Hastin.debug_print(std::cout);
 
         dark::ASM::ASMbuilder YYU {Hastin.global_variables,Hastin.global_functions};
-        // for(auto __func : YYU.global_info.function_list)
-            // dark::ASM::ASMallocator {__func};
+        for(auto __func : YYU.global_info.function_list)
+            dark::ASM::ASMallocator {__func};
 
         if (!type) YYU.global_info.print(std::cout);
 
