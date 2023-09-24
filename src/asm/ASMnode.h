@@ -507,6 +507,7 @@ struct function {
     { arg_offset = max_arg_size > 8 ? (max_arg_size - 8) << 2 : 0; }
 
     size_t   get_stack_space() const;
+    void print_entry(std::ostream &) const;
     void print(std::ostream &) const;
     std::string  return_data() const;
 };

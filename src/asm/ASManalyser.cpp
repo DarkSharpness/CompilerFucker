@@ -10,7 +10,6 @@ namespace dark::ASM {
  * No modification should be performed to it afterwards.
  */
 void ASMlifeanalyser::usage_info::init_set() {
-    std::sort(save_set.begin(),save_set.end());
     std::sort(live_set.begin(),live_set.end());
     if (live_set.empty()) return;
     auto __beg = live_set.begin();
@@ -26,15 +25,6 @@ void ASMlifeanalyser::usage_info::init_set() {
 
     /* Actually, it is used in range [l,r) */
     for(auto &__p : live_set) life_length += __p.second - __p.first;
-}
-
-/**
- * @return Whether the register needs to be saved
- * during the function call (As callee save register).
- */
-bool ASMlifeanalyser::usage_info::
-    need_saving(function_node *__call) const noexcept {
-    return std::binary_search(save_set.begin(),save_set.end(),__call);
 }
 
 /**
@@ -222,7 +212,7 @@ ASMlifeanalyser::ASMlifeanalyser(function *__func) {
                 for(auto [__vir,___] : __live) {
                     auto &__ref = usage_map[__vir];
                     __ref.call_weight += __factor * 1.5;
-                    __ref.save_set.push_back(__call);
+                    __ref.save_set.push_back({__call,__count});
                 }
             }
 

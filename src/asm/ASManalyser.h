@@ -29,14 +29,14 @@ struct ASMlifeanalyser {
         size_t life_length = 0;
 
         using live_interval = std::pair <int, int>;
+        using live_function = std::pair <function_node *, int>;
 
         /* All function call that may bring a cost to it. */
-        std::vector <function_node *> save_set;
+        std::vector <live_function> save_set;
         /* All intervals that the virtual is dead. */
-        std::vector < live_interval > live_set;
+        std::vector <live_interval> live_set;
 
         void init_set();
-        bool need_saving(function_node *) const noexcept;
         int  get_state(int) const noexcept;
         int  get_begin()    const noexcept;
         int  get_end()      const noexcept;

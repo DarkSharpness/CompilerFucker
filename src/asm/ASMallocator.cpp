@@ -79,10 +79,10 @@ bool ASMallocator::register_slot::update(const int __n) noexcept {
 
 /* Whether a range is available for the slot. */
 bool ASMallocator::stack_slot::contains(int __beg,int __end) const noexcept {
-    if (auto __iter = --live_range.upper_bound({__beg,0});
+    if (auto __iter = --live_range.upper_bound({__beg,INT32_MAX});
         __iter->second > __beg) return false;
 
-    if (auto __iter = live_range.upper_bound({__beg,INT32_MAX});
+    if (auto __iter = live_range.upper_bound({__beg,-1});
         __iter->first < __end ) return false;
 
     return true;
@@ -143,9 +143,6 @@ ASMallocator::ASMallocator(function *__func) : top_func(__func) {
     block_pos.push_back(0);
     for(auto __block : __func->blocks)
         block_pos.push_back(__block->get_impl_val <int> ());
-
-    if (__func->name == "taskNTT.reverse")
-        std::cerr << "Debug\n";
 
     [this]() -> void {
         auto __beg = __impl->usage_map.begin();

@@ -165,7 +165,6 @@ void ASMbuilder::resolve_phi(phi_info &__ref) {
         if (!--__dat.out) __work_list.push(__in);
     }
 
-    std::cerr << "Cycles: " << __map.size() << std::endl;
     /* Deal with the cycles in the map. */
     std::unordered_set <virtual_register *> __visited;
     for(const auto [__reg,__dat] : __map) {

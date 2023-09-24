@@ -42,10 +42,48 @@ void ASMallocator::paint_color(function *__func) {
         get_physical(2)  // ra
     };
 
+    /* Resolve caller save memory. */
+    for(auto &&[__reg,__ref] : vir_map) {
+        if (__ref.type == address_info::CALLER) {
+            auto &__ptr = __impl->usage_map.at(__reg);
+            for(auto [__call,__idx] : __ptr.save_set) {
+                size_t i = 0;
+                for(; i < stack_map.size() ; ++i) {
+                    auto &__slot = stack_map[i];
+                    /* Can not put into current stack. */
+                    if (!__slot.contains(__idx - 1,__idx + 1)) continue;
+                    /* Can put into current slot! */
+                    __slot.live_range.insert({__idx - 1,__idx + 1});
+                    __call->caller_save.push_back(
+                        { caller_save[__ref.index] , i }
+                    ); break;
+                }
+
+                /* Not assigned. */
+                if (i == stack_map.size()) {
+                    stack_map.emplace_back().
+                        live_range.insert({__idx - 1,__idx + 1});
+                    __call->caller_save.push_back(
+                        { caller_save[__ref.index] , i }
+                    );
+                }
+            }
+        }
+    }
+
+    /* Make the entry. */
+    for(auto &__addr : __func->dummy_def) {
+        auto &__reg = __addr.pointer.reg;
+        __reg = resolve_def(__reg);
+        if (expr_list.empty()) continue;
+        auto __store = safe_cast <store_memory *> (expr_list.back());
+        expr_list.pop_back();
+        __addr = __store->addr;
+    }
+
     /* Color the graph. */
     for(auto __block : __func->blocks) {
-        for(auto __node : __block->expression)
-            visit(__node);
+        for(auto __node : __block->expression) visit(__node);
         expr_list.swap(__block->expression);
         expr_list.clear();
     }

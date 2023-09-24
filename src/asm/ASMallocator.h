@@ -163,7 +163,6 @@ struct ASMallocator final : ASMvisitor {
     }
 
 
-
     physical_register *resolve_use(Register *__reg) {
         if (auto __tmp = dynamic_cast <temporary_register *>(__reg))
             return resolve_temporary(__tmp);

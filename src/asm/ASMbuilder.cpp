@@ -109,9 +109,7 @@ void ASMbuilder::visitInit(IR::initialization *init) {
 
 
 void ASMbuilder::visitCompare(IR::compare_stmt *__stmt) {
-    /* Not used outside comparing. */
-    if (use_map[__stmt->dest].count <= 0) return;
-
+    if (use_map.at(__stmt->dest).count <= 0) return;
     /* Ensurance : no constant on lhs. */
     auto *__lhs = dynamic_cast <IR::literal *> (__stmt->lvar);
     auto *__rhs = dynamic_cast <IR::literal *> (__stmt->rvar);
@@ -148,13 +146,13 @@ void ASMbuilder::visitCompare(IR::compare_stmt *__stmt) {
         case __stmt->LE:
             std::swap(__lhs,__rhs);
             std::swap(__stmt->lvar,__stmt->rvar);
-            __stmt->op == __stmt->GE;
+            __stmt->op = __stmt->GE;
             break;
 
         case __stmt->GT:
             std::swap(__lhs,__rhs);
             std::swap(__stmt->lvar,__stmt->rvar);
-            __stmt->op == __stmt->LT;
+            __stmt->op = __stmt->LT;
     }
 
     /* Boolean true of false. */
@@ -193,7 +191,6 @@ void ASMbuilder::visitCompare(IR::compare_stmt *__stmt) {
         } return;
     }
 
-
     /* X < C */
     if (__stmt->op == __stmt->LT && __rhs) {
         return top_block->emplace_back(new slt_immediat {
@@ -214,8 +211,8 @@ void ASMbuilder::visitCompare(IR::compare_stmt *__stmt) {
     if (__stmt->op == __stmt->GE && __rhs) {
         auto *__tmp = create_virtual();
         top_block->emplace_back(new slt_immediat {
-            force_register(__stmt->rvar),
-            __lhs->get_constant_value(), __tmp
+            force_register(__stmt->lvar),
+            __rhs->get_constant_value(), __tmp
         });
         return top_block->emplace_back(new bool_convert {
             bool_convert::EQZ, __tmp, get_virtual(__stmt->dest)
@@ -252,11 +249,11 @@ void ASMbuilder::visitCompare(IR::compare_stmt *__stmt) {
     }
     auto *__temp = __not ? create_virtual() : __dest;
 
-    if (__stmt->op == __stmt->LE) {
+    if (__stmt->op == __stmt->LT) {
         top_block->emplace_back(new slt_register {
             __lval,__rval,__temp
         });
-    } else {
+    } else { /* Not equal case. */
         top_block->emplace_back(new arith_register {
             arith_base::XOR,__lval,__rval,__temp
         });
@@ -336,7 +333,7 @@ void ASMbuilder::visitJump(IR::jump_stmt *__stmt) {
 
 
 void ASMbuilder::visitBranch(IR::branch_stmt *__stmt) {
-    auto &__ref = use_map[__stmt->cond];
+    auto &__ref = use_map.at(__stmt->cond);
     auto *__br  = dynamic_cast <IR::compare_stmt *> (__ref.def); 
     if (__ref.count > 0 || !__br) { 
         return top_block->emplace_back(new branch_expression {

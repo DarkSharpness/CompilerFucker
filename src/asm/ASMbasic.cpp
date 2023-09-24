@@ -2,7 +2,13 @@
 
 #include <queue>
 
+// #define IGNORE_UNUSED(x)
+#define IGNORE_UNUSED(x) if (x) return "    # Useless expression!";
+
+#define DEBUG_SHADOW(x)
+
 namespace dark::ASM {
+
 
 ssize_t function::get_stack_pos(ssize_t __n) const noexcept {
     return arg_offset + var_count + __n * 4;
@@ -21,9 +27,10 @@ std::string arith_register::data() const {
     auto __zero = get_physical(0);
 
     /* Useless case. */
-    if (dest == __zero || (op == ADD &&
-       (dest == lval && rval == __zero) || (dest == rval && lval == __zero)))
-        return "    # Useless expression!";
+    IGNORE_UNUSED(dest == __zero  || (
+        op == ADD &&
+               ((dest == lval && rval == __zero) 
+            ||  (dest == rval && lval == __zero))))  
 
     return string_join(__indent, str[op],' ',dest->data(),
         ", ", lval->data(),", ", rval->data()
@@ -33,8 +40,7 @@ std::string arith_register::data() const {
 std::string arith_immediat::data() const {
     auto __zero = get_physical(0);
     /* Useless case. */
-    if (dest == __zero || (op == ADD && rval == 0 && dest == lval))
-        return "    # Useless expression!";
+    IGNORE_UNUSED(dest == __zero || (op == ADD && rval == 0 && dest == lval))
 
     return string_join(__indent, str[op],"i ",dest->data(),
         ", ", lval->data(),", ", std::to_string(rval)
@@ -42,20 +48,17 @@ std::string arith_immediat::data() const {
 }
 
 std::string move_register::data() const {
-    auto __zero = get_physical(0);
     /* Useless case. */
-    if (dest == __zero || (dest == from))
-        return "    # Useless expression!";
-    
+    IGNORE_UNUSED(dest == get_physical(0) || (dest == from))
+
     return string_join(__indent,
         "mv ", dest->data(), ", ", from->data()
     );
 }
 
 std::string slt_register::data() const {
-    auto __zero = get_physical(0);
     /* Useless case. */
-    if (dest == __zero) return "    # Useless expression!";
+    IGNORE_UNUSED(dest == get_physical(0))
 
     return string_join(__indent,
         "slt ", dest->data(), ", ", lval->data(), ", ", rval->data()
@@ -64,7 +67,7 @@ std::string slt_register::data() const {
 
 std::string slt_immediat::data() const {
     /* Useless case. */
-    if (dest == get_physical(0)) return "    # Useless expression!";
+    IGNORE_UNUSED(dest == get_physical(0))
 
     return string_join(__indent,
         "slti ", dest->data(), ", ", lval->data(), ", ", std::to_string(rval)
@@ -72,21 +75,21 @@ std::string slt_immediat::data() const {
 }
 
 std::string bool_convert::data() const {
-    if (dest == get_physical(0)) return "    # Useless expression!";
+    IGNORE_UNUSED(dest == get_physical(0))
     return string_join(__indent,
         str[op], ' ', dest->data(), ", ", from->data()
     );
 }
 
 std::string bool_not::data() const {
-    if (dest == get_physical(0)) return "    # Useless expression!";
+    IGNORE_UNUSED(dest == get_physical(0))
     return string_join(__indent,
         "seqz ", dest->data(), ", ", from->data()
     );
 }
 
 std::string load_symbol::data() const {
-    if (dest == get_physical(0)) return "    # Useless expression!";
+    IGNORE_UNUSED(dest == get_physical(0))
     if (op == HIGH) {
         return string_join(__indent,
             "lui ", dest->data(), ", %hi(", var->name, ")"
@@ -99,7 +102,7 @@ std::string load_symbol::data() const {
 }
 
 std::string load_memory::data() const {
-    if (dest == get_physical(0)) return "    # Useless expression!";
+    IGNORE_UNUSED(dest == get_physical(0))
     return string_join(__indent,
         str[op] , ' ', dest->data(), ", ", addr.data()
     );
@@ -195,7 +198,7 @@ std::string function_node::resolve_load() const {
 */
 std::string function_node::resolve_arg() const {
     std::vector <std::string> __buf;
-    __buf.reserve(dummy_use.size() * 4);
+    __buf.reserve(dummy_use.size() * 3);
 
     struct node_data {
         physical_register *in {nullptr};
@@ -284,12 +287,12 @@ std::string function_node::resolve_arg() const {
     }();
 
     /* Now, only a0 ~ a7 cycles remains. Using t0 as middle temporary. */
-    for(auto [__reg,__dat] : __map) runtime_assert("~!~",__dat.out == 1);
     std::array <bool,8> visited = {false};
 
     arith_immediat __arith {arith_base::ADD, 0, 0, 0};
     auto *__tmp = get_physical(physical_register::t0); // t0 as temporary
 
+    /* Resolve cycles. */
     for(const auto [__reg,__dat] : __map) {
         if (visited.at(__reg->index - __reg->a0)) continue;
         __buf.push_back("    # Swapping part.\n");
@@ -318,6 +321,83 @@ std::string function_node::resolve_arg() const {
 }
 
 
+void function::print_entry(std::ostream &__os) const {
+    struct node_data {
+        physical_register *in {nullptr};
+        ssize_t           out    {0};
+    };
+
+    /* Mapping from physical register to its inner data. */
+    std::unordered_map <physical_register *, node_data> __map;
+
+    move_register __move {0,0};
+    store_memory __store {memory_base::WORD, 0, stack_address {}};
+    size_t __top = 0;
+    for(auto __val : dummy_def) {
+        /* Filter out the dead arguments. */
+        while (!func_ptr->args[__top]->state) ++__top;
+        auto *__use = get_physical(10 + (__top++));
+        if (__val.type == value_type::POINTER) {
+            auto __def = safe_cast <physical_register *> (__val.pointer.reg);
+            /* No operation. */
+            if (__def == __use) continue;
+            /* Constantly evaluated case: the source will not be changed. */
+            if (__def->index < __use->a0 || __def->index > __use->a7) {
+                __move.from = __use;
+                __move.dest = __def;
+                __os << __move.data() << '\n';
+            } else {
+                __map[__use].out++;
+                __map[__def].in  = __use;
+            }
+        } else { /* Stack address. */
+            __store.from = __use;
+            __store.addr = __val;
+            __os << __store.data() << '\n';
+        }
+    }
+
+    std::queue <physical_register *> __work_list;
+    for(auto &[__reg,__dat] : __map) if (!__dat.out) __work_list.push(__reg);
+
+    while(!__work_list.empty()) {
+        auto *__def = __work_list.front(); __work_list.pop();
+        auto __iter = __map.find(__def);
+        auto *__in  = __iter->second.in;
+        __map.erase(__iter);
+        if (__in == nullptr) continue;
+
+        __move.from = __in;
+        __move.dest = __def;
+        __os << __move.data() << '\n';
+        auto &__dat = __map.at(__in);
+        if (!--__dat.out) __work_list.push(__in);
+    }
+
+    std::array <bool,8> visited = {false};
+    auto *__tmp = get_physical(physical_register::t1); // t1 as temporary
+
+    /* Resolve cycles. */
+    for(const auto [__reg,__dat] : __map) {
+        if (visited.at(__reg->index - __reg->a0)) continue;
+        __move.from = __reg;
+        __move.dest = __tmp;
+        __os << __move.data() << '\n';
+        auto *__cur = __reg;
+        do {
+            visited.at(__cur->index - __reg->a0) = true;
+            auto &&__ref = __map.at(__cur);
+            /* __reg is now stored into __tmp. */
+            __move.from = __ref.in == __reg ? __tmp : __ref.in;
+            __move.dest = __cur;
+            __os << __move.data() << '\n';
+            /* Ending of the cycle. */
+            __cur = __ref.in;
+        } while(__cur != __reg);
+    }
+}
+
+
 
 void function::print(std::ostream &__os) const {
     __os << __indent << ".globl " << name << '\n';
@@ -325,7 +405,7 @@ void function::print(std::ostream &__os) const {
     __os << "# " << name << ".prework:\n";
 
     if (save_ra)
-        __os << "    sw ra, -4(sp) # Storing return address.";
+        __os << "    sw ra, -4(sp) # Storing return address.\n";
 
     size_t n = save_ra;
     /* Save those callee save registers. */
@@ -341,7 +421,10 @@ void function::print(std::ostream &__os) const {
     __os << '.' << name << ".prework.end:\n";
 
     /* TODO: deal with the dummy defs in the function. */
-    __os << "# Loading register arguments (a0 ~ a8)...\n";
+    __os << "# Loading register arguments (a0 ~ a7)...\n";
+
+    /* Load the arguments. */
+    DEBUG_SHADOW(print_entry(__os));
 
     __os << "# Complete loading arguments.\n";
     for(auto __block : blocks) __os << __block->data() << '\n';
@@ -360,7 +443,7 @@ std::string function::return_data() const {
 
     /* Save those callee save registers. */
     if (save_ra)
-        __buf.push_back("    lw ra, -4(sp) # Loading return address.");
+        __buf.push_back("    lw ra, -4(sp) # Loading return address.\n");
 
     n = save_ra;
     for(auto __tmp : callee_save) {
@@ -374,6 +457,7 @@ std::string function::return_data() const {
 
 std::string call_function::data() const {
     std::vector <std::string> __buf;
+    return "";
     if (op == TAIL) {
         __buf.reserve(3);
         __buf.push_back(function_node::resolve_arg());
