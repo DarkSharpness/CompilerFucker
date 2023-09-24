@@ -39,7 +39,7 @@ void ASMallocator::paint_color(function *__func) {
         get_physical(29),// t4
         get_physical(30),// t5
         get_physical(31),// t6
-        get_physical(2)  // ra
+        get_physical(1)  // ra
     };
 
     /* Resolve caller save memory. */

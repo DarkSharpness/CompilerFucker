@@ -24,7 +24,8 @@ void ASMbuilder::pre_scanning(IR::function *__func) {
                 /* The offset is a certain value. */
                 if (auto __idx = dynamic_cast <IR::integer_constant *> (__get->idx)) {
                     size_t __offset = __idx->value * (--__get->dst->type).size();
-                    if (__get->mem) __offset += __get->mem * IR::MxPTRSIZE;
+                    if (__get->mem != __get->NPOS)
+                        __offset += __get->mem * IR::MxPTRSIZE;
                     getelement_map[__get->dst] = {
                         dynamic_cast <IR::non_literal *> (__get->src), __offset
                     };
@@ -49,8 +50,8 @@ void ASMbuilder::create_entry(IR::function *__func) {
     top_block = get_block(__func->stmt[0]);
     for (size_t i = 0 ; i < __func->args.size() ; ++i) {
         auto *__arg = __func->args[i]; 
-        auto *__dst = get_virtual(__arg);
         if (__arg->is_dead()) continue; /* Dead arguments. */
+        auto *__dst = get_virtual(__arg);
 
         if (i < 8) {
             top_asm->dummy_def.push_back({pointer_address {__dst,0}});
