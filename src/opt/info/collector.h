@@ -21,7 +21,8 @@ struct function_graph {
 
     static void tarjan(function_info &);
     static bool work_topo(std::deque <function_info> &);
-    static void resolve_dependency(std::deque <function_info> &);
+    static void resolve_leak(std::deque <function_info> &);
+    static void resolve_used(std::deque <function_info> &);
 
 };
 

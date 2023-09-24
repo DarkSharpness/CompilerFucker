@@ -250,12 +250,14 @@ struct global_variable : variable {
 };
 
 struct function_argument : variable {
-    static constexpr uint8_t DEAD = 0b000; /* Value not used in any expression. */
-    static constexpr uint8_t USED = 0b001; /* Value used in some expression(s). */
-    static constexpr uint8_t LEAK = 0b011; /* Value stored/return out.          */
-    static constexpr uint8_t FUNC = 0b100; /* Value used in function call.      */
-    /* The state of a given argument(Dead/Alive/Leaked.) */
-    uint8_t state = USED;
+    uint8_t used_flag = 0b01;
+    uint8_t leak_flag = 0b00;
+
+    bool may_used() const noexcept { return used_flag & 0b10;   }
+    bool may_leak() const noexcept { return leak_flag & 0b10;   }
+    bool is_used() const noexcept  { return used_flag & 0b01;   }
+    bool is_leak() const noexcept  { return leak_flag & 0b01;   }
+    bool is_dead() const noexcept  { return used_flag | leak_flag; }
 
     ~function_argument() override = default;
 };

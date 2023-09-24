@@ -15,7 +15,6 @@ namespace dark::OPT {
  */
 struct reliance {
     /* Namespace of used constant. */
-    using const_space = IR::function_argument;
 
     /**
      * @brief The threshold of the leak function.
@@ -31,51 +30,66 @@ struct reliance {
      * 
     */
     static constexpr size_t THRESHOLD = 64;
-    /* Only the leak bit. */
-    static constexpr uint8_t LEAK_BIT = const_space::LEAK ^ const_space::USED;
-    /* Only the used bit. */
-    static constexpr uint8_t USED_BIT = const_space::USED;
+
+    /* Only the used/leak bit. */
+    static constexpr uint8_t USED_BIT = 0b01;
+
+    /* Only the function bit. */
+    static constexpr uint8_t FUNC_BIT = 0b10;
 
     /* Potential function args that lead to the leak. */
-    std::unordered_map <IR::function *,std::bitset <THRESHOLD>> rely_func;
+    std::unordered_map <IR::function *,std::bitset <THRESHOLD>> leak_func;
+
+    /* Potential function args that lead to the usage. */
+    std::unordered_map <IR::function *,std::bitset <THRESHOLD>> used_func;
 
     /* Just use bitset to simplify. We don't expect any extra cost. */
     static_assert(sizeof(std::bitset <THRESHOLD>) <= sizeof(size_t));
 
     /* Whether the information has leaked (Stored / returned out) */
-    uint8_t rely_flag = const_space::DEAD;
+    uint8_t used_flag = false;
+    uint8_t leak_flag = false;
 
-    bool is_leak() const noexcept { return rely_flag & LEAK_BIT; }
-    bool is_used() const noexcept { return rely_flag & USED_BIT; }
+    bool may_leak() const noexcept { return leak_flag & FUNC_BIT; }
+    bool may_used() const noexcept { return used_flag & USED_BIT; }
+    bool is_leak() const noexcept  { return leak_flag & FUNC_BIT; }
+    bool is_used() const noexcept  { return used_flag & USED_BIT; }
  
-    /* Merge the using information (low bit) */
+    /* Merge the using information. */
     bool merge_used (const reliance *next) {
-        uint8_t temp = rely_flag;
-        rely_flag   |= next->rely_flag & USED_BIT;
-        return temp != rely_flag;
-    }
-
-    /* Merge the leak information. */
-    bool merge_leak (const reliance *next) {
-        if (is_leak() || this == next) return false;
-        if (next->is_leak()) {
-            rely_func.clear();
-            return rely_flag = next->rely_flag;
+        if (is_used() || this == next) return false;
+        if (next->is_used()) {
+            used_func.clear();
+            return used_flag = USED_BIT;
         }
 
-        /* None of them are leaked, so just spread the information normally. */
-        rely_flag |= next->rely_flag;
-
-        /* Now, both rely on the function.  */
-        bool flag = false;
-        for(auto [__func,__rhs] : next->rely_func) {
-            auto &__lhs = rely_func[__func];
+        /* None of are used. */
+        used_flag |= next->used_flag;
+        bool flag  = false;
+        for(auto [__func,__rhs] : next->used_func) {
+            auto &__lhs = used_func[__func];
             auto __tmp = __lhs | __rhs;
             if (__tmp != __lhs) __lhs = __tmp, flag = true;
         } return flag;
     }
 
+    /* Merge the leak information. Usage info might be passed as well. */
+    bool merge_leak (const reliance *next) {
+        if (is_leak() || this == next) return false;
+        if (next->is_leak()) {
+            leak_func.clear();
+            return leak_flag = USED_BIT;
+        }
 
+        /* None of are leaked. */
+        leak_flag |= next->leak_flag;; 
+        bool flag  = false;
+        for(auto [__func,__rhs] : next->leak_func) {
+            auto &__lhs = leak_func[__func];
+            auto __tmp = __lhs | __rhs;
+            if (__tmp != __lhs) __lhs = __tmp, flag = true;
+        } return flag;
+    }
 };
 
 

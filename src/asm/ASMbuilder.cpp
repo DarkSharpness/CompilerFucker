@@ -33,10 +33,6 @@ void ASMbuilder::pre_scanning(IR::function *__func) {
                 offset_map[__alloc->dest] = top_asm->allocate(__alloc->dest);
             } else if(auto __call = dynamic_cast <IR::call_stmt *> (__stmt)) {
                 top_asm->update_size(__call->func->args.size());
-                for(size_t i = 0 ; i != __call->args.size() ; ++i) {
-                    auto *__use = __call->args[i];
-                    if (!__call->func->args[i]->state) --use_map[__use].count;
-                }
                 __flag = __call;
             } else if (auto __br = dynamic_cast <IR::branch_stmt *> (__stmt)) {
                 --use_map[__br->cond].count;
@@ -54,8 +50,7 @@ void ASMbuilder::create_entry(IR::function *__func) {
     for (size_t i = 0 ; i < __func->args.size() ; ++i) {
         auto *__arg = __func->args[i]; 
         auto *__dst = get_virtual(__arg);
-        if (__arg->state == __arg->DEAD)
-            continue; /* Dead arguments. */
+        if (__arg->is_dead()) continue; /* Dead arguments. */
 
         if (i < 8) {
             top_asm->dummy_def.push_back({pointer_address {__dst,0}});
@@ -401,7 +396,7 @@ void ASMbuilder::visitCall(IR::call_stmt *__stmt) {
     for (size_t i = 0 ; i < __stmt->args.size() ; ++i) {
         auto *__arg = __stmt->func->args[i];
         /* Do nothing to dead arguments. */
-        if (__arg->state == __arg->DEAD) continue;
+        if (__arg->is_dead()) continue;
 
         if (i < 8) { /* Dummy reordering of those arguments. */
             __call->dummy_use.push_back(get_value(__stmt->args[i]));

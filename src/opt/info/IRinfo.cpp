@@ -18,6 +18,8 @@ size_t IR::function::is_side_effective() const {
     auto __ptr = get_impl_ptr <OPT::function_info> ();
     if (!__ptr || !__ptr->real_info) return 4;
 
+    return 5;
+
     if (inout_state || exist_store) return 5;
     else return 0;
 }

@@ -14,10 +14,10 @@ dead_argument_eliminater::dead_argument_eliminater
             auto __call = dynamic_cast <IR::call_stmt *> (__node);
             if (!__call) continue;
             for(size_t i = 0 ; i != __call->args.size() ; ++i) {
-                if (!__call->func->args[i]->state) {
+                if (__call->func->args[i]->is_dead()) {
                     auto &__arg = __call->args[i];
                     auto __name = __arg->get_value_type().name();
-                    if (__name == "i32") __arg = __zero__;
+                    if (__name == "i32")     __arg = __zero__;
                     else if (__name == "i1") __arg = __false_;
                     else __arg = __null__;
                 }

@@ -68,6 +68,8 @@ void ASMallocator::paint_color(function *__func) {
                     );
                 }
             }
+        } else if(__ref.type == address_info::CALLEE) {
+            __func->callee_save.insert(callee_save[__ref.index]);
         }
     }
 

@@ -11,6 +11,8 @@
 
 namespace dark::OPT {
 
+void print_info(const function_info &__info,std::ostream &__os);
+
 void build_virtual_exit(IR::function *__func,node *__exit) {
     for(auto __block : __func->stmt) {
         auto *__last = __block->stmt.back();
@@ -28,17 +30,14 @@ void SSAbuilder::try_optimize(std::vector <IR::function>  &global_functions) {
     /* A variable holding optimization state. */
     const auto __optimize_state = optimize_options::get_state();
 
-    /* First pass : simple optimization. */
     for(auto &__func : global_functions) {
         auto *__entry = create_node(__func.stmt.front());
-
         /* This removes all unreachable branches in advance. */
         unreachable_remover{&__func,__entry};
         if(__func.is_unreachable()) continue;
 
         /* This builds up SSA form and lay phi statement. */
         dominate_maker{&__func,__entry};
-
         /* Eliminate dead code safely. */
         deadcode_eliminator{&__func,__entry};
 
@@ -93,13 +92,13 @@ void SSAbuilder::try_optimize(std::vector <IR::function>  &global_functions) {
 
     }
 
-    /* Spread the data recursively! */
+    // /* Spread the data recursively! */
     for (auto &__info : info_list) function_graph::tarjan(__info);
-    if (function_graph::work_topo(info_list)) {
-        std::cerr << "TODO!!\n";
-    }
-    function_graph::resolve_dependency(info_list);
-    // for (auto &__info : info_list) print_info(__info);
+    if (function_graph::work_topo(info_list)) {}
+    function_graph::resolve_leak(info_list);
+    for (auto &__info : info_list) print_info(__info,std::cerr);
+
+    return;
 
     /* Second pass: using collected information to optimize. */
     for(auto &__func : global_functions) {
@@ -153,8 +152,6 @@ void SSAbuilder::try_optimize(std::vector <IR::function>  &global_functions) {
         malloc_eliminator {&__func,nullptr};
         __replace_undefined(&__func);
     }
-
-
 }
 
 
@@ -189,22 +186,22 @@ void SSAbuilder::reverse_CFG(IR::function *__func) {
 
 
 /* This function is used to print the information of the function. */
-void print_info(const function_info &__info,std::ostream &__os = std::cerr) {
+void print_info(const function_info &__info,std::ostream &__os) {
     __os << "----------------------\n";
     __os << "Caller: " << __info.func->name << "\nCallee:";
     for (auto __callee : __info.real_info->recursive_func)
         __os << " " << __callee->name;
+
+
     __os << "\nArgument state:\n";
     auto __iter = __info.func->args.begin();
     for (auto __arg : __info.func->args) {
         __os << "    " << __arg->data() << " : ";
-        switch(__arg->state) {
-            case IR::function_argument::DEAD: __os << "Not used!"; break;
-            case IR::function_argument::USED: __os << "Just used!"; break;
-            case IR::function_argument::LEAK: __os << "Leaked!"; break;
-            default: __os << "??";
-        } __os << '\n';
+        if (__arg->leak_flag) __os << "Leaked!\n";
+        else if (__arg->used_flag) __os << "Used!\n";
+        else __os << "Not used!\n";
     }
+
     __os << "Global variable:\n ";
     for(auto [__var,__state] : __info.used_global_var) {
         __os << "    " << __var->data() << " : ";
@@ -215,17 +212,14 @@ void print_info(const function_info &__info,std::ostream &__os = std::cerr) {
             default: __os << "??";
         } __os << '\n';
     }
+
     __os << "Local temporary:\n";
     for(auto &[__var,__use] : __info.use_map) {
         __os << __var->data() << " : ";
         auto __ptr = __use.get_impl_ptr <reliance> ();
-        switch(__ptr->rely_flag) {
-            case IR::function_argument::DEAD : __os << "Not used!";  break;
-            case IR::function_argument::USED : __os << "Just used!"; break;
-            case IR::function_argument::LEAK : __os << "Leaked!";    break;
-            default: __os << "??";
-        } __os << '\n';
-
+        if (__ptr->leak_flag) __os << "Leaked!\n";
+        else if (__ptr->used_flag) __os << "Used!\n";
+        else __os << "Not used!\n";
     }
 
     const char *__msg[4] = { "NONE","IN ONLY","OUT ONLY","IN AND OUT" };

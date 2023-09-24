@@ -5,7 +5,8 @@
 // #define IGNORE_UNUSED(x)
 #define IGNORE_UNUSED(x) if (x) return "    # Useless expression!";
 
-#define DEBUG_SHADOW(x)
+#define DEBUG_SHADOW(x) x
+// #define DEBUG_SHADOW(x)
 
 namespace dark::ASM {
 
@@ -217,7 +218,7 @@ std::string function_node::resolve_arg() const {
     size_t __top = 0;
     for(auto __val : dummy_use) {
         /* Filter out the dead arguments. */
-        while (!func->func_ptr->args[__top]->state) ++__top;
+        while (func->func_ptr->args[__top]->is_dead()) ++__top;
         auto *__def = get_physical(10 + (__top++));
         if (__val.type == value_type::POINTER) {
             auto __use = safe_cast <physical_register *> (__val.pointer.reg);
@@ -335,7 +336,7 @@ void function::print_entry(std::ostream &__os) const {
     size_t __top = 0;
     for(auto __val : dummy_def) {
         /* Filter out the dead arguments. */
-        while (!func_ptr->args[__top]->state) ++__top;
+        while (func_ptr->args[__top]->is_dead()) ++__top;
         auto *__use = get_physical(10 + (__top++));
         if (__val.type == value_type::POINTER) {
             auto __def = safe_cast <physical_register *> (__val.pointer.reg);
@@ -457,7 +458,6 @@ std::string function::return_data() const {
 
 std::string call_function::data() const {
     std::vector <std::string> __buf;
-    return "";
     if (op == TAIL) {
         __buf.reserve(3);
         __buf.push_back(function_node::resolve_arg());
