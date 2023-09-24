@@ -115,30 +115,36 @@ void ASMbuilder::resolve_phi(phi_info &__ref) {
     runtime_assert("die",top_block->expression.size() == 1);
     auto *__jump = safe_cast <jump_expression *> (top_block->expression[0]);
     struct node_data {
-        virtual_register *in {nullptr};
-        value_type       val {nullptr};
-        size_t           out    {0};
+        virtual_register  *in {nullptr};
+        ssize_t           off    {0};
+        ssize_t           out    {0};
     };
 
+    /* Lazy assign from global / constant register. */
+    std::vector <std::pair <virtual_register *,value_type>> lazy_assign;
+    /* Mapping from virtual register to its inner data. */
     std::unordered_map <virtual_register *, node_data> __map;
-    __map.reserve(__ref.use.size() << 1 | 1);
 
     top_block->expression.clear();
     for(size_t i = 0 ; i != __ref.use.size() ; ++i) {
         auto __def = __ref.def[i];
-        auto __use = __ref.use[i];
-        __map[__def].val = __use;
-        if (__use.type == value_type::POINTER) {
-            auto *__reg = dynamic_cast <virtual_register *> (__use.pointer.reg);
-            if (__reg != nullptr && __reg != __def) {
-                __map[__def].in = __reg;
-                __map[__reg].out++;
+        auto __val = __ref.use[i];
+        if (__val.type == value_type::POINTER) {
+            auto __use = dynamic_cast <virtual_register *> (__val.pointer.reg);
+            /* No operation. */
+            if (__def == __use) continue;
+            /* Constant evaluated. */
+            if (__use == nullptr) { /* physical register case. */
+                lazy_assign.emplace_back(__def,__val);
+            } else {
+                __map[__use].out++;
+                __map[__def].in  = __use;
+                __map[__def].off = __val.pointer.offset;
             }
-        }
+        } else lazy_assign.push_back({__def,__val}); /* Global address. */
     }
 
     std::queue <virtual_register *> __work_list;
-
     for(auto &[__reg,__dat] : __map)
         if (!__dat.out) __work_list.push(__reg);
 
@@ -147,23 +153,54 @@ void ASMbuilder::resolve_phi(phi_info &__ref) {
         auto *__def = __work_list.front(); __work_list.pop();
         auto __iter = __map.find(__def);
         auto *__in  = __iter->second.in;
-        auto  __use = __iter->second.val;
+        auto  __off = __iter->second.off;
         __map.erase(__iter);
-        /* No use. */
-        if (__use.type == value_type::STACK) continue;
-        auto *__node = try_assign(__def,__use);
-        /* Assign to itself: Nothing should be done. */
-        if (!__node) continue;
-        top_block->emplace_back(__node);
-        if (__in) { /* Topologically! */
-            auto &__dat = __map.at(__in);
-            if (!--__dat.out) __work_list.push(__in);
-        }
+        if (__in == nullptr) continue;
+
+        /* Insert a arithmetic immediate. */
+        top_block->emplace_back(new arith_immediat {
+            arith_base::ADD, __in, __off, __def
+        });
+        auto &__dat = __map.at(__in);
+        if (!--__dat.out) __work_list.push(__in);
     }
 
-    top_block->emplace_back(__jump);
+    std::cerr << "Cycles: " << __map.size() << std::endl;
+    /* Deal with the cycles in the map. */
+    std::unordered_set <virtual_register *> __visited;
+    for(const auto [__reg,__dat] : __map) {
+        if (!__visited.insert(__reg).second) continue;
+        auto *__tmp = create_virtual();
+        top_block->emplace_back(new arith_immediat {
+            arith_base::ADD, __reg, 0, __tmp
+        });
+        auto *__cur = __reg;
+        do {
+            __visited.insert(__cur);
+            auto &&__ref = __map.at(__cur);
+            /* __reg is now stored into __tmp. */
+            auto *__src  = __ref.in == __reg ? __tmp : __ref.in;
+            top_block->emplace_back(new arith_immediat {
+                arith_base::ADD, __src, __ref.off, __cur
+            });
+            __cur = __ref.in;
+        } while(__cur != __reg);
+    }
 
-    if (!__map.empty()) throw error("As expected!");
+    /* Lazy assign. */
+    for(auto [__def,__addr] : lazy_assign) {
+        if (__addr.type == value_type::GLOBAL) {
+            top_block->emplace_back(new load_symbol {
+                load_symbol::FULL, __def, __addr.global.var
+            });
+        } else { /* Pointer case. */
+            top_block->emplace_back(new arith_immediat {
+                arith_base::ADD, __addr.pointer.reg,
+                __addr.pointer.offset, __def
+            });
+        }
+    }
+    top_block->emplace_back(__jump);
 }
 
 
