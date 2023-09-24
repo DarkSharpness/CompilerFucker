@@ -245,7 +245,7 @@ ASMlifeanalyser::ASMlifeanalyser(function *__func) {
     /* Initialize the save set. This will help further optimization. */
     for(auto &&[__vir,__ref] : usage_map) __ref.init_set();
 
-    debug_print(std::cerr,__func);
+    // debug_print(std::cerr,__func);
 }
 
 
