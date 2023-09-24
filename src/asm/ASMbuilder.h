@@ -70,11 +70,9 @@ struct ASMbuilder final : IR::IRvisitorbase {
     /* No renaming is done. */
     function *get_function(IR::function *__func) {
         auto *__ans = &func_map[__func];
-        if(__ans->name.empty()) {
+        if (__ans->name.empty()) {
             __ans->name = __func->name;
             __ans->func_ptr = __func;
-            /* Save ra by default. It will be used last. */
-            __ans->callee_save.insert(get_physical(1));
         } return __ans;
     }
 

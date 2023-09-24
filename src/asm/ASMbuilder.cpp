@@ -357,16 +357,43 @@ void ASMbuilder::visitBranch(IR::branch_stmt *__stmt) {
 
 
 void ASMbuilder::visitCall(IR::call_stmt *__stmt) {
-    if (__stmt->func->is_builtin) {
-        /* Special judge! */
-    }
+    function_node *__call = nullptr;
+    if (__stmt->func->is_builtin > 10) {
+        auto *__func = get_function(__stmt->func);
+        if (__func->name == "__print__") {
 
-    auto *__call = new call_function {get_function(__stmt->func)};
+        } else if (__func->name == "__printInt__") {
+
+        } else if (__func->name == "__printlnInt__") {
+
+        } else if (__func->name == "__String_parseInt__") {
+
+        } else if (__func->name == "__String_ord__") {
+
+        } else if (__func->name == "__String_parseInt__") {
+
+        } else if (__func->name == "__getString__") {
+
+        } else if (__func->name == "__getInt__") {
+
+        } else if (__func->name == "__toString__") {
+
+        } else if (__func->name == "__Array_size__") {
+
+        } else if (__func->name == "__new_array1__") {
+
+        } else if (__func->name == "__new_array4__") {
+
+        } else {
+            __call = new call_function {__func,top_asm};
+        }
+    } else {
+        __call = new call_function {get_function(__stmt->func),top_asm};
+    }
 
     /* Tail call doesn't require saving ra. */
     if (tail_call_set.count(__stmt)) {
         __call->op   = call_function::TAIL;
-        __call->self = top_asm;
         __call->dest = nullptr;
     } else { /* Non-tail call requires saving ra. */
         top_asm->save_ra = true;

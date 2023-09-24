@@ -168,13 +168,17 @@ void ASMallocator::visitCallFunc(function_node *__ptr) {
     /* Deal with its 8 arguments. */
     expr_list.push_back(__ptr);
     for(auto &__addr : __ptr->dummy_use) {
-        /* No need to do anything. */
+        /* No need to do anything if global. */
         if (__addr.type == value_type::GLOBAL) continue;
-        /* From a pointer. */
+
         auto &__reg = __addr.pointer.reg;
-        if (dynamic_cast <physical_register *> (__reg)) continue;
+
+        /* Constant pointer value case: load it later. */
+        if (auto __tmp = dynamic_cast <physical_register *> (__reg)) continue;
+
         if (__addr.pointer.offset != 0) runtime_assert("No address shall be taken!");
         auto __vir = safe_cast <virtual_register *> (__reg);
+
         auto __tmp = vir_map.at(__vir);
         switch(__tmp.type) {
             case address_info::CALLEE:
@@ -187,8 +191,19 @@ void ASMallocator::visitCallFunc(function_node *__ptr) {
                 __addr = stack_address {top_func,__tmp.index};
         }
     }
-    if (__ptr->dest)
+
+    /* If no need to resolve, then do nothing. */
+    if (__ptr->dest) {
+        size_t __i = expr_list.size();
         __ptr->dest = resolve_def(__ptr->dest);
+        if (expr_list.size() > __i) {
+            /* A new store memory is inserted: dst spilled. */
+            auto __store  = safe_cast <store_memory *> (expr_list.back());
+            expr_list.pop_back();
+            __ptr->is_dest_spilled = true;
+            __ptr->spilled_offset  = __store->addr.stack.index;
+        }
+    }
 }
 
 
