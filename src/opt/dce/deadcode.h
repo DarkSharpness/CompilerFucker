@@ -115,5 +115,10 @@ struct aggressive_eliminator : DCE_base {
 };
 
 
+struct dead_argument_eliminater {
+    dead_argument_eliminater(IR::function *,node *);
+};
+
+
 
 }

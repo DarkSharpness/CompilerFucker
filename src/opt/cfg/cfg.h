@@ -97,5 +97,9 @@ struct branch_compressor {
     static void update_branch(IR::branch_stmt *,node *,node *,node *);
 };
 
+struct tail_recursion_pass {
+    tail_recursion_pass(IR::function *,void *);
+};
+
 
 }
