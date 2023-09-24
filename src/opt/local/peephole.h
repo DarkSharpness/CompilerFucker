@@ -184,5 +184,10 @@ struct local_optimizer final : IR::IRvisitorbase {
 };
 
 
+struct malloc_eliminator {
+    malloc_eliminator(IR::function *,node *);
+};
+
+
 }
 

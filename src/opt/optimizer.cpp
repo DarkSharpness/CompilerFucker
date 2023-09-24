@@ -149,8 +149,10 @@ void SSAbuilder::try_optimize(std::vector <IR::function>  &global_functions) {
     };
 
     /* Final pass: replace all undefined. */
-    for(auto &__func : global_functions)
+    for(auto &__func : global_functions) {
+        malloc_eliminator {&__func,nullptr};
         __replace_undefined(&__func);
+    }
 
 
 }
