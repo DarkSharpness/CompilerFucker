@@ -136,13 +136,16 @@ void ASMallocator::stack_slot::merge_range(pair_pointer __use) {
  * 
  * 
 */
-ASMallocator::ASMallocator(function *__func) {
+ASMallocator::ASMallocator(function *__func) : top_func(__func) {
     __impl = new ASMlifeanalyser {__func};
 
     block_pos.reserve(__func->blocks.size() + 1);
     block_pos.push_back(0);
     for(auto __block : __func->blocks)
         block_pos.push_back(__block->get_impl_val <int> ());
+
+    if (__func->name == "taskNTT.reverse")
+        std::cerr << "Debug\n";
 
     [this]() -> void {
         auto __beg = __impl->usage_map.begin();
@@ -163,9 +166,7 @@ ASMallocator::ASMallocator(function *__func) {
         linear_allocate(__ptr);
     }
 
-    /* After allocation,  */
-
-
+    paint_color(__func);
 }
 
 

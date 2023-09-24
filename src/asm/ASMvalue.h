@@ -183,16 +183,18 @@ struct function;
 
 
 struct global_address {
-    /* Now , it becomes useless...... */
     Register * reg = nullptr;
     IR::global_variable *var; /* Global variable. */
-    std::string data() const { return var->name; }
+    std::string data() const {
+        if (!reg) return var->name;
+        return string_join(var->name,", ",reg->data());
+    }
 };
 
 
 struct stack_address {
     function *func;
-     /* index < 0 function argument (excess) || index > 0 temporary. */
+    /* index < 0 function argument (excess) || index > 0 temporary. */
     ssize_t  index;
     std::string data() const;
 };

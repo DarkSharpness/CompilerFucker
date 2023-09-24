@@ -3,9 +3,12 @@
 
 namespace dark::ASM {
 
+ssize_t function::get_stack_pos(ssize_t __n) const noexcept {
+    return arg_offset + var_count + __n * 4;
+}
+
 std::string stack_address::data() const {
-    warning("Not implemented!");
-    return "";
+    return std::to_string(func->get_stack_pos(index)) + "(sp)";
 }
 
 std::string ret_expression::data() const {

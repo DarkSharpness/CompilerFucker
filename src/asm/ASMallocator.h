@@ -4,12 +4,13 @@
 #include "ASManalyser.h"
 
 #include <list>
+#include <array>
 
 namespace dark::ASM {
 
 
 /* Linear scan allocator. */
-struct ASMallocator {
+struct ASMallocator final : ASMvisitor {
 
     const ASMlifeanalyser *__impl;
     ASMallocator(function *);
@@ -82,6 +83,101 @@ struct ASMallocator {
     void use_callee(pair_pointer,unsigned);
     void use_caller(pair_pointer,unsigned);
     void use_stack(pair_pointer,int);
+
+    void paint_color(function *);
+
+    void visitArithReg(arith_register *__ptr) override;
+    void visitArithImm(arith_immediat *__ptr) override;
+    void visitMoveReg(move_register *__ptr) override;
+    void visitSltReg(slt_register *__ptr) override;
+    void visitSltImm(slt_immediat *__ptr) override;
+    void visitBoolNot(bool_not *__ptr) override;
+    void visitBoolConv(bool_convert *__ptr) override;
+    void visitLoadSym(load_symbol *__ptr) override;
+    void visitLoadMem(load_memory *__ptr) override;
+    void visitStoreMem(store_memory *__ptr) override;
+    void visitCallFunc(function_node *__ptr) override;
+    void visitRetExpr(ret_expression *__ptr) override;
+    void visitJumpExpr(jump_expression *__ptr) override;
+    void visitBranchExpr(branch_expression *__ptr) override;
+
+    static physical_register *find_temporary() noexcept {
+        static bool __last = false;
+        return get_physical((__last = !__last) + 5);
+    }
+
+    std::array <physical_register *,CALLEE_SIZE> callee_save;
+    std::array <physical_register *,CALLER_SIZE> caller_save;
+
+    function *top_func;
+    std::vector <node *> expr_list;
+
+    physical_register *resolve_temporary(temporary_register *__tmp) {
+        auto __dst = find_temporary();
+        expr_list.push_back(new arith_immediat {
+            arith_immediat::ADD,__tmp->reg,__tmp->offset,__dst
+        });
+        return __dst;
+    }
+
+    physical_register *resolve_virtual_use(virtual_register *__vir) {
+        auto __tmp = vir_map.at(__vir);
+        switch(__tmp.type) {
+            case address_info::CALLEE:
+                return callee_save[__tmp.index];
+            case address_info::CALLER:
+                return caller_save[__tmp.index];
+            case address_info::TEMPORARY:
+                return get_physical(__tmp.index);
+            case address_info::STACK: break;
+            default: runtime_assert("Unreachable!");
+        }
+        /* In-STACK now. */
+        auto __dst = find_temporary();
+        expr_list.push_back(new load_memory {
+            memory_base::WORD,__dst,stack_address {top_func,__tmp.index}
+        });
+        return __dst;
+    }
+
+    physical_register *resolve_virtual_def(virtual_register *__vir) {
+        if (vir_map.find(__vir) == vir_map.end())
+            std::cerr << __vir->data() << '\n';
+        auto __tmp = vir_map.at(__vir);
+        switch(__tmp.type) {
+            case address_info::CALLEE:
+                return callee_save[__tmp.index];
+            case address_info::CALLER:
+                return caller_save[__tmp.index];
+            case address_info::TEMPORARY:
+                return get_physical(__tmp.index);
+            case address_info::STACK: break;
+            default: runtime_assert("Unreachable!");
+        }
+        /* In-STACK now. */
+        auto __dst = find_temporary();
+        expr_list.push_back(new store_memory {
+            memory_base::WORD,__dst,stack_address {top_func,__tmp.index}
+        });
+        return __dst;
+    }
+
+
+
+    physical_register *resolve_use(Register *__reg) {
+        if (auto __tmp = dynamic_cast <temporary_register *>(__reg))
+            return resolve_temporary(__tmp);
+        if (auto __vir = dynamic_cast <virtual_register *>(__reg))
+            return resolve_virtual_use(__vir);
+        return safe_cast <physical_register *>(__reg);
+    }
+
+    physical_register *resolve_def(Register *__reg) {
+        if (auto __vir = dynamic_cast <virtual_register *>(__reg))
+            return resolve_virtual_def(__vir);
+        return safe_cast <physical_register *>(__reg);
+    }
+
 
 };
 

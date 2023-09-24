@@ -7,6 +7,49 @@ namespace dark::ASM {
 
 inline constexpr char __indent[8] = "    ";
 
+struct ASMvisitor;
+
+struct node : hidden_impl {
+    virtual std::string data() const = 0;
+    virtual ~node() = default;
+    virtual void get_use(std::vector <Register *> &) const = 0;
+    virtual Register *get_def() const = 0;
+    virtual void accept(ASMvisitor *) = 0;
+};
+
+struct arith_register;
+struct arith_immediat;
+struct move_register;
+struct slt_register;
+struct slt_immediat;
+struct bool_not;
+struct bool_convert;
+struct load_symbol;
+struct load_memory;
+struct store_memory;
+struct function_node;
+struct ret_expression;
+struct jump_expression;
+struct branch_expression;
+
+struct ASMvisitor {
+    virtual void visit(node *__ptr) final { return __ptr->accept(this); }
+    virtual void visitArithReg(arith_register *__ptr) = 0;
+    virtual void visitArithImm(arith_immediat *__ptr) = 0;
+    virtual void visitMoveReg(move_register *__ptr) = 0;
+    virtual void visitSltReg(slt_register *__ptr) = 0;
+    virtual void visitSltImm(slt_immediat *__ptr) = 0;
+    virtual void visitBoolNot(bool_not *__ptr) = 0;
+    virtual void visitBoolConv(bool_convert *__ptr) = 0;
+    virtual void visitLoadSym(load_symbol *__ptr) = 0;
+    virtual void visitLoadMem(load_memory *__ptr) = 0;
+    virtual void visitStoreMem(store_memory *__ptr) = 0;
+    virtual void visitCallFunc(function_node *__ptr) = 0;
+    virtual void visitRetExpr(ret_expression *__ptr) = 0;
+    virtual void visitJumpExpr(jump_expression *__ptr) = 0;
+    virtual void visitBranchExpr(branch_expression *__ptr) = 0;
+    ~ASMvisitor() = default;
+};
 
 struct dummy_expression final : std::vector <value_type> {
     enum : unsigned char {
@@ -18,15 +61,12 @@ struct dummy_expression final : std::vector <value_type> {
 };
 
 
-struct node : hidden_impl {
-    virtual std::string data() const = 0;
-    virtual ~node() = default;
-    virtual void get_use(std::vector <Register *> &) const = 0;
-    virtual Register *get_def() const = 0;
-};
+
 
 struct register_node : node {};
+
 struct immediat_node : node {};
+
 struct function_node : node {
     /* Just dummy use of some registers. */
     dummy_expression dummy_use {dummy_expression::USE};
@@ -42,6 +82,9 @@ struct function_node : node {
     const override final {
         for (auto __p : dummy_use) __p.get_use(__vec);
     }
+
+    void accept(ASMvisitor *__visitor) override final
+    { return __visitor->visitCallFunc(this); }
 
     Register *get_def() const override final { return dest; }
 
@@ -77,7 +120,6 @@ struct arith_base {
     };
 };
 
-
 struct memory_base {
     using c_string = char [8];
     enum : unsigned char {
@@ -108,6 +150,9 @@ struct arith_register final : register_node , arith_base {
         );
     }
 
+    void accept(ASMvisitor *__visitor) override
+    { return __visitor->visitArithReg(this); }
+
     ~arith_register() override = default;
 };
 
@@ -132,6 +177,10 @@ struct arith_immediat final : immediat_node , arith_base {
             ", ", lval->data(),", ", std::to_string(rval)
         );
     }
+
+    void accept(ASMvisitor *__visitor) override
+    { return __visitor->visitArithImm(this); }
+
     ~arith_immediat() override = default;
 };
 
@@ -153,6 +202,10 @@ struct move_register final : register_node {
             "mv ", dest->data(), ", ", from->data()
         );
     }
+
+    void accept(ASMvisitor *__visitor) override
+    { return __visitor->visitMoveReg(this); }
+
     ~move_register() override = default;
 };
 
@@ -175,6 +228,9 @@ struct slt_register final : register_node {
             "slt ", dest->data(), ", ", lval->data(), ", ", rval->data()
         );
     }
+
+    void accept(ASMvisitor *__visitor) override
+    { return __visitor->visitSltReg(this); }
 
     ~slt_register() override = default;
 };
@@ -199,6 +255,9 @@ struct slt_immediat final : immediat_node {
             "slti ", dest->data(), ", ", lval->data(), ", ", std::to_string(rval)
         );
     }
+
+    void accept(ASMvisitor *__visitor) override
+    { return __visitor->visitSltImm(this); }
 
     ~slt_immediat() override = default;
 };
@@ -235,6 +294,9 @@ struct bool_convert final : register_node {
         );
     }
 
+    void accept(ASMvisitor *__visitor) override
+    { return __visitor->visitBoolConv(this); }
+
     ~bool_convert() override = default;
 };
 
@@ -263,15 +325,13 @@ struct bool_not final : register_node {
         );
     }
 
+    void accept(ASMvisitor *__visitor) override
+    { return __visitor->visitBoolNot(this); }
+
     ~bool_not() override = default;
 };
 
 
-/**
- * @brief Load a global variable address.
- * If used in load, it will be 
- * 
- */
 struct load_symbol final : register_node {
     enum : unsigned char {
         HIGH = 0,
@@ -301,6 +361,9 @@ struct load_symbol final : register_node {
         } else throw std::runtime_error("Not implemented!");
     }
 
+    void accept(ASMvisitor *__visitor) override
+    { return __visitor->visitLoadSym(this); }
+
     ~load_symbol() override = default;
 };
 
@@ -329,6 +392,9 @@ struct load_memory final : register_node, memory_base {
         );
     }
 
+    void accept(ASMvisitor *__visitor) override
+    { return __visitor->visitLoadMem(this); }
+
     ~load_memory() override = default;
 };
 
@@ -356,6 +422,10 @@ struct store_memory final : register_node, memory_base {
             str[op] , ' ', from->data(), ", ", addr.data()
         );
     }
+
+    void accept(ASMvisitor *__visitor) override
+    { return __visitor->visitStoreMem(this); }
+
     ~store_memory() override = default;
 };
 
@@ -468,6 +538,8 @@ struct function {
         return &vir_map.try_emplace(__n,__n).first->second;
     }
 
+    ssize_t get_stack_pos(ssize_t) const noexcept;
+
     /* Pass in one called function. */
     void update_size(size_t __n) noexcept
     { if (__n > max_arg_size) max_arg_size = __n; }
@@ -513,6 +585,8 @@ struct ret_expression final : register_node {
     /* Have much to be done! */
     std::string data() const override;
     ~ret_expression() override = default;
+    void accept(ASMvisitor *__visitor) override
+    { return __visitor->visitRetExpr(this); }
 };
 
 
@@ -529,6 +603,8 @@ struct jump_expression final : node {
     { return string_join(__indent,"j ", dest->name); }
 
     ~jump_expression() override = default;
+    void accept(ASMvisitor *__visitor) override
+    { return __visitor->visitJumpExpr(this); }
 };
 
 
@@ -579,6 +655,8 @@ struct branch_expression final : node {
     }
 
     ~branch_expression() override = default;
+    void accept(ASMvisitor *__visitor) override
+    { return __visitor->visitBranchExpr(this); }
 };
 
 

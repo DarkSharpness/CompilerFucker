@@ -33,6 +33,10 @@ void ASMbuilder::pre_scanning(IR::function *__func) {
                 offset_map[__alloc->dest] = top_asm->allocate(__alloc->dest);
             } else if(auto __call = dynamic_cast <IR::call_stmt *> (__stmt)) {
                 top_asm->update_size(__call->func->args.size());
+                for(size_t i = 0 ; i != __call->args.size() ; ++i) {
+                    auto *__use = __call->args[i];
+                    if (!__call->func->args[i]->state) --use_map[__use].count;
+                }
                 __flag = __call;
             } else if (auto __br = dynamic_cast <IR::branch_stmt *> (__stmt)) {
                 --use_map[__br->cond].count;
@@ -54,12 +58,11 @@ void ASMbuilder::create_entry(IR::function *__func) {
             continue; /* Dead arguments. */
 
         if (i < 8) {
-            /* Just store to the pointer address. */
-            top_asm->dummy_def.push_back({pointer_address {__dst}});
+            top_asm->dummy_def.push_back({pointer_address {__dst,0}});
         } else { /* Excessive arguments in stack. */
             top_block->emplace_back(new load_memory {
                 load_memory::WORD, __dst,
-                {stack_address {top_asm,ssize_t(7 - i)}}
+                pointer_address {get_physical(2),ssize_t(i - 8) << 2}
             });
         }
     }
@@ -377,7 +380,7 @@ void ASMbuilder::visitCall(IR::call_stmt *__stmt) {
         if (__arg->state == __arg->DEAD) continue;
 
         if (i < 8) { /* Dummy reordering of those arguments. */
-            __call->dummy_use.push_back(pointer_address {get_physical(i + 10),0});
+            __call->dummy_use.push_back(get_value(__stmt->args[i]));
         } else { /* Excessive arguments stored to stack. */
             top_block->emplace_back(new store_memory {
                 memory_base::WORD, force_register(__stmt->args[i]),

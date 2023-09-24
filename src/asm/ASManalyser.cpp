@@ -157,10 +157,8 @@ ASMlifeanalyser::ASMlifeanalyser(function *__func) {
         bool __changed = false;
         /* The live-out depends the live-in information.  So use post order. */
         for(auto __next : __block->next) {
-            for(auto __vir : __next->livein) {
-                if (__block->def.count(__vir)) continue;
+            for(auto __vir : __next->livein)
                 __changed |= __block->liveout.insert(__vir).second;
-            }
         }
 
         /* All uses has been loaded. The only increment comes from liveout. */
@@ -254,8 +252,11 @@ ASMlifeanalyser::ASMlifeanalyser(function *__func) {
 void ASMlifeanalyser::debug_print(std::ostream &__os,function *__func) {
     __os << "-----Debug!-----\n\n  Function: " << __func->name << '\n';
     for(auto __block : __func->blocks) {
-        __os << "    Block: " << __block->name  << " ||  End index: "
-             << __block->get_impl_val <int> () << '\n';
+        __os << "    Block: " << __block->name  << " ||  live_in: ";
+        for(auto __vir : __block->livein) __os << __vir->data() << ' ';
+        __os << " ||  live_out: ";
+        for(auto __vir : __block->liveout) __os << __vir->data() << ' ';
+        __os << " || index: " << __block->get_impl_val <int> () << '\n';
     }
 
     for(auto &&[__vir,__ref] : usage_map) {
