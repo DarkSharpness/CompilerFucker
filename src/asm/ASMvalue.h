@@ -12,7 +12,7 @@ struct Register {
 
 
 struct physical_register final : Register {
-    enum {
+    enum : size_t {
         zero    = 0, /* Hardwired zero */
         ra      = 1, /* Return address */
         sp      = 2, /* Stack pointer */

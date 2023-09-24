@@ -60,9 +60,6 @@ struct dummy_expression final : std::vector <value_type> {
     noexcept : op(__op) {}
 };
 
-
-
-
 struct register_node : node {};
 
 struct immediat_node : node {};
@@ -78,6 +75,13 @@ struct function_node : node {
         TAIL = 1,
     } op;
 
+    /* If the dest is spilled to stack. */
+    bool is_dest_spilled = false;
+    int  spilled_offset  = 0;
+
+    /* All caller save register across the function call! */
+    std::vector <std::pair<physical_register *,size_t>> caller_save;
+
     void get_use(std::vector <Register *> & __vec)
     const override final {
         for (auto __p : dummy_use) __p.get_use(__vec);
@@ -86,10 +90,14 @@ struct function_node : node {
     void accept(ASMvisitor *__visitor) override final
     { return __visitor->visitCallFunc(this); }
 
+    std::string resolve_spill() const;
+    std::string resolve_load() const;
+    std::string resolve_arg() const;
+
     Register *get_def() const override final { return dest; }
 
-    explicit function_node(function *__func,decltype(op) __op)
-    noexcept : func(__func), op(__op) {}
+    explicit function_node(function *__func,function *__self,decltype(op) __op)
+    noexcept : func(__func), self(__self), op(__op) {}
 };
 
 struct arith_base {
@@ -143,12 +151,7 @@ struct arith_register final : register_node , arith_base {
     const override { __vec.push_back(lval); __vec.push_back(rval); }
     Register *get_def() const override { return dest; }
 
-    std::string data() const override {
-        return string_join(__indent,
-            str[op],' ',dest->data(),
-            ", ", lval->data(),", ", rval->data()
-        );
-    }
+    std::string data() const override;
 
     void accept(ASMvisitor *__visitor) override
     { return __visitor->visitArithReg(this); }
@@ -171,12 +174,7 @@ struct arith_immediat final : immediat_node , arith_base {
     const override { __vec.push_back(lval); }
     Register *get_def() const override { return dest; }
 
-    std::string data() const override {
-        return string_join(__indent,
-            str[op],"i ",dest->data(),
-            ", ", lval->data(),", ", std::to_string(rval)
-        );
-    }
+    std::string data() const override;
 
     void accept(ASMvisitor *__visitor) override
     { return __visitor->visitArithImm(this); }
@@ -197,12 +195,7 @@ struct move_register final : register_node {
     const override { __vec.push_back(from); }
     Register *get_def() const override { return dest; }
 
-    std::string data() const override {
-        return string_join(__indent,
-            "mv ", dest->data(), ", ", from->data()
-        );
-    }
-
+    std::string data() const override;
     void accept(ASMvisitor *__visitor) override
     { return __visitor->visitMoveReg(this); }
 
@@ -223,12 +216,7 @@ struct slt_register final : register_node {
     const override { __vec.push_back(lval); __vec.push_back(rval); }
     Register *get_def() const override { return dest; }
 
-    std::string data() const override {
-        return string_join(__indent,
-            "slt ", dest->data(), ", ", lval->data(), ", ", rval->data()
-        );
-    }
-
+    std::string data() const override;
     void accept(ASMvisitor *__visitor) override
     { return __visitor->visitSltReg(this); }
 
@@ -250,11 +238,7 @@ struct slt_immediat final : immediat_node {
 
     Register *get_def() const override { return dest; }
 
-    std::string data() const override {
-        return string_join(__indent,
-            "slti ", dest->data(), ", ", lval->data(), ", ", std::to_string(rval)
-        );
-    }
+    std::string data() const override;
 
     void accept(ASMvisitor *__visitor) override
     { return __visitor->visitSltImm(this); }
@@ -288,11 +272,7 @@ struct bool_convert final : register_node {
     const override { __vec.push_back(from); }
     Register *get_def() const override { return dest; }
 
-    std::string data() const override {
-        return string_join(__indent,
-            str[op], ' ', dest->data(), ", ", from->data()
-        );
-    }
+    std::string data() const override;
 
     void accept(ASMvisitor *__visitor) override
     { return __visitor->visitBoolConv(this); }
@@ -319,11 +299,7 @@ struct bool_not final : register_node {
     const override { __vec.push_back(from); }
     Register *get_def() const override { return dest; }
 
-    std::string data() const override {
-        return string_join(__indent,
-            "seqz ", dest->data(), ", ", from->data()
-        );
-    }
+    std::string data() const override;
 
     void accept(ASMvisitor *__visitor) override
     { return __visitor->visitBoolNot(this); }
@@ -349,17 +325,7 @@ struct load_symbol final : register_node {
     void get_use(std::vector <Register *> &) const override {}
     Register *get_def() const override { return dest; }
 
-    std::string data() const override {
-        if (op == HIGH) {
-            return string_join(__indent,
-                "lui ", dest->data(), ", %hi(", var->name, ")"
-            );
-        } else if (op == FULL) {
-            return string_join(__indent,
-                "la ", dest->data(), ", ", var->name
-            );
-        } else throw std::runtime_error("Not implemented!");
-    }
+    std::string data() const override;
 
     void accept(ASMvisitor *__visitor) override
     { return __visitor->visitLoadSym(this); }
@@ -386,11 +352,7 @@ struct load_memory final : register_node, memory_base {
     const override { return addr.get_use(__vec); }
     Register *get_def() const override { return dest; }
 
-    std::string data() const override {
-        return string_join(__indent,
-            str[op] , ' ', dest->data(), ", ", addr.data()
-        );
-    }
+    std::string data() const override;
 
     void accept(ASMvisitor *__visitor) override
     { return __visitor->visitLoadMem(this); }
@@ -417,11 +379,7 @@ struct store_memory final : register_node, memory_base {
     const override { __vec.push_back(from); addr.get_use(__vec); }
     Register *get_def() const override { return nullptr; }
 
-    std::string data() const override {
-        return string_join(__indent,
-            str[op] , ' ', from->data(), ", ", addr.data()
-        );
-    }
+    std::string data() const override;
 
     void accept(ASMvisitor *__visitor) override
     { return __visitor->visitStoreMem(this); }
@@ -541,7 +499,7 @@ struct function {
     ssize_t get_stack_pos(ssize_t) const noexcept;
 
     /* Pass in one called function. */
-    void update_size(size_t __n) noexcept
+    void update_size(ssize_t __n) noexcept
     { if (__n > max_arg_size) max_arg_size = __n; }
 
     /* Initialize argument offset after first scanning. */
@@ -555,8 +513,8 @@ struct function {
 
 
 struct call_function final : function_node {
-    explicit call_function(function *__func)
-    noexcept : function_node {__func,CALL} {}
+    explicit call_function(function *__func,function *__self)
+    noexcept : function_node {__func,__self,CALL} {}
     std::string data() const override;
     ~call_function() override = default;
 };
@@ -564,8 +522,8 @@ struct call_function final : function_node {
 
 /* This is customized for builtin functions. */
 struct call_builtin final : function_node {
-    explicit call_builtin(function *__func)
-    noexcept : function_node {__func,CALL} {}
+    explicit call_builtin(function *__func,function *__self)
+    noexcept : function_node {__func,__self,CALL} {}
     std::string data() const override;
     ~call_builtin() override = default;
 };
@@ -647,12 +605,7 @@ struct branch_expression final : node {
 
     Register *get_def() const override { return nullptr; }
 
-    std::string data() const override {
-        return string_join(__indent,
-            str[op], ' ', lvar->data(), ", ", rvar->data(), ", ", bran[0]->name,
-            '\n', __indent, "j ", bran[1]->name
-        );
-    }
+    std::string data() const override;
 
     ~branch_expression() override = default;
     void accept(ASMvisitor *__visitor) override
