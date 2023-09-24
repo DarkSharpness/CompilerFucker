@@ -257,7 +257,7 @@ struct function_argument : variable {
     bool may_leak() const noexcept { return leak_flag & 0b10;   }
     bool is_used() const noexcept  { return used_flag & 0b01;   }
     bool is_leak() const noexcept  { return leak_flag & 0b01;   }
-    bool is_dead() const noexcept  { return used_flag | leak_flag; }
+    bool is_dead() const noexcept  { return !(used_flag | leak_flag); }
 
     ~function_argument() override = default;
 };

@@ -486,8 +486,9 @@ struct function {
 
     /* Allocate a space. */
     ssize_t allocate(IR::local_variable *__var) {
-        var_map[__var] = (var_count += __var->type.size());
-        return var_count + arg_offset;
+        size_t __count = var_count;
+        var_map[__var] = (var_count += (--__var->type).size());
+        return __count + arg_offset;
     }
 
     /* Tries to create a virtual register in the inner pool. */

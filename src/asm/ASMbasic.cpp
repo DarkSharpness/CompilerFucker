@@ -223,7 +223,7 @@ std::string function_node::resolve_arg() const {
         if (__val.type == value_type::POINTER) {
             auto __use = safe_cast <physical_register *> (__val.pointer.reg);
             /* No operation. */
-            if (__def == __use) continue;
+            if (__def == __use) { __buf.push_back("    # Merged!\n");continue; }
             /* Constantly evaluated case: the source will not be changed. */
             if (__use->index < __use->a0 || __use->index > __use->a7)
                 lazy_assign.push_back({__def,__val});
@@ -341,7 +341,7 @@ void function::print_entry(std::ostream &__os) const {
         if (__val.type == value_type::POINTER) {
             auto __def = safe_cast <physical_register *> (__val.pointer.reg);
             /* No operation. */
-            if (__def == __use) continue;
+            if (__def == __use) { __os << "    # Merged!\n"; continue; }
             /* Constantly evaluated case: the source will not be changed. */
             if (__def->index < __use->a0 || __def->index > __use->a7) {
                 __move.from = __use;
@@ -425,7 +425,7 @@ void function::print(std::ostream &__os) const {
     __os << "# Loading register arguments (a0 ~ a7)...\n";
 
     /* Load the arguments. */
-    DEBUG_SHADOW(print_entry(__os));
+    print_entry(__os);
 
     __os << "# Complete loading arguments.\n";
     for(auto __block : blocks) __os << __block->data() << '\n';
