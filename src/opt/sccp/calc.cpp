@@ -285,6 +285,11 @@ void constant_calculator::visitCall(IR::call_stmt *__call) {
         return set_result(__builtin_pure(__func->name));
     else if (__func->is_pure_function()) {
         /* Only pure function with no dependency. */
+        for(auto __arg : __call->args) {
+            auto __lit = dynamic_cast <IR::literal *> (__arg);
+            if (!__lit) return set_result(nullptr);
+        }
+        /* Tries to simulate the answer out! */
 
     }
     return set_result(nullptr);

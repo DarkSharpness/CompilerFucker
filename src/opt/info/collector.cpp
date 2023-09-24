@@ -34,11 +34,12 @@ info_collector::info_collector <0> (function_info &__info,std::false_type) {
             for(auto __stmt : __block->stmt) {
                 if (auto __load = dynamic_cast <IR::load_stmt *> (__stmt))
                     __update_global(__load->src ,function_info::LOAD);
-                if (auto __store = dynamic_cast <IR::store_stmt *> (__stmt))
+                else if (auto __store = dynamic_cast <IR::store_stmt *> (__stmt)) {
                     __update_global(__store->dst,function_info::STORE);
-
-                /* Collect the inout information. */
-                if (auto __call  = dynamic_cast <IR::call_stmt *> (__stmt)) {
+                    __info.store_name.insert(__store->dst->type.name());
+                    __info.func->exist_store = true;    /* Has store. */
+                } else if (auto __call  = dynamic_cast <IR::call_stmt *> (__stmt)) {
+                    /* Collect the inout information. */
                     auto __called = __call->func;
                     if (__info.called_func.insert(__called).second)
                         __info.func->inout_state |= __called->inout_state;

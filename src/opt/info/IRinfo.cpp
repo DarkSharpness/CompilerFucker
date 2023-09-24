@@ -18,8 +18,8 @@ size_t IR::function::is_side_effective() const {
     auto __ptr = get_impl_ptr <OPT::function_info> ();
     if (!__ptr || !__ptr->real_info) return 4;
 
-    warning("Not implemented yet.");
-    return 5;
+    if (inout_state || exist_store) return 5;
+    else return 0;
 }
 
 /**
@@ -30,16 +30,13 @@ size_t IR::function::is_side_effective() const {
  *      || 1 if builtin function (judge it on your own!)
  *      || 2 if dependent on global variable.
  *      || 3 if dependent on some unknown load.
- *      || 4 if info not collected yet
  */
 size_t IR::function::is_pure_function() const {
     /* Only those linked to inout are side effective. */ 
     if (is_builtin) return 1;
     auto __ptr = get_impl_ptr <OPT::function_info> ();
     if (!__ptr || !__ptr->real_info) return 3;
-
-    warning("Not implemented yet.");
-    return 4;
+    return __ptr->real_info->used_global_var.empty() ? 0 : 2;
 }
 
 }
@@ -53,10 +50,13 @@ namespace dark::OPT {
  */
 void merge_inner_data(function_info &__lhs, const function_info &__rhs) {
     __lhs.func->inout_state |= __rhs.func->inout_state;
+    __lhs.func->exist_store |= __rhs.func->exist_store;
+    __lhs.store_name.insert(__rhs.store_name.begin(),__rhs.store_name.end());
     for(auto &&__global : __rhs.used_global_var) {
         auto [__iter,__result] = __lhs.used_global_var.emplace(__global);
         if (!__result) __iter->second |= __global.second;
     }
+    
 }
 
 

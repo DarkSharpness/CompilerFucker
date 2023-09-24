@@ -1,5 +1,5 @@
 #include "peephole.h"
-
+#include "IRinfo.h"
 
 namespace dark::OPT {
 
@@ -173,12 +173,25 @@ void local_optimizer::visitJump(IR::jump_stmt *) {}
 void local_optimizer::visitBranch(IR::branch_stmt *) {}
 
 void local_optimizer::visitCall(IR::call_stmt *__call) {
-    auto __code = __call->func->is_side_effective();
-    if (__code < 4) return;
-    if (__code > 4) runtime_assert("Not implemented yet!");
-
+    if (__call->func->is_builtin) return;
+    auto __ptr = __call->func->get_impl_ptr <function_info> ();
     /* An extreme version: Assume that all mem_info are dead. */
-    mem_info.clear();
+    if (!__ptr || !__ptr->real_info) { mem_info.clear(); return; }
+    auto *__info = __ptr->real_info;
+
+    /* Dangerous! Load/Store on the same type! */
+    for(auto &[__var,__ref] : mem_info) {
+        __ref.set_load();
+        /* May operate on the same address. */
+        if (__info->store_name.count(__var->type.name()))
+            __ref.reset(nullptr);
+    }
+
+    for(auto [__global,__state] : __info->used_global_var) {
+        auto &__ref = mem_info[__global];
+        __ref.set_load();
+        if (__state & __info->STORE) __ref.reset(nullptr);
+    }
 }
 
 void local_optimizer::visitLoad(IR::load_stmt *__load) {

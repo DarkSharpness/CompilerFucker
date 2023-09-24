@@ -387,6 +387,7 @@ struct function : hidden_impl {
  
     std::string name;            /* Function name. */
     bool    is_builtin  = false; /* Builtin function. */
+    bool    exist_store = false; /* Whether the function has store. */
     uint8_t inout_state = NONE;  /* Inout state.      */
 
     std::vector <function_argument *> args; /* Argument list.   */

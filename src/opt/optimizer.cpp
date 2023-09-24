@@ -21,110 +21,12 @@ void build_virtual_exit(IR::function *__func,node *__exit) {
     }
 }
 
-
-/* This function is used to print the information of the function. */
-void print_info(const function_info &__info,std::ostream &__os = std::cerr) {
-    __os << "----------------------\n";
-    __os << "Caller: " << __info.func->name << "\nCallee:";
-    for (auto __callee : __info.real_info->recursive_func)
-        __os << " " << __callee->name;
-    __os << "\nArgument state:\n";
-    auto __iter = __info.func->args.begin();
-    for (auto __arg : __info.func->args) {
-        __os << "    " << __arg->data() << " : ";
-        switch(__arg->state) {
-            case IR::function_argument::DEAD: __os << "Not used!"; break;
-            case IR::function_argument::USED: __os << "Just used!"; break;
-            case IR::function_argument::LEAK: __os << "Leaked!"; break;
-            default: __os << "??";
-        } __os << '\n';
-    }
-    __os << "Global variable:\n ";
-    for(auto [__var,__state] : __info.used_global_var) {
-        __os << "    " << __var->data() << " : ";
-        switch(__state) {
-            case function_info::LOAD : __os << "Load only!"; break;
-            case function_info::STORE: __os << "Store only!"; break;
-            case function_info::BOTH : __os << "Load & Store!"; break;
-            default: __os << "??";
-        } __os << '\n';
-    }
-    __os << "Local temporary:\n";
-    for(auto &[__var,__use] : __info.use_map) {
-        __os << __var->data() << " : ";
-        auto __ptr = __use.get_impl_ptr <reliance> ();
-        switch(__ptr->rely_flag) {
-            case IR::function_argument::DEAD : __os << "Not used!";  break;
-            case IR::function_argument::USED : __os << "Just used!"; break;
-            case IR::function_argument::LEAK : __os << "Leaked!";    break;
-            default: __os << "??";
-        } __os << '\n';
-
-    }
-
-    const char *__msg[4] = { "NONE","IN ONLY","OUT ONLY","IN AND OUT" };
-    __os << "Inout state: " << __msg[__info.func->inout_state];
-    __os << "\n----------------------\n";
-}
-
-
 /* The real function that controls all the optimization. */
 void SSAbuilder::try_optimize(std::vector <IR::function>  &global_functions) {
     /* Function information list. */
     std::deque  <function_info> info_list;
     /* A variable holding optimization state. */
     const auto __optimize_state = optimize_options::get_state();
-
-    /* Split a block of only phis and return. This can help tail optimization. */
-    auto &&__help_tail_opt = [this](IR::function *__func)-> void {
-        std::vector <IR::block_stmt *> __qwq; /* New block list. */
-        for(auto __block : __func->stmt) {
-            auto __node = __block->get_impl_ptr <node> ();
-            auto &__vec = __block->stmt;
-            if (__vec.size() == 2) {
-                auto *__phi = dynamic_cast <IR::phi_stmt *>    (__vec[0]);
-                auto *__ret = dynamic_cast <IR::return_stmt *> (__vec[1]);
-                if (!__phi || !__ret) continue;
-                if (__ret->rval != __phi->dest) {
-                    warning("This shouldn't happen!");
-                    continue;
-                }
-
-                __node->prev.clear();
-
-                /* Relinking! */
-                for(auto [__val,__from] : __phi->cond) {
-                    auto *__prev  = __from->get_impl_ptr <node> ();
-
-                    /* Creating new block. */
-                    auto *__temp  = new IR::block_stmt; 
-                    __temp->label = __func->create_label("phi-ret");
-                    __ret = new IR::return_stmt;
-                    __ret->func   = __func;
-                    __ret->rval   = __val;
-                    __temp->stmt  = { __ret };
-                    __qwq.push_back(__temp);
-
-                    /* Create a block. */
-                    auto *__next  = create_node(__temp);
-                    __next->prev  = {__prev};
-                    __temp->set_impl_ptr(__next);
-
-                    auto *&__last = __prev->block->stmt.back();
-                    if (auto *__jump = dynamic_cast <IR::jump_stmt *> (__last)) {
-                        __jump->dest = __temp;
-                        __prev->next[0] = __next;
-                    } else { /* Branch case now. */
-                        auto *__br = safe_cast <IR::branch_stmt *> (__last);
-                        branch_compressor::update_branch(__br,__prev,__node,__next);
-                    }
-                }
-            }
-        }
-
-        __func->stmt.insert(__func->stmt.end(),__qwq.begin(),__qwq.end());
-    };
-
 
     /* First pass : simple optimization. */
     for(auto &__func : global_functions) {
@@ -147,7 +49,7 @@ void SSAbuilder::try_optimize(std::vector <IR::function>  &global_functions) {
         }
 
         if (__optimize_state.enable_CFG) {
-            __help_tail_opt(&__func);
+            tail_recursion_pass {&__func,this};
             branch_compressor   {&__func,__entry};
             deadcode_eliminator {&__func,__entry};
             branch_compressor   {&__func,__entry};
@@ -181,7 +83,7 @@ void SSAbuilder::try_optimize(std::vector <IR::function>  &global_functions) {
 
         /* Final simplification after DCE and PEEP. */
         if (__optimize_state.enable_CFG) {
-            __help_tail_opt(&__func);
+            tail_recursion_pass {&__func,this};
             branch_compressor   {&__func,__entry};
             deadcode_eliminator {&__func,__entry};
         }
@@ -201,7 +103,29 @@ void SSAbuilder::try_optimize(std::vector <IR::function>  &global_functions) {
 
     /* Second pass: using collected information to optimize. */
     for(auto &__func : global_functions) {
+        auto *__entry = create_node(__func.stmt.front());
+        dead_argument_eliminater {&__func,__entry};
+        deadcode_eliminator      {&__func,__entry};
 
+        if (__optimize_state.enable_CFG) {
+            tail_recursion_pass {&__func,this};
+            branch_compressor   {&__func,__entry};
+            deadcode_eliminator {&__func,__entry};
+            branch_compressor   {&__func,__entry};
+            deadcode_eliminator {&__func,__entry};
+        }
+
+        unreachable_remover {&__func,__entry};
+
+        /* Peephole optimization. */
+        if(__optimize_state.enable_PEEP) {
+            local_optimizer     {&__func,__entry};
+            deadcode_eliminator {&__func,__entry};   
+            local_optimizer     {&__func,__entry};
+            constant_propagatior{&__func,__entry};
+            branch_cutter       {&__func,__entry};
+            deadcode_eliminator {&__func,__entry};
+        }
     }
 
     auto __replace_undefined = [](IR::function *__func) {
@@ -260,5 +184,53 @@ void SSAbuilder::reverse_CFG(IR::function *__func) {
         std::swap(__node->prev,__node->next);
     }
 }
+
+
+/* This function is used to print the information of the function. */
+void print_info(const function_info &__info,std::ostream &__os = std::cerr) {
+    __os << "----------------------\n";
+    __os << "Caller: " << __info.func->name << "\nCallee:";
+    for (auto __callee : __info.real_info->recursive_func)
+        __os << " " << __callee->name;
+    __os << "\nArgument state:\n";
+    auto __iter = __info.func->args.begin();
+    for (auto __arg : __info.func->args) {
+        __os << "    " << __arg->data() << " : ";
+        switch(__arg->state) {
+            case IR::function_argument::DEAD: __os << "Not used!"; break;
+            case IR::function_argument::USED: __os << "Just used!"; break;
+            case IR::function_argument::LEAK: __os << "Leaked!"; break;
+            default: __os << "??";
+        } __os << '\n';
+    }
+    __os << "Global variable:\n ";
+    for(auto [__var,__state] : __info.used_global_var) {
+        __os << "    " << __var->data() << " : ";
+        switch(__state) {
+            case function_info::LOAD : __os << "Load only!"; break;
+            case function_info::STORE: __os << "Store only!"; break;
+            case function_info::BOTH : __os << "Load & Store!"; break;
+            default: __os << "??";
+        } __os << '\n';
+    }
+    __os << "Local temporary:\n";
+    for(auto &[__var,__use] : __info.use_map) {
+        __os << __var->data() << " : ";
+        auto __ptr = __use.get_impl_ptr <reliance> ();
+        switch(__ptr->rely_flag) {
+            case IR::function_argument::DEAD : __os << "Not used!";  break;
+            case IR::function_argument::USED : __os << "Just used!"; break;
+            case IR::function_argument::LEAK : __os << "Leaked!";    break;
+            default: __os << "??";
+        } __os << '\n';
+
+    }
+
+    const char *__msg[4] = { "NONE","IN ONLY","OUT ONLY","IN AND OUT" };
+    __os << "Inout state: " << __msg[__info.func->inout_state];
+    __os << "\n----------------------\n";
+}
+
+
 
 }

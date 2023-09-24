@@ -109,11 +109,12 @@ struct function_info {
     /* The functions that directly call this function.  */
     std::unordered_set <IR::function *> caller_func;
 
+    /* The type-name of concerned load/store. */
+    std::unordered_set <std::string> store_name;
 
     size_t dfn = NPOS; /* Used in tarjan. */
     size_t low = NPOS; /* Used in tarjan. */
     size_t scc = NPOS; /* Used in tarjan. */
-
 
     /**
      * -----------------------------------------------------------
