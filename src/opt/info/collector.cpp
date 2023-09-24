@@ -66,7 +66,7 @@ info_collector::info_collector <0> (function_info &__info,std::false_type) {
             auto &__vec = use_map[__var];
             work_list.push(__vec.def_node);
             auto *__ptr = __vec.get_impl_ptr <reliance> ();
-            __ptr->rely_flag = __state;
+            __ptr->rely_flag |= __state;
             return __ptr;
         };
 
@@ -85,11 +85,11 @@ info_collector::info_collector <0> (function_info &__info,std::false_type) {
 
                         auto *__ptr = __vec.get_impl_ptr <reliance> ();
                         if (__n > reliance::THRESHOLD)
-                            __ptr->rely_flag = IR::function_argument::LEAK;
+                            __ptr->rely_flag |= IR::function_argument::LEAK;
                         else if(__func->is_builtin) {
-                            __ptr->rely_flag = IR::function_argument::USED;
+                            __ptr->rely_flag |= IR::function_argument::USED;
                         } else { /* Rely on function now. */
-                            __ptr->rely_flag = IR::function_argument::FUNC;
+                            __ptr->rely_flag |= IR::function_argument::FUNC;
                             __ptr->rely_func[__func].set(i);
                         }
                     }
