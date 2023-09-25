@@ -128,6 +128,8 @@ local_optimizer::usage_info *
 
 
 local_optimizer::local_optimizer(IR::function *__func,node *) {
+    if (__func->is_unreachable()) return;
+
     for (auto __block : __func->stmt) {
         for(auto __stmt : __block->stmt) {
             auto *__def = __stmt->get_def();

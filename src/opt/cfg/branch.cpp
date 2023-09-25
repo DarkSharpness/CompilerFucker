@@ -60,6 +60,8 @@ void branch_compressor::update_branch
  * 
  */
 branch_compressor::branch_compressor(IR::function *__func,node *__entry) {
+    if (__func->is_unreachable()) return;
+
     /* Dfs to build up the work-list and visit. */
     auto &&__dfs = [&](auto &&__self,node *__node) -> void {
         if (!visit.insert(__node).second) return;
@@ -211,7 +213,7 @@ void branch_compressor::compress_branch(node *__node,node *__next) {
     std::unordered_map <IR::block_stmt *,bool> conflict_map;
     /* Add all prev to the conflict_map. */
     for(auto __prev : __next->prev)
-        conflict_map.emplace(__prev->block,false);
+        conflict_map.try_emplace(__prev->block,false);
 
     auto __phi_vec = __next->block->get_phi_block();
     for(auto __phi  : __phi_vec) {
