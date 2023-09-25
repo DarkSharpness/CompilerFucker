@@ -184,8 +184,9 @@ bool local_optimizer::update_bin(IR::binary_stmt *__stmt) {
                 (0 - X) can be treated as (X * (-1))  */
             if (__lvar = dynamic_cast <IR::integer_constant *> (__def)) {
                 __lval = __lvar->value;
-                /* (C1 - X) + C2    --> (C1 + C2) - X  */
-                if (__op == IR::binary_stmt::SUB) {
+                /* (C1 - X) + C2 --> (C1 + C2) - X  */
+                if (__op == IR::binary_stmt::SUB
+                &&  __stmt->op  == IR::binary_stmt::ADD) {
                     __stmt->op   = IR::binary_stmt::SUB;
                     __stmt->rvar = __temp->rvar;
                     __stmt->lvar = IR::create_integer(
