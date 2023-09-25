@@ -6,6 +6,7 @@ namespace dark::OPT {
 
 tail_recursion_pass::tail_recursion_pass
     (IR::function *__func,void *__SSA) {
+    if (__func->is_unreachable()) return;
     auto *__ptr = static_cast <SSAbuilder *> (__SSA);
     std::vector <IR::block_stmt *> __qwq; /* New block list. */
 

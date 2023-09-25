@@ -6,6 +6,7 @@ namespace dark::OPT {
 
 dead_argument_eliminater::dead_argument_eliminater
     (IR::function *__func, node *) {
+    if (__func->is_unreachable()) return;
     auto *__zero__ = IR::create_integer(0);
     auto *__null__ = IR::create_pointer(nullptr);
     auto *__false_ = IR::create_boolean(false);

@@ -11,7 +11,15 @@
 
 namespace dark::OPT {
 
-void print_info(const function_info &__info,std::ostream &__os);
+
+/**
+ * @brief This container must satisfy the condition that
+ * all its poiners won't be invalidated after push_back.
+ * 
+ * Naturally, std::deque or std::list is a good choice.
+ * 
+ */
+using _Info_Container = std::deque <function_info>;
 
 void build_virtual_exit(IR::function *__func,node *__exit) {
     for(auto __block : __func->stmt) {
@@ -26,7 +34,7 @@ void build_virtual_exit(IR::function *__func,node *__exit) {
 /* The real function that controls all the optimization. */
 void SSAbuilder::try_optimize(std::vector <IR::function>  &global_functions) {
     /* Function information list. */
-    std::deque  <function_info> info_list;
+    _Info_Container info_list;
     /* A variable holding optimization state. */
     const auto __optimize_state = optimize_options::get_state();
 
@@ -38,6 +46,7 @@ void SSAbuilder::try_optimize(std::vector <IR::function>  &global_functions) {
 
         /* This builds up SSA form and lay phi statement. */
         dominate_maker{&__func,__entry};
+
         /* Eliminate dead code safely. */
         deadcode_eliminator{&__func,__entry};
 
@@ -88,16 +97,11 @@ void SSAbuilder::try_optimize(std::vector <IR::function>  &global_functions) {
         }
 
         /* After first pass of optimization, collect information! */
-        info_collector {info_list.emplace_back(&__func),std::false_type{}};
-
+        info_collector {info_list.emplace_back(&__func)};
     }
 
     /* Spread the data recursively! */
-    for (auto &__info : info_list) function_graph::tarjan(__info);
-    if (function_graph::work_topo(info_list)) {}
-    function_graph::resolve_leak(info_list);
-    function_graph::resolve_used(info_list);
-    // for (auto &__info : info_list) print_info(__info,std::cerr);
+    info_collector::build(info_list);
 
     /* Second pass: using collected information to optimize. */
     for(auto &__func : global_functions) {
@@ -123,7 +127,45 @@ void SSAbuilder::try_optimize(std::vector <IR::function>  &global_functions) {
         }
     }
 
-    auto __replace_undefined = [](IR::function *__func) {
+    auto &&__checker = [] (IR::function *__func) -> void {
+        for(auto __block : __func->stmt) {
+            auto *__node = __block->get_impl_ptr <node> ();
+            if (__node->next.size() > 2) throw error("haha");
+        }
+    };
+
+    /* A mild inline pass. */
+    auto &&__inline_pass = [__optimize_state,__checker]
+        (IR::function *__func,node *__entry) -> void {
+        deadcode_eliminator {__func,__entry};
+        if (__optimize_state.enable_SCCP) {
+            constant_propagatior {__func,__entry};
+            branch_cutter        {__func,__entry};
+            deadcode_eliminator  {__func,__entry};
+        }
+        if (__optimize_state.enable_CFG) {
+            branch_compressor   {__func,__entry};
+            deadcode_eliminator {__func,__entry};
+        }
+        if (__optimize_state.enable_PEEP) {
+            local_optimizer     {__func,__entry};
+            constant_propagatior{__func,__entry};
+            branch_cutter       {__func,__entry};
+            deadcode_eliminator {__func,__entry};
+        }
+    };
+
+    /* Work out the inline order. */
+    if (__optimize_state.enable_INLINE) {
+        std::vector <IR::function*> __order = function_graph::inline_order(info_list);
+        for(auto *__func : __order) {
+            std::cerr << __func->name << '\n';
+            auto *__entry = create_node(__func->stmt.front());
+            recursive_inliner {__func,__entry,__inline_pass,this};    
+        }
+    }
+
+    auto &&__replace_undefined = [](IR::function *__func) -> void {
         IR::undefined *__undef[3] = {
             IR::create_undefined({},1),
             IR::create_undefined({},2),
@@ -145,7 +187,7 @@ void SSAbuilder::try_optimize(std::vector <IR::function>  &global_functions) {
 
     /* Final pass: replace all undefined. */
     for(auto &__func : global_functions) {
-        malloc_eliminator {&__func,nullptr};
+        // malloc_eliminator {&__func,nullptr};
         __replace_undefined(&__func);
     }
 }
@@ -156,16 +198,18 @@ void SSAbuilder::update_pool(std::vector <IR::initialization> &global_variables)
     for(auto &__var : __range) global_variables.push_back({&__var,__var.const_val});
 }
 
+void SSAbuilder::reset_CFG(IR::block_stmt *__block) {
+    auto *__node = create_node(__block);
+    __block->set_impl_ptr(__node);
+    __node->prev.clear();
+    __node->next.clear();
+    __node->dom.clear();
+    __node->fro.clear();
+}
+
 
 void SSAbuilder::reset_CFG(IR::function *__func) {
-    for(auto __block : __func->stmt) {
-        auto *__node = create_node(__block);
-        __block->set_impl_ptr(__node);
-        __node->prev.clear();
-        __node->next.clear();
-        __node->dom.clear();
-        __node->fro.clear();
-    }
+    for(auto __block : __func->stmt) reset_CFG(__block);
 }
 
 void SSAbuilder::rebuild_CFG(IR::function *__func) {
@@ -178,45 +222,6 @@ void SSAbuilder::reverse_CFG(IR::function *__func) {
         auto *__node = __block->get_impl_ptr <node> ();
         std::swap(__node->prev,__node->next);
     }
-}
-
-
-/* This function is used to print the information of the function. */
-void print_info(const function_info &__info,std::ostream &__os) {
-    __os << "----------------------\n";
-    __os << "Caller: " << __info.func->name << "\nCallee:";
-    for (auto __callee : __info.real_info->recursive_func)
-        __os << " " << __callee->name;
-
-
-    __os << "\nArgument state:\n";
-    auto __iter = __info.func->args.begin();
-    for (auto __arg : __info.func->args) {
-        __os << "    " << __arg->data() << " : " << 
-            (uint32_t) __arg->leak_flag << " " << (uint32_t) __arg->used_flag << '\n';
-    }
-
-    __os << "Global variable:\n ";
-    for(auto [__var,__state] : __info.used_global_var) {
-        __os << "    " << __var->data() << " : ";
-        switch(__state) {
-            case function_info::LOAD : __os << "Load only!"; break;
-            case function_info::STORE: __os << "Store only!"; break;
-            case function_info::BOTH : __os << "Load & Store!"; break;
-            default: __os << "??";
-        } __os << '\n';
-    }
-
-    __os << "Local temporary:\n";
-    for(auto &[__var,__use] : __info.use_map) {
-        __os << __var->data() << " : ";
-        auto __ptr = __use.get_impl_ptr <reliance> ();
-        __os <<  (uint32_t) __ptr->leak_flag << " " << (uint32_t) __ptr->used_flag << '\n';
-    }
-
-    const char *__msg[4] = { "NONE","IN ONLY","OUT ONLY","IN AND OUT" };
-    __os << "Inout state: " << __msg[__info.func->inout_state];
-    __os << "\n----------------------\n";
 }
 
 

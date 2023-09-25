@@ -115,6 +115,9 @@ struct function_info {
         IR::node *def_node = nullptr; /* Definition node. */
     };
 
+    /* Count of all function statements. */
+    size_t statement_count = 0;
+
     /* Function related usage_info holder. */
     std::unordered_map <IR::non_literal *,usage_info> use_map;
 
@@ -122,9 +125,6 @@ struct function_info {
     std::unordered_set <IR::function *> called_func;
     /* The functions that directly call this function.  */
     std::unordered_set <IR::function *> caller_func;
-
-    /* The type-name of concerned load/store. */
-    std::unordered_set <std::string> store_name;
 
     size_t dfn = NPOS; /* Used in tarjan. */
     size_t low = NPOS; /* Used in tarjan. */
@@ -137,8 +137,12 @@ struct function_info {
      * -----------------------------------------------------------
     */
 
-    /* All functions that this function calls. */
+    /* The type-name of concerned load/store. */
+    std::unordered_set <std::string> store_name;
+
+    /* All functions that this function calls (directly and indirectly) */
     std::unordered_set <IR::function *> recursive_func;
+
     /* All global variables that this function will use. */
     std::unordered_map <IR::global_variable *,uint8_t> used_global_var;
 
@@ -148,7 +152,7 @@ struct function_info {
      * which means that it's a single node SCC. In this case, we have
      * to record whether the function calls itself.
     */
-    bool self_call() const noexcept { return recursive_func.count(func); } 
+    bool self_call() const noexcept { return real_info->recursive_func.count(func); }
 
     /* All usage data of the used global_variable. */
     void merge_within_SCC(const function_info &);

@@ -58,7 +58,6 @@ void merge_inner_data(function_info &__lhs, const function_info &__rhs) {
         auto [__iter,__result] = __lhs.used_global_var.emplace(__global);
         if (!__result) __iter->second |= __global.second;
     }
-    
 }
 
 
