@@ -53,15 +53,17 @@ class optimize_options {
     optimize_options() = delete;
 
     
-
+    /* Default optimization level. */
+    inline static constexpr size_t LVL = 3; 
     /* Default as unmodified. */
     inline static optimize_info _init  = optimize_info { 0 };
-    /* Default with -O2 enabled. */
-    inline static optimize_info state  = optimize_info { 3 };
+    /* Default with -O3 enabled. */
+    inline static optimize_info state  = optimize_info {LVL};
 
   public:
 
     static void init(int argc,const char** argv) {
+        if (argc <= 1) return update_optimize_level(LVL);
         static bool __call_once = true;
         if(!__call_once)
             throw std::runtime_error("optimize_options::init() called twice.");

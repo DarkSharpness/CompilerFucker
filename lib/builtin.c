@@ -1,7 +1,7 @@
 typedef _Bool bool;
 typedef unsigned size_t;
 
-#define __MX_BUFFER_SIZE__ 4096
+#define __MX_BUFFER_SIZE__ 256
 
 // Necessary functions in libc
 

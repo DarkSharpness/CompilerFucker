@@ -19,6 +19,8 @@
 bool type = false;
 
 int main(int argc, const char* argv<::>) <%
+    type = false;
+    argc = 0;
     if(argc > 1) {
         std::string_view __v = argv[1];
         --argc , ++argv;
@@ -28,6 +30,7 @@ int main(int argc, const char* argv<::>) <%
             return 1;
         }
     }
+
     try {
         dark::OPT::optimize_options::init(argc,argv);
         // freopen("test.in","r",stdin);

@@ -349,40 +349,81 @@ void ASMbuilder::visitBranch(IR::branch_stmt *__stmt) {
     }
 }
 
+/* Constexpr hash helper. */
+constexpr size_t __string_hash(const char *__str) {
+    size_t __n = 0;
+    while(*__str) { __n = __n * 131 + *(__str++); }
+    return __n;
+}
 
 void ASMbuilder::visitCall(IR::call_stmt *__stmt) {
     function_node *__call = nullptr;
-    if (__stmt->func->is_builtin > 10) {
-        auto *__func = get_function(__stmt->func);
-        if (__func->name == "__print__") {
+    Register *__dest = __stmt->dest && use_map[__stmt->dest].count > 0 ?
+        get_virtual(__stmt->dest) : nullptr;
+    auto *__func = get_function(__stmt->func);
+    if (__stmt->func->is_builtin) {
+        constexpr size_t __print__      = __string_hash("__print__");
+        constexpr size_t __printInt__   = __string_hash("__printInt__");
+        constexpr size_t __printlnInt__ = __string_hash("__printlnInt__");
+        constexpr size_t __parseInt__   = __string_hash("__String_parseInt__");
+        constexpr size_t __ord__        = __string_hash("__String_ord__");
+        constexpr size_t __size__       = __string_hash("__Array_size__");
+        constexpr size_t __new_array1__ = __string_hash("__new_array1__");
+        constexpr size_t __new_array4__ = __string_hash("__new_array4__");
+        constexpr size_t __getString__  = __string_hash("__getString__");
+        constexpr size_t __getInt__     = __string_hash("__getInt__");
+        constexpr size_t __toString__   = __string_hash("__toString__");
+        auto __hash  = __string_hash(__func->name.c_str());
 
-        } else if (__func->name == "__printInt__") {
+        switch(__hash) {
+            case __print__:
+            case __printInt__:
+            case __printlnInt__:
+            case __parseInt__:
 
-        } else if (__func->name == "__printlnInt__") {
+                break;
+            case __ord__: /* String ord. */
+            if (tail_call_set.count(__stmt)) __dest = get_physical(10);
+            return [this,__stmt,__dest]() -> void {
+                auto *__ptr = __stmt->args[0];
+                auto *__idx = __stmt->args[1];
+                if (auto __lit = dynamic_cast <IR::integer_constant *> (__idx)) {
+                    auto __val = get_value(__ptr);
+                    runtime_assert("",__val.type == __val.POINTER);
+                    top_block->emplace_back(new load_memory {
+                        load_memory::BYTE, __dest,
+                        __val.pointer += __lit->value
+                    });
+                } else {
+                    auto *__vir = create_virtual();
+                    top_block->emplace_back(new arith_register {
+                        arith_base::ADD,
+                        force_register(__idx),
+                        force_register(__ptr), __vir
+                    });
+                    top_block->emplace_back(new load_memory {
+                        load_memory::BYTE, __dest,
+                        pointer_address {__vir,0}
+                    });
+                }
+                /* Tail call case. */
+                if (tail_call_set.count(__stmt))
+                    top_block->emplace_back(
+                        new ret_expression {top_asm,__dest}
+                    );
+            } ();
 
-        } else if (__func->name == "__String_parseInt__") {
-
-        } else if (__func->name == "__String_ord__") {
-
-        } else if (__func->name == "__String_parseInt__") {
-
-        } else if (__func->name == "__getString__") {
-
-        } else if (__func->name == "__getInt__") {
-
-        } else if (__func->name == "__toString__") {
-
-        } else if (__func->name == "__Array_size__") {
-
-        } else if (__func->name == "__new_array1__") {
-
-        } else if (__func->name == "__new_array4__") {
-
-        } else {
-            __call = new call_function {__func,top_asm};
+            case __size__:
+            case __new_array1__:
+            case __new_array4__:
+            case __getString__:
+            case __getInt__:
+            case __toString__:
+                break;
         }
+        __call = new call_function {__func,top_asm};
     } else {
-        __call = new call_function {get_function(__stmt->func),top_asm};
+        __call = new call_function {__func,top_asm};
     }
 
     /* Tail call doesn't require saving ra. */
@@ -391,10 +432,10 @@ void ASMbuilder::visitCall(IR::call_stmt *__stmt) {
         __call->dest = nullptr;
     } else { /* Non-tail call requires saving ra. */
         top_asm->save_ra = true;
-        __call->dest = __stmt->dest && use_map[__stmt->dest].count > 0 ?
-            get_virtual(__stmt->dest) : nullptr;
+        __call->dest = __dest;
     }
 
+    /* Loading arguments into dummy use. */
     for (size_t i = 0 ; i < __stmt->args.size() ; ++i) {
         auto *__arg = __stmt->func->args[i];
         /* Do nothing to dead arguments. */
