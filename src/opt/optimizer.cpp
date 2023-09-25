@@ -97,7 +97,7 @@ void SSAbuilder::try_optimize(std::vector <IR::function>  &global_functions) {
     if (function_graph::work_topo(info_list)) {}
     function_graph::resolve_leak(info_list);
     function_graph::resolve_used(info_list);
-    for (auto &__info : info_list) print_info(__info,std::cerr);
+    // for (auto &__info : info_list) print_info(__info,std::cerr);
 
     /* Second pass: using collected information to optimize. */
     for(auto &__func : global_functions) {
@@ -195,8 +195,6 @@ void print_info(const function_info &__info,std::ostream &__os) {
         __os << "    " << __arg->data() << " : " << 
             (uint32_t) __arg->leak_flag << " " << (uint32_t) __arg->used_flag << '\n';
     }
-
-    return;
 
     __os << "Global variable:\n ";
     for(auto [__var,__state] : __info.used_global_var) {
