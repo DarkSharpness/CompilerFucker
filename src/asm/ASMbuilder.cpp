@@ -14,7 +14,8 @@ void ASMbuilder::pre_scanning(IR::function *__func) {
                 if (!__ret->rval || __ret->rval == __flag->dest) {
                     tail_call_set.insert(__flag);
                     tail_call_set.insert(__ret);
-                } continue;
+                    continue;
+                }
             }
 
             __flag = nullptr;
@@ -36,7 +37,7 @@ void ASMbuilder::pre_scanning(IR::function *__func) {
                 top_asm->update_size(__call->func->args.size());
                 __flag = __call;
             } else if (auto __br = dynamic_cast <IR::branch_stmt *> (__stmt)) {
-                --use_map[__br->cond].count;
+                branch_count[__br->cond]++;
             }
         }
     }
@@ -105,7 +106,7 @@ void ASMbuilder::visitInit(IR::initialization *init) {
 
 
 void ASMbuilder::visitCompare(IR::compare_stmt *__stmt) {
-    if (use_map.at(__stmt->dest).count <= 0) return;
+    if (use_map.at(__stmt->dest).count <= branch_count[__stmt->dest]) return;
     /* Ensurance : no constant on lhs. */
     auto *__lhs = dynamic_cast <IR::literal *> (__stmt->lvar);
     auto *__rhs = dynamic_cast <IR::literal *> (__stmt->rvar);
@@ -331,7 +332,7 @@ void ASMbuilder::visitJump(IR::jump_stmt *__stmt) {
 void ASMbuilder::visitBranch(IR::branch_stmt *__stmt) {
     auto &__ref = use_map.at(__stmt->cond);
     auto *__br  = dynamic_cast <IR::compare_stmt *> (__ref.def); 
-    if (__ref.count > 0 || !__br) { 
+    if (__ref.count > branch_count[__stmt->cond] || !__br) { 
         return top_block->emplace_back(new branch_expression {
             force_register(__stmt->cond),
             get_edge(top_stmt,__stmt->br[0]),
