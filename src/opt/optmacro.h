@@ -3,6 +3,7 @@
 #include <iostream>
 #include <string>
 #include <stdexcept>
+#include <cstdint>
 
 namespace dark::OPT {
 
