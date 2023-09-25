@@ -223,7 +223,8 @@ std::string function_node::resolve_arg() const {
         if (__val.type == value_type::POINTER) {
             auto __use = safe_cast <physical_register *> (__val.pointer.reg);
             /* No operation. */
-            if (__def == __use) { __buf.push_back("    # Merged!\n");continue; }
+            if (__def == __use && !__val.pointer.offset)
+            { __buf.push_back("    # Merged!\n");continue; }
             /* Constantly evaluated case: the source will not be changed. */
             if (__use->index < __use->a0 || __use->index > __use->a7)
                 lazy_assign.push_back({__def,__val});
