@@ -42,6 +42,7 @@ struct ASMbuilder final : IR::IRvisitorbase {
     IR::block_stmt *top_stmt;  /* Top IR  block statement. */
     block          *top_block; /* Top ASM block statement. */
 
+    std::unordered_map <IR::definition *, size_t> branch_count;
     std::unordered_map <IR::definition *, usage_info> use_map;
     std::unordered_map <IR::function *,function>     func_map;
     std::unordered_map <IR::block_stmt *,block >    block_map;
