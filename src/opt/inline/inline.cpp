@@ -1,7 +1,9 @@
 #include "inline.h"
 #include "IRinfo.h"
-
 #include "mem2reg.h"
+
+#include <unordered_set>
+#include <algorithm>
 
 namespace dark::OPT {
 
@@ -34,6 +36,19 @@ recursive_inliner::recursive_inliner(
     }
     /* To ensure safety, rebuild after inlining. */
     rebuild_info(__func);
+    if (__func->is_unreachable()) return;
+
+    std::unordered_set <node *> __set;
+    std::vector <IR::block_stmt *> __vec;
+    auto &&__dfs = [&](auto &&__self,node *__node) -> void {
+        if (!__set.insert(__node).second) return;
+        for(auto &&__next : __node->next) __self(__self,__next); 
+        __vec.push_back(__node->block);
+    };
+
+    __dfs(__dfs,__func->stmt.front()->get_impl_ptr <node> ());
+    std::reverse(__vec.begin(),__vec.end());
+    __vec.swap(__func->stmt);
 }
 
 bool recursive_inliner::is_inlinable
@@ -145,7 +160,6 @@ bool recursive_inliner::try_inline(IR::function *__func,void *__this) {
     auto *__SSA = static_cast <SSAbuilder *> (__this);
     for(auto __block : __new) __SSA->reset_CFG(__block);
     for(auto __block : __new) __SSA->visitBlock(__block);
-
 
     __new.swap(__func->stmt);
     return true;

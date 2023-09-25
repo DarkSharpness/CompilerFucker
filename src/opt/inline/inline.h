@@ -66,21 +66,20 @@ struct recursive_inliner {
 
     /* If a function is inlined too many times, it must be banned! */
 
-    inline static constexpr size_t  BAN_DEPTH = 2;  /* Try only twice. */
+    inline static constexpr size_t  BAN_DEPTH = 1;  /* Try only twice. */
     inline static constexpr size_t  MAX_DEPTH = 20; /* If   normal.    */
     using _Bit_Set = std::bitset <MAX_DEPTH>;
 
     std::unordered_map <IR::function *,_Bit_Set> ban_list;
     size_t depth = 0;
 
-
-    inline static constexpr size_t  MAX_FUNC  = 600;
+    inline static constexpr size_t  MAX_FUNC  = 200;
     inline static constexpr size_t  MAX_BLOCK = 20;
 
     inline static constexpr size_t  MIN_FUNC  = 12;
     inline static constexpr size_t  MIN_BLOCK = 4;
-    inline static constexpr size_t  SUM_FUNC  = 99;
-    inline static constexpr size_t  SUM_BLOCK = 12;
+    inline static constexpr size_t  SUM_FUNC  = 40;
+    inline static constexpr size_t  SUM_BLOCK = 10;
 
     /* Maximum of function inlined at a time. */
     inline static constexpr size_t  MAX_COUNT = 40;
