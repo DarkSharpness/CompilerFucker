@@ -21,8 +21,9 @@ malloc_eliminator::malloc_eliminator(IR::function *__func,node *) {
             auto *__arg = dynamic_cast <IR::integer_constant *> (__call->args[0]);
             if (!__arg) { warning("What happened?"); return; }
             auto __rely = __info->use_map.at(__call->dest).get_impl_ptr <reliance> ();
+            if (__rely->is_leak()) continue;
             /* Replace a malloc with alloca. */
-            __remap.emplace(__call->dest,nullptr);
+            __remap.try_emplace(__call->dest);
             __sum += __arg->value;
             __call_list.push_back(__call);
         }

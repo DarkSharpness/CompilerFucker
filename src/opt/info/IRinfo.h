@@ -51,8 +51,8 @@ struct reliance {
     uint8_t leak_flag = false;
 
     bool may_leak() const noexcept { return leak_flag & FUNC_BIT; }
-    bool may_used() const noexcept { return used_flag & USED_BIT; }
-    bool is_leak() const noexcept  { return leak_flag & FUNC_BIT; }
+    bool may_used() const noexcept { return used_flag & FUNC_BIT; }
+    bool is_leak() const noexcept  { return leak_flag & USED_BIT; }
     bool is_used() const noexcept  { return used_flag & USED_BIT; }
  
     /* Merge the using information. */
