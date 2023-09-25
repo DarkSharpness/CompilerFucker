@@ -132,7 +132,7 @@ void ASMbuilder::resolve_phi(phi_info &__ref) {
         if (__val.type == value_type::POINTER) {
             auto __use = dynamic_cast <virtual_register *> (__val.pointer.reg);
             /* No operation. */
-            if (__def == __use) continue;
+            if (__def == __use && !__val.pointer.offset) continue;
             /* Constant evaluated. */
             if (__use == nullptr) { /* physical register case. */
                 lazy_assign.emplace_back(__def,__val);
