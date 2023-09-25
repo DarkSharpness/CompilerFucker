@@ -1,4 +1,5 @@
 #include "collector.h"
+#include "info_debug.h"
 
 #include <queue>
 #include <unordered_map>
@@ -8,14 +9,29 @@ namespace dark::OPT {
 
 
 /**
+ * @brief Build all information of the function.
+ * Use it after all function info has been collected.
+ */
+void info_collector::build(_Info_Container &__array) {
+    for (auto &__info : __array) function_graph::tarjan(__info);
+    if (function_graph::work_topo(__array)) {
+
+    }
+    function_graph::resolve_leak(__array);
+    function_graph::resolve_used(__array);
+
+    // for (auto &__info : __array) print_info(__info);
+}
+
+
+/**
  * @brief A function information collector.
  * It will not do any analysis or change to the function.
  * It only collect all usage information that will be used in the optimization.
  * This is the first time of visiting the function.
  * 
  */
-template <>
-info_collector::info_collector <0> (function_info &__info,std::false_type) {
+info_collector::info_collector(function_info &__info) {
     auto &use_map = __info.use_map;
 
     /* First collect basic def/use information and inout information. */
@@ -31,6 +47,7 @@ info_collector::info_collector <0> (function_info &__info,std::false_type) {
         };
 
         for(auto __block : __info.func->stmt) {
+            __info.statement_count += __block->stmt.size();
             for(auto __stmt : __block->stmt) {
                 if (auto __load = dynamic_cast <IR::load_stmt *> (__stmt))
                     __update_global(__load->src ,function_info::LOAD);
@@ -170,20 +187,6 @@ info_collector::info_collector <0> (function_info &__info,std::false_type) {
 
 
 /**
- * @brief A function information collector.
- * It will not do any analysis or change to the function.
- * This is the second time of visiting the function.
- * It will spread the information collected in the first time.
- * 
- */
-template <>
-info_collector::info_collector <1> (function_info &__info,std::true_type) {
-    /* First, resolve the dependency. */
-}
-
-
-
-/**
  * @brief Use tarjan to build up function call map.
  * This implement is effient and effective using tarjan.
  * 
@@ -222,50 +225,33 @@ void function_graph::tarjan(function_info &__info) {
 }
 
 
-
 /**
- * @brief After tarjan, use the DAG to help build data within.
- * @param __array Array of real data inside.
+ * @brief Build the topological graph after tarjan.
+ * This function will not touche the inner data.
  */
-bool function_graph::work_topo(std::deque <function_info> &__array) {
-    /* Do nothing. */
-    if (!scc_count) return false;
-
-    /* Since there won't be too many functions, this is not a bad hash. */
-    struct my_hash {
-        size_t operator () (std::pair <size_t,size_t> __pair)
-        const noexcept {
-            return __pair.first << 32 | __pair.second;
-        }
-    };
-
-    /* The real info holder of a scc. */
-    std::vector <function_info *>      real_info(scc_count);
-    std::vector <std::vector <size_t>> edge_in  (scc_count);
-    std::vector <size_t>             degree_out (scc_count);
-    std::unordered_set <std::pair <size_t,size_t>,my_hash> edge_set;
-
-
-    /**
-     * ----------------------------------------------
-     * Prelude to the core function.
-     * Build up the DAG graph and merge within SCC.
-     * ----------------------------------------------
-    */
-
-    std::pair <function_info *,IR::function *> __init_pair = {{},{}};
+void function_graph::build_graph(const _Info_Container &__array) {
+    edge_in.clear();
+    degree_out.clear();
+    edge_set.clear();
+    edge_in.resize(scc_count);
+    degree_out.resize(scc_count);
 
     /* Find the real info holder. */
     for(auto &__info : __array) {
-        if (__info.dfn == __info.low)
-            real_info[__info.scc] = &__info;
+        /* Tries to locate the main function. */
+        if (!__init_pair.main && __info.func->name == "main")
+            __init_pair.main = const_cast <function_info *> (&__info);
+
         for(auto *__func : __info.called_func) {
             if (__func->is_builtin) continue;
-            /* Global initer. */
-            if (__func->name == ".__global__init__") {
-                __init_pair = {&__info,__func}; continue;
-            }
             auto &__next = *__func->get_impl_ptr <function_info> ();
+
+            /* Tries to find global_init function. */
+            if (!__init_pair.init && __func->name == ".__global__init__") {
+                __init_pair.init = &__next;
+                continue;
+            }
+
             size_t __id1 = __info.scc;
             size_t __id2 = __next.scc;
             /* No duplicated edge or self edge. */
@@ -275,6 +261,28 @@ bool function_graph::work_topo(std::deque <function_info> &__array) {
             edge_in[__id2].push_back(__id1);
         }
     }
+}
+
+
+/**
+ * @brief After tarjan, use the DAG to help build data within.
+ * @param __array Array of real data inside.
+ */
+bool function_graph::work_topo(_Info_Container &__array) {
+    build_graph(__array);
+
+    /* The real info holder of a scc. */
+    std::vector <function_info *> real_info(scc_count);
+    for(auto &__info : __array)
+        if (__info.dfn == __info.low)
+            real_info[__info.scc] = &__info;
+
+    /**
+     * ----------------------------------------------
+     * Prelude to the core function.
+     * Build up the DAG graph and merge within SCC.
+     * ----------------------------------------------
+    */
 
     /* Work out the real_info within one SCC. */
     for(auto &__info : __array) {
@@ -324,27 +332,28 @@ bool function_graph::work_topo(std::deque <function_info> &__array) {
      * For array init, we may not replace it.
      * 
     */
-    if (!__init_pair.second) return false;
-    auto __init = __init_pair.second->get_impl_ptr <function_info> ();
-    if (__init->recursive_func.empty() && !__init_pair.second->inout_state) {
+    if (!__init_pair.init) return false;
+    auto __init = __init_pair.init;
+    if (__init->recursive_func.empty() && !__init_pair.init->func->inout_state) {
         /* Try to simulate and replace all global variable load/store with local ones. */
         return true;
     } else {
         /* Merge it normally. */
-        runtime_assert("Global init cannot be recursive.",!__init->self_call());
-        __init_pair.first->merge_between_SCC(*__init);
+        runtime_assert("Global init cannot be recursive.",
+            !__init->self_call(),
+            __init_pair.main->real_info == __init_pair.main
+        );
+        __init_pair.main->merge_between_SCC(*__init);
         return false;
     }
-
 }
-
 
 
 /**
  * @brief Resolve the dependency of the function.
  * @param __array Resolve the dependency.
  */
-void function_graph::resolve_leak(std::deque <function_info> &__array) {
+void function_graph::resolve_leak(_Info_Container &__array) {
     std::unordered_map <
         IR::function_argument *,
         std::vector <IR::function_argument*>
@@ -411,7 +420,7 @@ void function_graph::resolve_leak(std::deque <function_info> &__array) {
  * @brief Resolve the dependency of the function.
  * @param __array Resolve the dependency.
  */
-void function_graph::resolve_used(std::deque <function_info> &__array) {
+void function_graph::resolve_used(_Info_Container &__array) {
     std::unordered_map <
         IR::function_argument *,
         std::vector <IR::function_argument*>
@@ -471,6 +480,46 @@ void function_graph::resolve_used(std::deque <function_info> &__array) {
             }
         }
     }
+}
+
+
+/**
+ * @brief Make up the order of function call graph.
+ * It will determine the order of inlining.
+ * 
+ * @param __array The array of function info.
+ * @return The order of function call graph.
+ */
+std::vector <IR::function *> function_graph::inline_order(_Info_Container &__array) {
+    /* Scc count of the function. */
+    build_graph(__array);
+
+    std::vector <std::vector <IR::function *>> scc_list(scc_count);
+
+    for(auto &__info : __array) scc_list[__info.scc].push_back(__info.func);
+
+    std::vector <size_t> work_list; /* Stack-like worklist. */
+    for(size_t i = 0 ; i < scc_count; ++i)
+        if(!degree_out[i]) work_list.push_back(i);
+
+    std::vector <IR::function *> __order; __order.reserve(__array.size());
+
+    while (!work_list.empty()) {
+        size_t __n  = work_list.back();
+        work_list.pop_back();
+        /* Add to the back of the vector. */
+        auto &__vec = scc_list[__n];
+        __order.insert(__order.end(),__vec.begin(),__vec.end());
+
+        auto *__info = __vec.front()->get_impl_ptr <function_info> ()->real_info;
+        for(auto __m : edge_in[__n])
+            if (--degree_out[__m] == 0) work_list.push_back(__m);
+    }
+
+    /* Complete the call graph. */
+    
+
+    return __order;
 }
 
 
