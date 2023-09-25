@@ -18,6 +18,7 @@ include_directories(src/opt/ssa)
 include_directories(src/opt/cfg)
 include_directories(src/opt/sccp)
 include_directories(src/opt/info)
+include_directories(src/opt/simu)
 include_directories(src/opt/local)
 include_directories(src/opt/inline)
 
