@@ -1,6 +1,7 @@
 #include "ASMnode.h"
 
 #include <queue>
+#include <array>
 
 // #define IGNORE_UNUSED(x)
 #define IGNORE_UNUSED(x) if (x) return "    # Useless expression!";
