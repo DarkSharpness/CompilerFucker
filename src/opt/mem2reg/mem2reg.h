@@ -53,6 +53,7 @@ struct SSAbuilder final : IR::IRvisitorbase {
     void reset_CFG(IR::function *__func);
     void rebuild_CFG(IR::function *__func);
     void reverse_CFG(IR::function *__func);
+    void reset_CFG(IR::block_stmt *__block);
 
     /* Must be inlined! */
     inline void link(node *from, node *to) {
