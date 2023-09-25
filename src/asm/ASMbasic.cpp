@@ -480,8 +480,8 @@ std::string call_function::data() const {
 
         if (is_dest_spilled) {
             store_memory __store {
-                memory_base::WORD, 0,
-                stack_address {self, spilled_offset}
+                memory_base::WORD, get_physical(10), // a0
+                stack_address {self, spilled_offset} // Spilled address.
             };
             __buf.push_back(__store.data() + '\n');
         } else if (dest && dest != get_physical(10) && dest != get_physical(0)) {
