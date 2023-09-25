@@ -183,21 +183,23 @@ bool local_optimizer::update_bin(IR::binary_stmt *__stmt) {
             /* Special case: for optimization of MUL,DIV and REM,
                 (0 - X) can be treated as (X * (-1))  */
             if (__lvar = dynamic_cast <IR::integer_constant *> (__def)) {
-                auto __lval = __lvar->value;
+                __lval = __lvar->value;
                 /* (C1 - X) + C2    --> (C1 + C2) - X  */
-                if (__op == IR::binary_stmt::ADD) {
+                if (__op == IR::binary_stmt::SUB) {
                     __stmt->op   = IR::binary_stmt::SUB;
                     __stmt->rvar = __temp->rvar;
                     __stmt->lvar = IR::create_integer(
                         __lval + __rval
                     ); return true;
                 } else if (__lval == 0 &&
-                    (__op == IR::binary_stmt::SREM ||
-                     __op == IR::binary_stmt::SDIV ||
-                     __op == IR::binary_stmt::MUL)) {
-                    __def = __temp->rvar;
-                    __op  = IR::binary_stmt::MUL;
-                } 
+                    (__stmt->op == IR::binary_stmt::SREM ||
+                     __stmt->op == IR::binary_stmt::SDIV ||
+                     __stmt->op == IR::binary_stmt::MUL)) {
+                    /* (0 - X) * C2 = X * (-1) */
+                    __op   = IR::binary_stmt::MUL;
+                    __def  = __temp->rvar;
+                    __lval = -1;
+                } else return false;
             } else return false;
         }
 
