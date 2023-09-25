@@ -137,6 +137,7 @@ void SSAbuilder::try_optimize(std::vector <IR::function>  &global_functions) {
     /* A mild inline pass. */
     auto &&__inline_pass = [__optimize_state,__checker]
         (IR::function *__func,node *__entry) -> void {
+        unreachable_remover {__func,__entry};
         deadcode_eliminator {__func,__entry};
         if (__optimize_state.enable_SCCP) {
             constant_propagatior {__func,__entry};
@@ -147,6 +148,7 @@ void SSAbuilder::try_optimize(std::vector <IR::function>  &global_functions) {
             branch_compressor   {__func,__entry};
             deadcode_eliminator {__func,__entry};
         }
+        unreachable_remover {__func,__entry};
         if (__optimize_state.enable_PEEP) {
             local_optimizer     {__func,__entry};
             constant_propagatior{__func,__entry};
@@ -162,6 +164,8 @@ void SSAbuilder::try_optimize(std::vector <IR::function>  &global_functions) {
             std::cerr << __func->name << '\n';
             auto *__entry = create_node(__func->stmt.front());
             recursive_inliner {__func,__entry,__inline_pass,this};    
+            __checker(__func);
+            __inline_pass(__func,__entry);
         }
     }
 
