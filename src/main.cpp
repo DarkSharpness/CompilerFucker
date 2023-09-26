@@ -19,8 +19,8 @@
 bool type = false;
 
 int main(int argc, const char* argv<::>) <%
-    type = false;
-    argc = 0;
+    // type = false;
+    // argc = 0;
     if(argc > 1) {
         std::string_view __v = argv[1];
         --argc , ++argv;
@@ -49,7 +49,7 @@ int main(int argc, const char* argv<::>) <%
 
         auto *tree = parser.file_Input();
         dark::ASTbuilder Wankupi {tree};
-        
+
         dark::AST::ASTvisitor Conless {Wankupi.global,Wankupi.mapping};
         dark::IR::IRbuilder Hastin {Conless.global,Conless.class_map,Wankupi.global};
 

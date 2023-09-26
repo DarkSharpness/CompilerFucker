@@ -42,17 +42,21 @@ IR::definition *inline_visitor::copy(IR::definition *__def) {
 
 IR::block_stmt *inline_visitor::create_block(IR::block_stmt *__old) {
     static size_t __n = 0;
-    auto &__ref    = blk_map[__old];
+    auto &__ref = blk_map[__old];
     if (__ref) return __ref;
 
-    std::string_view __suffix = __old ? __old->label : "";
+    std::string_view __suffix;
+    if (__old) __suffix = __old->label;
+    else       __suffix = "exit";
+
+    /* Remove the inline header. */
     if(__suffix.substr(0,7) == "inline-") __suffix = __suffix.substr(7);
 
     auto *__block  = new IR::block_stmt;
     __block->label = string_join(
         "inline-",
         std::to_string(__n++),
-        __suffix
+        '-', __suffix
     );
 
     auto *__SSA    = get_impl_ptr <SSAbuilder> ();
