@@ -50,7 +50,10 @@ IR::block_stmt *inline_visitor::create_block(IR::block_stmt *__old) {
     else       __suffix = "exit";
 
     /* Remove the inline header. */
-    if(__suffix.substr(0,7) == "inline-") __suffix = __suffix.substr(7);
+    if(__suffix.substr(0,7) == "inline-") {
+        __suffix = __suffix.substr(7);
+        __suffix = __suffix.substr(__suffix.find('-') + 1);
+    }
 
     auto *__block  = new IR::block_stmt;
     __block->label = string_join(
