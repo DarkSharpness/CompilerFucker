@@ -13,6 +13,7 @@ include_directories(src/asm/)
 include_directories(src/ir/)
 include_directories(src/opt/)
 include_directories(src/opt/mem2reg)
+include_directories(src/opt/mx)
 include_directories(src/opt/dce)
 include_directories(src/opt/ssa)
 include_directories(src/opt/cfg)
@@ -22,6 +23,7 @@ include_directories(src/opt/simu)
 include_directories(src/opt/loop)
 include_directories(src/opt/local)
 include_directories(src/opt/inline)
+
 
 
 file(GLOB_RECURSE sources src/*.cpp)
