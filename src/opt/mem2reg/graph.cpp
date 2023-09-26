@@ -285,8 +285,6 @@ namespace dark::OPT {
 void SSAbuilder::visitFunction(IR::function *ctx) {
     for(auto __block : ctx->stmt) visitBlock(__block);
 }
-
-
 void SSAbuilder::visitBlock(IR::block_stmt *ctx) {
     top = create_node(ctx);
     ctx->set_impl_ptr(top);
@@ -303,8 +301,7 @@ void SSAbuilder::visitBlock(IR::block_stmt *ctx) {
         /* If terminate, return. */
         if(end_tag) return ctx->stmt.resize(__beg - __bak);
     }
-    std::cerr << ctx->data() << '\n';
-    runtime_assert("Undefined behavior: No terminator in the block!");
+    runtime_assert("Undefined behavior: No terminator in the block!" + ctx->data());
 }
 void SSAbuilder::visitJump(IR::jump_stmt *ctx) {
     link(top, create_node(ctx->dest));
@@ -325,7 +322,6 @@ void SSAbuilder::visitReturn(IR::return_stmt *ctx) { end_tag = 1; }
 void SSAbuilder::visitAlloc(IR::allocate_stmt *ctx) {}
 void SSAbuilder::visitGet(IR::get_stmt *ctx) {}
 void SSAbuilder::visitPhi(IR::phi_stmt *ctx) {}
-
 void SSAbuilder::visitUnreachable(IR::unreachable_stmt *ctx) {}
 
 
