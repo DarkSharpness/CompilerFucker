@@ -5,8 +5,8 @@ namespace dark::ASM {
 /* Pre-scanning part. */
 void ASMbuilder::pre_scanning(IR::function *__func) {
     size_t __count = 0;
-    IR::call_stmt *__flag = nullptr; /* Whether tail-callable */
     for(auto __p : __func->stmt) {
+        IR::call_stmt *__flag = nullptr; /* Whether tail-callable */
         for(auto __stmt : __p->stmt) {
             if (auto *__ret = dynamic_cast <IR::return_stmt *> (__stmt);
                 __ret != nullptr && __flag != nullptr) {
@@ -14,6 +14,7 @@ void ASMbuilder::pre_scanning(IR::function *__func) {
                 if (!__ret->rval || __ret->rval == __flag->dest) {
                     tail_call_set.insert(__flag);
                     tail_call_set.insert(__ret);
+                    __flag = nullptr;
                     continue;
                 }
             }
