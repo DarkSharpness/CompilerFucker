@@ -12,7 +12,7 @@ malloc_eliminator::malloc_eliminator(IR::function *__func,node *) {
     size_t __sum = 0;
 
     std::unordered_map <IR::temporary *,IR::local_variable *> __remap;
-    std::vector <IR::call_stmt *> __call_list;
+    std::unordered_set <IR::call_stmt *> __call_set;
 
     for(auto __block : __func->stmt) {
         for(auto __node : __block->stmt) {
@@ -25,11 +25,11 @@ malloc_eliminator::malloc_eliminator(IR::function *__func,node *) {
             /* Replace a malloc with alloca. */
             __remap.try_emplace(__call->dest);
             __sum += __arg->value;
-            __call_list.push_back(__call);
+            __call_set.insert(__call);
         }
     }
 
-    if (__sum > THRESHOLD || __call_list.empty()) return;
+    if (__sum > THRESHOLD || __call_set.empty()) return;
 
     size_t __top = 0;
     for(auto &[__tmp,__var] : __remap) {
@@ -38,10 +38,10 @@ malloc_eliminator::malloc_eliminator(IR::function *__func,node *) {
         __var->type = __tmp->type;
     }
 
-    __top = 0;
     for(auto __block : __func->stmt) {
         for(auto &__node : __block->stmt) {
-            if (__call_list[__top] != __node) {
+            auto *__call = dynamic_cast <IR::call_stmt *> (__node);
+            if (!__call_set.count(__call)) {
                 for(auto __use : __node->get_use()) {
                     auto __tmp = dynamic_cast <IR::temporary *> (__use);
                     if (!__tmp) continue;
@@ -51,7 +51,7 @@ malloc_eliminator::malloc_eliminator(IR::function *__func,node *) {
                 } continue;
             }
             auto *__stmt = new IR::allocate_stmt;
-            __stmt->dest = __remap[__call_list[__top++]->dest];
+            __stmt->dest = __remap[__call->dest];
             __node = __stmt;
         }
     }
