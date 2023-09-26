@@ -10,5 +10,9 @@ void ASMbuilder::build_rodata() {
     }
 }
 
+size_t ASMbuilder::get_builtin_index(IR::function *__func) noexcept {
+    return IR::IRbasic::get_builtin_index(__func);
+}
+
 
 }

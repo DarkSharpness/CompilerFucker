@@ -79,6 +79,8 @@ struct ASMbuilder final : IR::IRvisitorbase {
         } return __ans;
     }
 
+    static size_t get_builtin_index(IR::function *) noexcept;
+
     /* Return the address possibly from getelementptr. */
     pointer_address get_pointer_address(IR::non_literal *);
 
@@ -101,6 +103,8 @@ struct ASMbuilder final : IR::IRvisitorbase {
     block *get_edge(IR::block_stmt *,IR::block_stmt *);
 
     void build_rodata();
+
+    function_node *builtin_inline(IR::call_stmt *,Register *);
 
     void create_entry(IR::function *);
     void pre_scanning(IR::function *);

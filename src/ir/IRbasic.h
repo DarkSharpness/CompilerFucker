@@ -12,7 +12,7 @@ namespace dark::IR {
  * This is a special helper class!
  * 
  * __array__.size(this)                 = 0
- * string.length(this)                  = 1
+ * strlen                               = 1
  * string.substring(this,int l,int r)   = 2
  * string.parseInt(this)                = 3
  * string.ord(this,int n)               = 4
