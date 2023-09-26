@@ -19,13 +19,11 @@
 bool type = false;
 
 int main(int argc, const char* argv<::>) <%
-    // type = false;
-    // argc = 0;
     if(argc > 1) {
         std::string_view __v = argv[1];
         --argc , ++argv;
         if (__v == "-ll") { type = true; }
-        else if (__v != "-s") {
+        else if (__v != "-s" || __v != "-S") {
             std::cerr << "Unknown option: " << __v << std::endl;
             return 1;
         }
