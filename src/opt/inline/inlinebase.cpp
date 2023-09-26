@@ -45,8 +45,16 @@ IR::block_stmt *inline_visitor::create_block(IR::block_stmt *__old) {
     auto &__ref    = blk_map[__old];
     if (__ref) return __ref;
 
+    std::string_view __suffix = __old ? __old->label : "";
+    if(__suffix.substr(0,7) == "inline-") __suffix = __suffix.substr(7);
+
     auto *__block  = new IR::block_stmt;
-    __block->label = "inline-" + std::to_string(__n++);
+    __block->label = string_join(
+        "inline-",
+        std::to_string(__n++),
+        __suffix
+    );
+
     auto *__SSA    = get_impl_ptr <SSAbuilder> ();
     auto *__node   = __SSA->create_node(__block);
     __block->set_impl_ptr(__node);
