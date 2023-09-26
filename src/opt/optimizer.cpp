@@ -161,7 +161,6 @@ void SSAbuilder::try_optimize(std::vector <IR::function>  &global_functions) {
     if (__optimize_state.enable_INLINE) {
         std::vector <IR::function*> __order = function_graph::inline_order(info_list);
         for(auto *__func : __order) {
-            std::cerr << __func->name << '\n';
             auto *__entry = create_node(__func->stmt.front());
             recursive_inliner {__func,__entry,__inline_pass,this};    
             __checker(__func);
@@ -191,7 +190,6 @@ void SSAbuilder::try_optimize(std::vector <IR::function>  &global_functions) {
 
     /* Final pass: replace all undefined. */
     for(auto &__func : global_functions) {
-        // malloc_eliminator {&__func,nullptr};
         __replace_undefined(&__func);
     }
 }
