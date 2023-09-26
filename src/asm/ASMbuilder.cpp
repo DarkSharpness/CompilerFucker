@@ -97,12 +97,7 @@ void ASMbuilder::visitFunction(IR::function *__func) {
 
 
 void ASMbuilder::visitInit(IR::initialization *init) {
-    auto *__var = init->dest;
-    auto *__lit = init->lite;
-    if (auto __str = dynamic_cast <IR::string_constant *> (__lit))
-        global_info.rodata_list.push_back(*init);
-    else
-        global_info.data_list.push_back(*init);
+    global_info.data_list.push_back(*init);
 }
 
 

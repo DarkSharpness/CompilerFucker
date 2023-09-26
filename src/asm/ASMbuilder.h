@@ -34,6 +34,8 @@ struct ASMbuilder final : IR::IRvisitorbase {
 
         for(auto &&__func : global_functions)
             global_info.function_list.push_back(&func_map.at(&__func));
+
+        build_rodata();
     }
 
 
@@ -97,6 +99,8 @@ struct ASMbuilder final : IR::IRvisitorbase {
 
     /* Get the edge block between 2 block. */
     block *get_edge(IR::block_stmt *,IR::block_stmt *);
+
+    void build_rodata();
 
     void create_entry(IR::function *);
     void pre_scanning(IR::function *);
