@@ -191,9 +191,11 @@ void SSAbuilder::try_optimize(std::vector <IR::function>  &global_functions) {
 
     /* Final pass: replace all undefined. */
     for(auto &__func : global_functions) {
+        malloc_eliminator {&__func,nullptr};
         __replace_undefined(&__func);
     }
 
+    /* Optimize out no output case. */
     for(auto &__func : global_functions) {
         std::cerr << __func.name << ' ' << (__func.name == "main") << '\n';
         if (__func.name == "main") {
@@ -207,11 +209,6 @@ void SSAbuilder::try_optimize(std::vector <IR::function>  &global_functions) {
     }
 }
 
-
-void SSAbuilder::update_pool(std::vector <IR::initialization> &global_variables) {
-    auto &__range = constant_calculator::generated;
-    for(auto &__var : __range) global_variables.push_back({&__var,__var.const_val});
-}
 
 void SSAbuilder::reset_CFG(IR::block_stmt *__block) {
     auto *__node = create_node(__block);

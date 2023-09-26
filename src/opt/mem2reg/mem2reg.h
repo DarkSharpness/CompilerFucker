@@ -26,12 +26,9 @@ struct SSAbuilder final : IR::IRvisitorbase {
             visitFunction(&__func);
 
         try_optimize(global_functions);
-
-        update_pool(global_variables);
     }
 
     void try_optimize(std::vector <IR::function> &);
-    void update_pool(std::vector <IR::initialization> &);
 
     void visitBlock(IR::block_stmt*) override;
     void visitFunction(IR::function*) override;

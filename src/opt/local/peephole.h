@@ -185,6 +185,17 @@ struct local_optimizer final : IR::IRvisitorbase {
 
 
 struct malloc_eliminator {
+    static constexpr size_t THRESHOLD = 512;
+
+    struct usage_info { IR::node *def_node {}; bool is_leak {}; };
+    /* It is used to spread leakage information. */
+    std::unordered_map <IR::temporary *,usage_info> use_map;
+    std::unordered_map <IR::temporary *,IR::local_variable *> mem_map;
+    std::unordered_set <IR::call_stmt *> call_set;
+
+    void find_leak(IR::function *);
+    void mark_malloc(IR::function *);
+
     malloc_eliminator(IR::function *,node *);
 };
 
