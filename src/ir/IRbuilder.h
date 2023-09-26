@@ -3,10 +3,12 @@
 #include "utility.h"
 #include "IRnode.h"
 
+#include "IRbasic.h"
+
 namespace dark::IR {
 
 
-struct IRbuilder : AST::ASTvisitorbase {
+struct IRbuilder : AST::ASTvisitorbase , IRbasic {
     /* Global null constant shared by all members. */
     inline static auto *__null__ = create_pointer(nullptr);
     inline static auto *__neg1__ = create_integer(-1);   /* Literal -1.  */
@@ -27,11 +29,9 @@ struct IRbuilder : AST::ASTvisitorbase {
     std::map <std::string      ,IR::typeinfo *>    class_map;
     std::map <AST::identifier *,IR::function *> function_map;
     std::map <AST::identifier *,IR::variable *> variable_map;
-    std::map <IR::variable    *,std::string   >   string_map;
 
     std::vector <initialization> global_variables;
     std::vector <  function   >  global_functions;
-    std::vector <  function   >  builtin_function;
     std::vector <  flow_type  >  loop_flow; /* Flow position. */
 
     scope *global_scope = nullptr;
@@ -90,7 +90,6 @@ struct IRbuilder : AST::ASTvisitorbase {
         /* Visit it! Right now! */
         for(auto __p : __def) { top = nullptr; visit(__p); }
 
-        // debug_print();
     }
 
     void debug_print(std::ostream &os) {
@@ -106,9 +105,17 @@ struct IRbuilder : AST::ASTvisitorbase {
 
         for(auto &__func : global_functions)
             os << __func.data() << '\n';
+        os << '\n';
 
         for(auto &__var : builtin_function)
             os << __var.declare();
+        os << '\n';
+
+        for(auto &[__name,__var] : string_map) {
+            auto __str = safe_cast <string_constant *> (__var->const_val);
+            os << __var->data()     << " = "
+               << __str->type_data() << ' ' << __str->data() << '\n';
+        }
     }
 
     void make_basic(scope *__string,scope *__array);
@@ -185,27 +192,6 @@ struct IRbuilder : AST::ASTvisitorbase {
     /* Test whether the function is global. */
     static bool is_global_function(std::string_view);
 
-    /* Create a string constant and return the variable to it. */
-    global_variable *create_string(const std::string &__name) {
-        static size_t __cnt = 0;
-        static std::map <std::string,global_variable *> __map;
-        auto [__iter,__result] = __map.insert({__name,nullptr});
-        if(!__result) return __iter->second;
-
-        auto *__str = new string_constant {__name};
-
-        /* This is a special variable! */
-        auto *__var = new global_variable;
-        __var->name = "@str." + std::to_string(__cnt++);
-        __var->type = {class_map["string"],1};
-        __var->const_val  = __str;
-
-        __iter->second    = __var;
-        string_map[__var] = __name;
-        global_variables.push_back({__var,__str});
-        return __var;
-    }
-
     /* Help to generate better code. */
     string_constant *find_match_string(global_variable *__var) {
         auto __beg = global_variables.crbegin();
@@ -235,5 +221,6 @@ struct IRbuilder : AST::ASTvisitorbase {
     }
 
 };
+
 
 }

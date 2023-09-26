@@ -400,7 +400,7 @@ void IRbuilder::visitLiteralConstant(AST::literal_constant *ctx) {
             result = create_integer(std::stoi(ctx->name));
             break;
         case AST::literal_constant::CSTRING:
-            result = create_string(ctx->name);
+            result = create_cstring(ctx->name);
             break;
         case AST::literal_constant::NULL_ :
             result = __null__;
@@ -729,7 +729,7 @@ void IRbuilder::visitGlobalVariable(AST::variable *ctx,AST::literal_constant *li
     } else if(!lit || lit->type == lit->NULL_) {
         __lit = __null__;
     } else {
-        __lit = create_pointer(create_string(lit->name));
+        __lit = create_pointer(create_cstring(lit->name));
     }
 
     global_variables.push_back({__var,__lit});
@@ -831,10 +831,10 @@ void IRbuilder::make_basic(scope *__string,scope *__array) {
      * "%s\n"   should not be used (replaced by puts)
     */
 
-    create_string("%d");
-    create_string("%d\n");
-    create_string("%s");
-    create_string("%s\n");
+    create_cstring("%d");
+    create_cstring("%d\n");
+    create_cstring("%s");
+    create_cstring("%s\n");
 
     /**
      * __array__::size(this)                = 0
@@ -861,7 +861,7 @@ void IRbuilder::make_basic(scope *__string,scope *__array) {
     wrapper __boo = {class_map["bool"]   = &__boolean_class__ ,0};
     wrapper __nul = {class_map["null"]   = &   __null_class__ ,0};
 
-    builtin_function.resize(23);
+    // builtin_function.resize(23);
     for(size_t i = 0 ; i < 23 ; ++i)
         builtin_function[i].is_builtin = true;
 
@@ -987,7 +987,7 @@ void IRbuilder::visitStringBinary(AST::binary_expr *ctx) {
         auto &&__lstr = find_match_string(__lhs)->context;
         auto &&__rstr = find_match_string(__rhs)->context;
         if (ctx->op == "+") {
-            result = create_string(__lstr + __rstr);
+            result = create_cstring(__lstr + __rstr);
         } else {
             bool __ans =
                 ctx->op == "==" ? __lstr == __rstr :

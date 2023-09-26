@@ -1,4 +1,5 @@
 #include "sccp.h"
+#include "IRbasic.h"
 
 namespace dark::OPT {
 
@@ -231,7 +232,9 @@ void constant_calculator::visitCall(IR::call_stmt *__call) {
             auto __lval = try_get_string(__input_0);
             auto __rval = try_get_string(__input_1);
             if (__lval && __rval) {
-                return generate_string(__lval->context + __rval->context);
+                return IR::IRbasic::create_cstring(
+                    __lval->context + __rval->context
+                );
             } else return nullptr;
         }
 
@@ -253,11 +256,7 @@ void constant_calculator::visitCall(IR::call_stmt *__call) {
             auto __input_0 = __input[0];
             auto __lval = dynamic_cast <IR::integer_constant *> (__input_0);
             if (__lval) {
-                try {
-                    return generate_string(std::to_string(__lval->value));
-                } catch(...) {
-                    return IR::create_undefined({},1);
-                }
+                return IR::IRbasic::create_cstring(std::to_string(__lval->value));
             } else return nullptr;
         }
     
@@ -274,10 +273,11 @@ void constant_calculator::visitCall(IR::call_stmt *__call) {
                 auto __r = __rpos->value;
                 if (__l < 0 || __r < 0 || __l > __r || __r > __lval->context.size())
                     return IR::create_undefined({},3);
-                else return generate_string(__lval->context.substr(__l,__r - __l));
+                else return IR::IRbasic::create_cstring(
+                    __lval->context.substr(__l,__r - __l)
+                );
             } else return nullptr;
         }
-
         return nullptr;
     };
 
@@ -290,7 +290,6 @@ void constant_calculator::visitCall(IR::call_stmt *__call) {
             if (!__lit) return set_result(nullptr);
         }
         /* Tries to simulate the answer out! */
-
     }
     return set_result(nullptr);
 }
@@ -354,17 +353,7 @@ void constant_calculator::visitUnreachable(IR::unreachable_stmt *) {
 IR::definition *merge_definition(IR::definition *__lhs,IR::definition *__rhs) {
     if (dynamic_cast <IR::undefined *> (__lhs)) return __rhs;
     if (dynamic_cast <IR::undefined *> (__rhs)) return __lhs;
-    if (__lhs == __rhs) return __lhs;
-    else {
-        auto __lvar = dynamic_cast <IR::global_variable *> (__lhs);
-        auto __rvar = dynamic_cast <IR::global_variable *> (__rhs);
-        if (__lvar && __rvar) {
-            /* Special comparation for string_constants. */
-            auto __lstr = dynamic_cast <IR::string_constant *> (__lvar->const_val);
-            auto __rstr = dynamic_cast <IR::string_constant *> (__rvar->const_val);
-            if (__lstr && __rstr && __lstr->context == __rstr->context) return __lvar;
-        }
-    } return nullptr;
+    return __lhs == __rhs ? __lhs : nullptr;
 }
 
 
