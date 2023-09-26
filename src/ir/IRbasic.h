@@ -8,6 +8,28 @@
 namespace dark::IR {
 
 
+/**
+ * This is a special helper class!
+ * 
+ * __array__.size(this)                 = 0
+ * string.length(this)                  = 1
+ * string.substring(this,int l,int r)   = 2
+ * string.parseInt(this)                = 3
+ * string.ord(this,int n)               = 4
+ * .print(string str)                   = 5
+ * .println(string str)                 = 6
+ * .printInt(int n)                     = 7
+ * .printlnInt(int n)                   = 8
+ * .getString()                         = 9
+ * .getInt()                            = 10
+ * .toString(int n)                     = 11
+ * .__string__add__(string a,string b)  = 12
+ * 
+ * .__new_array1__ (int length)         = 19
+ * .__new_array4__ (int length)         = 20
+ * malloc(int size)                     = 21
+ * strcmp(string lhs,string rhs)        = 22
+*/
 struct IRbasic {
     /* Count of all builtin functions (including some wasted functions awa.) */
     inline static constexpr size_t BUITLIN_SIZE = 23;
@@ -41,6 +63,17 @@ struct IRbasic {
         /* In the form of var, __str. */
         return __var;
     }
+
+    /**
+     * @brief Return the builtin index of a builtin function.
+    */
+    static size_t get_builtin_index(IR::function *__func) {
+        size_t __n = __func - builtin_function.data();
+        if (__n >= BUITLIN_SIZE) throw error("Wrong builtin function!");
+        return __n;
+    }
+
+
 };
 
 
