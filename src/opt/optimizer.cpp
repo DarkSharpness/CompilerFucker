@@ -7,6 +7,7 @@
 #include "peephole.h"
 #include "collector.h"
 #include "inline.h"
+#include "mx.h"
 
 
 namespace dark::OPT {
@@ -191,6 +192,18 @@ void SSAbuilder::try_optimize(std::vector <IR::function>  &global_functions) {
     /* Final pass: replace all undefined. */
     for(auto &__func : global_functions) {
         __replace_undefined(&__func);
+    }
+
+    for(auto &__func : global_functions) {
+        std::cerr << __func.name << ' ' << (__func.name == "main") << '\n';
+        if (__func.name == "main") {
+            if ((__func.inout_state & __func.OUT) == 0) {
+                __func.stmt.resize(1);
+                auto *__ret = new IR::return_stmt;
+                __ret->rval = IR::create_integer(0);
+                __func.stmt[0]->stmt = {__ret};
+            }
+        }
     }
 }
 
