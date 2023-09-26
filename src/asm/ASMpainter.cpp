@@ -46,7 +46,8 @@ void ASMallocator::paint_color(function *__func) {
     for(auto &&[__reg,__ref] : vir_map) {
         if (__ref.type == address_info::CALLER) {
             // ra-used case!
-            if (__ref.index == 1) __func->save_ra = true;
+            if (caller_save[__ref.index]->index == 1)
+                __func->save_ra = true;
             auto &__ptr = __impl->usage_map.at(__reg);
             /* Assign a stack slot for caller_save. */
             for(auto [__call,__idx] : __ptr.save_set) {
@@ -92,7 +93,7 @@ void ASMallocator::paint_color(function *__func) {
         expr_list.swap(__block->expression);
         expr_list.clear();
     }
-    
+
     __func->stk_count = stack_map.size();
 }
 
