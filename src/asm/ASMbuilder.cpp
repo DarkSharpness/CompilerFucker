@@ -373,15 +373,10 @@ void ASMbuilder::visitCall(IR::call_stmt *__stmt) {
         constexpr size_t __getString__  = __string_hash("__getString__");
         constexpr size_t __getInt__     = __string_hash("__getInt__");
         constexpr size_t __toString__   = __string_hash("__toString__");
+        constexpr size_t __join__       = __string_hash("__string_add__");
         auto __hash  = __string_hash(__func->name.c_str());
 
         switch(__hash) {
-            case __print__:
-            case __printInt__:
-            case __printlnInt__:
-            case __parseInt__:
-
-                break;
             case __ord__: /* String ord. */
             if (tail_call_set.count(__stmt)) __dest = get_physical(10);
             return [this,__stmt,__dest]() -> void {
@@ -413,7 +408,27 @@ void ASMbuilder::visitCall(IR::call_stmt *__stmt) {
                     );
             } ();
 
-            case __size__:
+            case __size__: /* Array size. */
+            if (tail_call_set.count(__stmt)) __dest = get_physical(10);
+            return [this,__stmt,__dest]() -> auto {
+                auto __val = get_value(__stmt->args[0]);
+                runtime_assert("",__val.type == __val.POINTER);
+                top_block->emplace_back(new load_memory {
+                    load_memory::WORD, __dest,
+                    __val.pointer += (-4)
+                });
+                /* Tail call case. */
+                if (tail_call_set.count(__stmt))
+                    top_block->emplace_back(
+                        new ret_expression {top_asm,__dest}
+                    );
+            } ();
+
+            case __join__:
+            case __print__:
+            case __printInt__:
+            case __printlnInt__:
+            case __parseInt__:
             case __new_array1__:
             case __new_array4__:
             case __getString__:
