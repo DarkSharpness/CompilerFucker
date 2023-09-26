@@ -410,9 +410,9 @@ struct block : hidden_impl {
     noexcept : name {
         string_join(".L.",std::to_string(label_count++),'.',__name)
     } {
-        if (__name.find("for")   != std::string::npos
-        ||  __name.find("while") != std::string::npos)
-            loop_factor = 8;
+        // if (__name.find("for")   != std::string::npos
+        // ||  __name.find("while") != std::string::npos)
+        //     loop_factor = 8;
     }
 
     void emplace_back(node *__p) { expression.push_back(__p); }
