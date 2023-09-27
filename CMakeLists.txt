@@ -23,6 +23,7 @@ include_directories(src/opt/simu)
 include_directories(src/opt/loop)
 include_directories(src/opt/local)
 include_directories(src/opt/inline)
+include_directories(src/opt/global)
 
 
 
