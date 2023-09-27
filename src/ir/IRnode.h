@@ -52,6 +52,9 @@ struct phi_stmt;
 struct block_stmt final : hidden_impl {
     std::string label;
     std::vector <statement *> stmt; /* Statements */
+    double loop_factor = 1.0; /* Loop factor. */
+
+    block_stmt *prefer = nullptr; /* The block that the block prefers. */
 
     /* Simply join all message in it together. */
     std::string data() const;
