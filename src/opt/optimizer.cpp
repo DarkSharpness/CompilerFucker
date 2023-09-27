@@ -8,6 +8,7 @@
 #include "collector.h"
 #include "inline.h"
 #include "mx.h"
+#include "loop.h"
 
 
 namespace dark::OPT {
@@ -46,7 +47,7 @@ void SSAbuilder::try_optimize(std::vector <IR::function>  &global_functions) {
         if(__func.is_unreachable()) continue;
 
         /* This builds up SSA form and lay phi statement. */
-        dominate_maker{&__func,__entry};
+        dominate_maker{&__func,__entry}.clear_dom();
 
         /* Eliminate dead code safely. */
         deadcode_eliminator{&__func,__entry};
@@ -128,6 +129,7 @@ void SSAbuilder::try_optimize(std::vector <IR::function>  &global_functions) {
             branch_cutter       {&__func,__entry};
             deadcode_eliminator {&__func,__entry};
         }
+        loop_detector __loop_data {&__func,__entry};
     }
 
     auto &&__checker = [] (IR::function *__func) -> void {

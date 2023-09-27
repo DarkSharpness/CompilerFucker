@@ -46,6 +46,9 @@ struct dominate_maker {
     /* Renaming for a node. */
     void rename(node *);
 
+    /* Clear the dom tree data. */
+    void clear_dom();
+
     /* Update node's branch. */
     void update_branch(node *,node *);
 
