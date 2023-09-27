@@ -198,6 +198,8 @@ void SSAbuilder::try_optimize(std::vector <IR::function>  &global_functions) {
 
     /* Final pass: replace all undefined. */
     for(auto &__func : global_functions) {
+        auto __entry = create_node(__func.stmt.front());
+        loop_detector __loop_data {&__func,__entry};
         malloc_eliminator {&__func,nullptr};
         __replace_undefined(&__func);
     }

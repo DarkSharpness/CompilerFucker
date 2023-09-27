@@ -12,6 +12,7 @@ loop_detector::loop_detector(IR::function *__func,node *__entry) {
 
     /* First, find all backward edges. */
     for(auto __block : __func->stmt) {
+        __block->loop_factor = 1;
         auto __node = __block->get_impl_ptr <node> ();
         auto &__dom = __node->dom;
         for(auto __next : __node->next) {
@@ -78,9 +79,12 @@ loop_detector::loop_detector(IR::function *__func,node *__entry) {
 
     __dfs(__dfs,__entry);
 
-    /* Finding all induction variables. */
-
-
+    /* Nothing special. */
+    for(auto &[__header,__loop] : loop_map) {
+        for(auto __node : __loop.loop_blocks) {
+            __node->block->loop_factor *= 10;
+        }
+    }
 
 }
 
