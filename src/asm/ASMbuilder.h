@@ -63,11 +63,11 @@ struct ASMbuilder final : IR::IRvisitorbase {
         size_t __hash = std::hash <IR::block_stmt *> () (__old) + __off;
         auto *__block = reinterpret_cast <IR::block_stmt *> (__hash);
         auto  __name  = string_join(__old->label,"_v_",char(__off + '0'));
-        return &block_map.try_emplace(__block,__name).first->second;
+        return &block_map.try_emplace(__block,__name,__old).first->second;
     }
 
     block *get_block(IR::block_stmt *__block) {
-        return &block_map.try_emplace(__block,__block->label).first->second;
+        return &block_map.try_emplace(__block,__block->label,__block).first->second;
     }
 
     /* No renaming is done. */

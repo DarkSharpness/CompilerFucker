@@ -406,13 +406,13 @@ struct block : hidden_impl {
     /* Default as 1 if not specially setted. */
     double loop_factor = 1;
 
-    explicit block (std::string __name)
+    IR::block_stmt *old_block;
+
+    explicit block (std::string __name,IR::block_stmt *__old)
     noexcept : name {
         string_join(".L.",std::to_string(label_count++),'.',__name)
-    } {
-        if (__name.find("for")   != std::string::npos
-        ||  __name.find("while") != std::string::npos)
-            loop_factor = 8;
+    }, old_block (__old) {
+        loop_factor = __old->loop_factor;
     }
 
     void emplace_back(node *__p) { expression.push_back(__p); }

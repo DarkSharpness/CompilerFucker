@@ -82,8 +82,10 @@ void ASMlifeanalyser::make_order(function *__func) {
         if (__next.size() == 2) {
             auto &__next0 = __next[0];
             auto &__next1 = __next[1];
-            /* Always visit non-loop-related first. */
-            if (__next0->loop_factor > __next1->loop_factor)
+
+            /* Always visit prefered/loop node first. */
+            if(__block->old_block->prefer == __next1->old_block
+            || __next0->loop_factor < __next1->loop_factor)
                 std::swap(__next0,__next1);
         }
     }
