@@ -69,6 +69,8 @@ void SSAbuilder::try_optimize(std::vector <IR::function>  &global_functions) {
 
         /* Peephole optimization. */
         if(__optimize_state.enable_PEEP) {
+            special_judger      {&__func,__entry,this};
+            deadcode_eliminator {&__func,__entry};
             local_optimizer     {&__func,__entry};
             deadcode_eliminator {&__func,__entry};   
             local_optimizer     {&__func,__entry};
@@ -151,7 +153,10 @@ void SSAbuilder::try_optimize(std::vector <IR::function>  &global_functions) {
         }
         unreachable_remover {__func,__entry};
         if (__optimize_state.enable_PEEP) {
+            special_judger      {__func,__entry,nullptr};
+            deadcode_eliminator {__func,__entry};
             local_optimizer     {__func,__entry};
+            deadcode_eliminator {__func,__entry};
             constant_propagatior{__func,__entry};
             branch_cutter       {__func,__entry};
             deadcode_eliminator {__func,__entry};
@@ -196,17 +201,17 @@ void SSAbuilder::try_optimize(std::vector <IR::function>  &global_functions) {
     }
 
     /* Optimize out no output case. */
-    for(auto &__func : global_functions) {
-        std::cerr << __func.name << ' ' << (__func.name == "main") << '\n';
-        if (__func.name == "main") {
-            if ((__func.inout_state & __func.OUT) == 0) {
-                __func.stmt.resize(1);
-                auto *__ret = new IR::return_stmt;
-                __ret->rval = IR::create_integer(0);
-                __func.stmt[0]->stmt = {__ret};
-            }
-        }
-    }
+    // for(auto &__func : global_functions) {
+    //     std::cerr << __func.name << ' ' << (__func.name == "main") << '\n';
+    //     if (__func.name == "main") {
+    //         if ((__func.inout_state & __func.OUT) == 0) {
+    //             __func.stmt.resize(1);
+    //             auto *__ret = new IR::return_stmt;
+    //             __ret->rval = IR::create_integer(0);
+    //             __func.stmt[0]->stmt = {__ret};
+    //         }
+    //     }
+    // }
 }
 
 

@@ -17,7 +17,7 @@ namespace dark::IR {
  * string.parseInt(this)                = 3
  * string.ord(this,int n)               = 4
  * .print(string str)                   = 5
- * .println(string str)                 = 6
+ * puts(str)                            = 6
  * .printInt(int n)                     = 7
  * .printlnInt(int n)                   = 8
  * .getString()                         = 9
@@ -33,6 +33,15 @@ namespace dark::IR {
 struct IRbasic {
     /* Count of all builtin functions (including some wasted functions awa.) */
     inline static constexpr size_t BUITLIN_SIZE = 23;
+
+    /**
+     * @return The builtin index of a builtin function.
+    */
+    static size_t get_builtin_index(IR::function *__func) {
+        size_t __n = __func - builtin_function.data();
+        if (__n >= BUITLIN_SIZE) throw error("Wrong builtin function!");
+        return __n;
+    }
 
     using _Function_List = std::array         <function,BUITLIN_SIZE>;
     using _String_Map    = std::unordered_map <std::string,global_variable *>;
@@ -62,15 +71,6 @@ struct IRbasic {
 
         /* In the form of var, __str. */
         return __var;
-    }
-
-    /**
-     * @brief Return the builtin index of a builtin function.
-    */
-    static size_t get_builtin_index(IR::function *__func) {
-        size_t __n = __func - builtin_function.data();
-        if (__n >= BUITLIN_SIZE) throw error("Wrong builtin function!");
-        return __n;
     }
 
 
