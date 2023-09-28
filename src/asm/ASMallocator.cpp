@@ -241,46 +241,32 @@ void ASMallocator::expire_old(int __count) {
 
 /* Tries to find a best suit for caller/callee. */
 std::pair <int,int> ASMallocator::find_best_pair(int __beg,int __end) const {
-    auto __next  = std::lower_bound(block_pos.begin(), block_pos.end(), __end);
     int __callee = -1, __caller = -1;
+    int __wasted = INT32_MAX;
+    /* Find out the potential callee. */
 
-    /* If in one block, find potential hole. */
-    if (__beg >= *(__next - 1)) {
-        int __wasted = INT32_MAX;
-        /* Find out the potential callee. */
-        for(size_t i = 0 ; i < CALLEE_SIZE; ++i) {
-            auto &__ref = active_list[i + 0];
-            auto  __use = __ref.next_use();
-            if (__use < __end) continue;
-            /* Available case! Pick the least waste. */
-            if (__use - __beg < __wasted) {
-                __wasted = __use - __beg;
-                __callee = i;
-            }
+    __wasted = INT32_MAX;
+    for(size_t i = 0 ; i < CALLEE_SIZE; ++i) {
+        auto &__ref = active_list[i + 0];
+        auto  __use = __ref.next_use();
+        if (__use < __end) continue;
+        /* Available case! Pick the least waste. */
+        if (__use - __beg < __wasted) {
+            __wasted = __use - __beg;
+            __callee = i;
         }
+    }
 
-        __wasted = INT32_MAX;
-        /* Find out the potential caller. */
-        for(size_t i = 0 ; i < CALLER_SIZE; ++i) {
-            auto &__ref = active_list[i + CALLEE_SIZE];
-            auto  __use = __ref.next_use();
-            if (__use < __end) continue;
-            /* Available case! Pick the least waste. */
-            if (__use - __beg < __wasted) {
-                __wasted = __use - __beg;
-                __caller = i;
-            }
-        }
-    } else { /* Cannot use the holes. */
-        for(size_t i = 0 ; i < CALLEE_SIZE; ++i) {
-            auto &__ref = active_list[i + 0];
-            auto  __use = __ref.next_use();
-            if (__use == __ref.NPOS) { __callee = i; break; }
-        }
-        for(size_t i = 0 ; i < CALLER_SIZE; ++i) {
-            auto &__ref = active_list[i + CALLEE_SIZE];
-            auto  __use = __ref.next_use();
-            if (__use == __ref.NPOS) { __caller = i; break; }
+    __wasted = INT32_MAX;
+    /* Find out the potential caller. */
+    for(size_t i = 0 ; i < CALLER_SIZE; ++i) {
+        auto &__ref = active_list[i + CALLEE_SIZE];
+        auto  __use = __ref.next_use();
+        if (__use < __end) continue;
+        /* Available case! Pick the least waste. */
+        if (__use - __beg < __wasted) {
+            __wasted = __use - __beg;
+            __caller = i;
         }
     }
 
